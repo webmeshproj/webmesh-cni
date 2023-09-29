@@ -1,0 +1,85 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: webmesh-node
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-node
+spec:
+  selector:
+    matchLabels:
+      k8s-app: webmesh-node
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: webmesh-node
+    spec:
+      serviceAccountName: webmesh-node
+      terminationGracePeriodSeconds: 0
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      initContainers:
+        - name: install-cni
+          image: {{ .CNIImage }}
+          command: ["/install-cni.sh"]
+          env:
+            - name: CNI_CONF_NAME
+              value: "10-webmesh.conflist"
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
+          securityContext:
+            privileged: true
+      containers:
+        - name: webmesh-node
+          image: {{ .NodeImage }}
+          env:
+            - name: STORAGE_PROVIDER
+              value: "kubernetes"
+            - name: WAIT_FOR_STORAGE
+              value: "true"
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /lib/modules
+              name: lib-modules
+              readOnly: true
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 250m
+      volumes:
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: cni-bin-dir
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni-net-dir
+          hostPath:
+            path: /etc/cni/net.d
