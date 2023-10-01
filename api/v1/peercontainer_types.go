@@ -58,6 +58,8 @@ type PeerContainerStatus struct {
 	Phase InterfacePhase `json:"status"`
 	// InterfaceName is the name of the interface.
 	InterfaceName string `json:"interfaceName"`
+	// MACAddress is the MAC address of the interface.
+	MACAddress string `json:"macAddress"`
 	// IPv4Address is the IPv4 address of the interface.
 	IPv4Address string `json:"ipv4Address"`
 	// IPv6Address is the IPv6 address of the interface.

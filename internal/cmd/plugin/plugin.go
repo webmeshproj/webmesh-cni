@@ -31,6 +31,8 @@ import (
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
 	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ipam"
+	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -110,6 +112,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	log.Debug("New ADD request", "config", conf, "args", args)
+	containerNs, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+	}
+	defer containerNs.Close()
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -169,6 +176,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			}
 		}
 	}
+	log.Info("Creating PeerContainer", "container", container)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
 	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
@@ -181,9 +189,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 			}
 		}
 	}
-	// TODO: Wait for the PeerContainer to be ready and then give its interface to the container.
+	// Wait for the PeerContainer to be ready.
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
+WaitForInterface:
 	for {
 		select {
 		case <-ctx.Done():
@@ -200,17 +209,65 @@ func cmdAdd(args *skel.CmdArgs) error {
 			}
 			switch container.Status.Phase {
 			case meshcniv1.InterfaceStatusCreated:
-				log.Info("Waiting for container interface to be ready", "phase", container.Status.Phase)
+				log.Debug("Waiting for container interface to be ready", "phase", container.Status.Phase)
 			case meshcniv1.InterfaceStatusStarting:
-				log.Info("Waiting for container interface to be ready", "phase", container.Status.Phase)
+				log.Debug("Waiting for container interface to be ready", "phase", container.Status.Phase)
 			case meshcniv1.InterfaceStatusRunning:
 				log.Info("Container interface is ready", "phase", container.Status.Phase)
-				// TODO: Give the interface to the container.
+				break WaitForInterface
 			case meshcniv1.InterfaceStatusFailed:
 				log.Error("Container interface failed to start", "phase", container.Status.Phase, "error", container.Status.Error)
 			}
 		}
 	}
+	// Start building the result
+	result := &cniv1.Result{
+		CNIVersion: conf.CNIVersion,
+		IPs: func() []*cniv1.IPConfig {
+			var ips []*cniv1.IPConfig
+			if container.Status.IPv4Address != "" {
+				ipnet, err := netlink.ParseIPNet(container.Status.IPv4Address)
+				if err != nil {
+					log.Error("Failed to parse IPv4 address", "error", err.Error())
+				} else {
+					ips = append(ips, &cniv1.IPConfig{
+						Address: *ipnet,
+						Gateway: ipnet.IP, // Use system's default gateway or self?
+					})
+				}
+			}
+			if container.Status.IPv6Address != "" {
+				ipnet, err := netlink.ParseIPNet(container.Status.IPv6Address)
+				if err != nil {
+					log.Error("Failed to parse IPv6 address", "error", err.Error())
+				} else {
+					ips = append(ips, &cniv1.IPConfig{
+						Address: *ipnet,
+						Gateway: ipnet.IP, // Use system's default gateway or self?
+					})
+				}
+			}
+			return ips
+		}(),
+		Routes: []*types.Route{}, // The mesh node handles route configurations.
+		DNS:    conf.DNS,
+	}
+	// Move the wireguard interface to the container namespace.
+	link, err := netlink.LinkByName(container.Status.InterfaceName)
+	if err != nil {
+		return fmt.Errorf("failed to find %q: %v", container.Status.InterfaceName, err)
+	}
+	contDev, err := moveLinkIn(link, containerNs, container.Status.InterfaceName)
+	if err != nil {
+		return fmt.Errorf("move link to container namespace: %v", err)
+	}
+	result.Interfaces = []*cniv1.Interface{{
+		Name:    contDev.Attrs().Name,
+		Mac:     contDev.Attrs().HardwareAddr.String(),
+		Sandbox: containerNs.Path(),
+	}}
+	types.PrintResult(result, conf.CNIVersion)
+	return nil
 }
 
 // cmdCheck is the CNI CHECK command handler.
@@ -219,13 +276,14 @@ func cmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	log.Debug("New DEL request", "config", conf, "args", args)
+	log.Debug("New CHECK request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 	err = cli.Ping(testConnectionTimeout)
-	// TODO: Check if the PeerContainer exists and is ready, or just return OK?.
+	// TODO: Check if the PeerContainer exists and is ready perhaps?
+	// Most implementations do a dummy check like this.
 	if err == nil {
 		fmt.Println("OK")
 	}
@@ -246,6 +304,19 @@ func cmdDel(args *skel.CmdArgs) error {
 	err = cli.Ping(testConnectionTimeout)
 	if err != nil {
 		log.Error("Failed to ping API server", "error", err.Error())
+		return err
+	}
+	// Remove the interface from the container namespace.
+	if args.Netns == "" {
+		// We must be done already.
+		return nil
+	}
+	containerNs, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+	}
+	defer containerNs.Close()
+	if err := moveLinkOut(containerNs, args.IfName); err != nil {
 		return err
 	}
 	// Delete the PeerContainer.

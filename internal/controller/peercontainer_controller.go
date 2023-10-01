@@ -279,9 +279,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		ifname := node.Network().WireGuard().Name()
 		addrv4 := node.Network().WireGuard().AddressV4().String()
 		addrv6 := node.Network().WireGuard().AddressV6().String()
+		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
 		if container.Status.Phase != cniv1.InterfaceStatusRunning {
 			// Update the status to running and sets its IP address.
 			container.Status.Phase = cniv1.InterfaceStatusRunning
+			updateStatus = true
+		}
+		if container.Status.MACAddress != hwaddr.String() {
+			container.Status.MACAddress = hwaddr.String()
 			updateStatus = true
 		}
 		if container.Status.IPv4Address != addrv4 {
