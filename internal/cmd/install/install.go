@@ -14,14 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cni contains the plugin implementation for the webmesh-cni.
-package main
+// Package install contains the entrypoint for the webmesh-cni install component.
+package install
 
-import (
-	"github.com/webmeshproj/webmesh-cni/internal/cmd/node"
-	"github.com/webmeshproj/webmesh-cni/internal/version"
-)
-
-func main() {
-	node.Main(version.Version)
-}
+// Main ensures the CNI binaries and configuration are installed on the host system.
+func Main(version string) {}

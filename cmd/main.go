@@ -18,10 +18,28 @@ limitations under the License.
 package main
 
 import (
+	"os"
+
+	"github.com/webmeshproj/webmesh-cni/internal/cmd/install"
+	"github.com/webmeshproj/webmesh-cni/internal/cmd/node"
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/plugin"
 	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 func main() {
-	plugin.Main(version.Version)
+	exec, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	// We run the entrypoint based on how we were invoked.
+	switch exec {
+	case "webmesh-cni":
+		node.Main(version.Version)
+	case "webmesh-cni-plugin":
+		plugin.Main(version.Version)
+	case "webmesh-cni-install":
+		install.Main(version.Version)
+	default:
+		panic("unknown executable")
+	}
 }

@@ -82,6 +82,8 @@ type Kubernetes struct {
 }
 
 const (
+	// TODO: Make these configurable.
+
 	// How long we wait to try to ping the API server before giving up.
 	testConnectionTimeout = time.Second * 2
 	// How long we wait to try to create the peer container instance.
