@@ -77,37 +77,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	if r.nodes == nil {
 		r.nodes = make(map[types.NamespacedName]meshnode.Node)
 	}
-	// Check if we have started the node yet.
+	// Check if we have registered the node yet
 	name := types.NamespacedName{Name: container.Spec.NodeName}
 	node, ok := r.nodes[name]
 	if !ok {
-		log.Info("Mesh node for container not found, we must need to create it", "container", name)
 		// We need to create the node.
-		key, err := crypto.GenerateKey()
-		if err != nil {
-			return fmt.Errorf("failed to generate key: %w", err)
-		}
-		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
-			NodeID:          container.Spec.ContainerID,
-			Key:             key,
-			ZoneAwarenessID: container.Spec.NodeName,
-			DisableIPv4:     container.Spec.DisableIPv4,
-			DisableIPv6:     container.Spec.DisableIPv6,
-		})
-		// Update the status to created.
-		container.Status.Status = cniv1.InterfaceStatusCreated
-		if err := r.Status().Update(ctx, container); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
-		}
-		return nil
-	}
-	// If the node is not started, start it.
-	if !node.Started() {
-		// Get the next available wireguard port.
-		wireguardPort, err := r.nextAvailableWireGuardPort()
-		if err != nil {
-			return fmt.Errorf("failed to get next available wireguard port: %w", err)
-		}
+		log.Info("Mesh node for container not found, we must need to create it", "container", name)
 		// Detect the current endpoints on the machine.
 		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 			DetectIPv6:           true,
@@ -126,19 +101,77 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			return fmt.Errorf("failed to detect endpoints: %w", err)
 		}
-		err = node.Connect(ctx, meshnode.ConnectOptions{
-			StorageProvider: r.Provider,
-			MaxJoinRetries:  3, // Make configurable
-			JoinRoundTripper: transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
-				// Look up all currently known peers and return them.
-				// TODO: Implement
-				return &v1.JoinResponse{}, fmt.Errorf("not implemented")
-			}),
+		// Get the next available wireguard port.
+		wireguardPort, err := r.nextAvailableWireGuardPort()
+		if err != nil {
+			return fmt.Errorf("failed to get next available wireguard port: %w", err)
+		}
+		var wgeps []string
+		for _, ep := range eps.AddrPorts(wireguardPort) {
+			wgeps = append(wgeps, ep.String())
+		}
+		key, err := crypto.GenerateKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate key: %w", err)
+		}
+		encoded, err := key.PublicKey().Encode()
+		if err != nil {
+			return fmt.Errorf("failed to encode public key: %w", err)
+		}
+		// Try to register this node as a peer directly via the API.
+		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
+			MeshNode: &v1.MeshNode{
+				Id:                 container.Spec.ContainerID,
+				PublicKey:          encoded,
+				PrimaryEndpoint:    eps.FirstPublicAddr().String(),
+				WireguardEndpoints: wgeps,
+				ZoneAwarenessID:    container.Spec.NodeName,
+				PrivateIPv4:        container.Spec.IPv4Address,
+				PrivateIPv6:        "", // TODO: Grab the IPv6 domain from the cluster.
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to register peer: %w", err)
+		}
+		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
+			NodeID:          container.Spec.ContainerID,
+			Key:             key,
+			ZoneAwarenessID: container.Spec.NodeName,
+			DisableIPv4:     container.Spec.DisableIPv4,
+			DisableIPv6:     container.Spec.DisableIPv6,
+		})
+		// Update the status to created.
+		container.Status.Status = cniv1.InterfaceStatusCreated
+		if err := r.Status().Update(ctx, container); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+		return nil
+	}
+	// If the node is not started, start it.
+	if !node.Started() {
+		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
+			// Look up all currently known peers and return them.
+			// TODO: Implement
+			return &v1.JoinResponse{}, fmt.Errorf("not implemented")
+		})
+		err := node.Connect(ctx, meshnode.ConnectOptions{
+			StorageProvider:  r.Provider,
+			MaxJoinRetries:   3, // Make configurable
+			JoinRoundTripper: rtt,
+			Bootstrap: &meshnode.BootstrapOptions{
+				Transport:            nil,
+				IPv4Network:          "",
+				MeshDomain:           "",
+				Admin:                "",
+				DisableRBAC:          true,
+				DefaultNetworkPolicy: "accept",
+			},
 			NetworkOptions: meshnet.Options{
-				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
-				InterfaceName:         container.Spec.IfName,
-				ForceReplace:          true,
-				ListenPort:            int(wireguardPort),
+				NodeID:        meshtypes.NodeID(container.Spec.ContainerID),
+				InterfaceName: container.Spec.IfName,
+				ForceReplace:  true,
+				// TODO: Grab from the one we registered above.
+				ListenPort:            int(0),
 				MTU:                   container.Spec.MTU,
 				RecordMetrics:         false, // Maybe by configuration?
 				RecordMetricsInterval: 0,
@@ -146,9 +179,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				DisableIPv4:           container.Spec.DisableIPv4,
 				DisableIPv6:           container.Spec.DisableIPv6,
 			},
-			// Detect and set these.
-			PrimaryEndpoint:    eps.FirstPublicAddr(),
-			WireGuardEndpoints: eps.AddrPorts(wireguardPort),
 			DirectPeers: func() map[string]v1.ConnectProtocol {
 				peers := make(map[string]v1.ConnectProtocol)
 				for _, n := range r.nodes {
@@ -218,6 +248,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 	}
+	// TODO: Make sure all MeshEdges are up to date.
 	return nil
 }
 

@@ -156,6 +156,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 			log.Error("Failed to get IPAM result", "error", err.Error())
 			return err
 		}
+		if len(res.IPs) == 0 {
+			// The IPAM plugin didn't return an IP address
+			return fmt.Errorf("IPAM plugin returned no IP address")
+		}
 		for _, conf := range res.IPs {
 			if conf.Address.IP.To4() != nil {
 				container.Spec.IPv4Address = conf.Address.String()

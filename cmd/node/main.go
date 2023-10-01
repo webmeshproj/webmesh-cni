@@ -89,6 +89,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check if an IPv6 prefix is set for the webmesh cluster yet. This is usually handled
+	// by the bootstrap process of a node. But for now we'll just do it here.
+
 	if err = (&controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
