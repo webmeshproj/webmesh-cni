@@ -20,14 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// InterfaceStatus is the current status of a new peer interface.
-type InterfaceStatus string
+// InterfacePhase is the current status of a new peer interface.
+type InterfacePhase string
 
 const (
-	InterfaceStatusCreated  InterfaceStatus = "Created"
-	InterfaceStatusStarting InterfaceStatus = "Starting"
-	InterfaceStatusRunning  InterfaceStatus = "Running"
-	InterfaceStatusFailed   InterfaceStatus = "Failed"
+	InterfaceStatusCreated  InterfacePhase = "Created"
+	InterfaceStatusStarting InterfacePhase = "Starting"
+	InterfaceStatusRunning  InterfacePhase = "Running"
+	InterfaceStatusFailed   InterfacePhase = "Failed"
 )
 
 // PeerContainerSpec defines the desired state of PeerContainer
@@ -54,8 +54,8 @@ type PeerContainerSpec struct {
 
 // PeerContainerStatus defines the observed state of PeerContainer
 type PeerContainerStatus struct {
-	// Status is the current status of the interface.
-	Status InterfaceStatus `json:"status"`
+	// Phase is the current status of the interface.
+	Phase InterfacePhase `json:"status"`
 	// InterfaceName is the name of the interface.
 	InterfaceName string `json:"interfaceName"`
 	// IPv4Address is the IPv4 address of the interface.

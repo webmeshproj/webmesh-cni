@@ -159,7 +159,8 @@ func Main(version string) {
 		}
 	}()
 
-	// TODO: Attempt to recover from any ungraceful shutdowns.
+	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
+	// to join the network.
 
 	<-ctx.Done()
 	select {

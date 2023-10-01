@@ -119,7 +119,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 	// Start building a container type.
-	desiredIfName := "webmesh" + args.ContainerID[:min(11, len(args.ContainerID))]
+	desiredIfName := "webmesh" + args.ContainerID[:min(9, len(args.ContainerID))]
 	container := &meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
@@ -190,6 +190,25 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return fmt.Errorf("timed out waiting for container interface to be ready")
 		case <-time.After(time.Second):
 			// Try to fetch the container status
+			err = cli.Get(ctx, client.ObjectKey{
+				Name:      args.ContainerID,
+				Namespace: conf.Kubernetes.Namespace,
+			}, container)
+			if err != nil {
+				log.Error("Failed to get PeerContainer", "error", err.Error())
+				continue
+			}
+			switch container.Status.Phase {
+			case meshcniv1.InterfaceStatusCreated:
+				log.Info("Waiting for container interface to be ready", "phase", container.Status.Phase)
+			case meshcniv1.InterfaceStatusStarting:
+				log.Info("Waiting for container interface to be ready", "phase", container.Status.Phase)
+			case meshcniv1.InterfaceStatusRunning:
+				log.Info("Container interface is ready", "phase", container.Status.Phase)
+				// TODO: Give the interface to the container.
+			case meshcniv1.InterfaceStatusFailed:
+				log.Error("Container interface failed to start", "phase", container.Status.Phase, "error", container.Status.Error)
+			}
 		}
 	}
 }

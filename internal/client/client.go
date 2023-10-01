@@ -39,6 +39,7 @@ var (
 )
 
 type (
+	ObjectKey  = client.ObjectKey
 	FieldOwner = client.FieldOwner
 )
 

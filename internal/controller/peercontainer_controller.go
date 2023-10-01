@@ -187,7 +187,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			DisableIPv6:     container.Spec.DisableIPv6,
 		})
 		// Update the status to created.
-		container.Status.Status = cniv1.InterfaceStatusCreated
+		container.Status.Phase = cniv1.InterfaceStatusCreated
 		if err := r.Status().Update(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
@@ -198,7 +198,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
 		if err != nil {
 			// Try to update the status to failed.
-			container.Status.Status = cniv1.InterfaceStatusFailed
+			container.Status.Phase = cniv1.InterfaceStatusFailed
 			container.Status.Error = err.Error()
 			if err := r.Status().Update(ctx, container); err != nil {
 				log.Error(err, "Failed to update container status", "container", container)
@@ -209,7 +209,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
 			// Try to update the status to failed.
-			container.Status.Status = cniv1.InterfaceStatusFailed
+			container.Status.Phase = cniv1.InterfaceStatusFailed
 			container.Status.Error = err.Error()
 			if err := r.Status().Update(ctx, container); err != nil {
 				log.Error(err, "Failed to update container status", "container", container)
@@ -267,7 +267,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
-		container.Status.Status = cniv1.InterfaceStatusStarting
+		container.Status.Phase = cniv1.InterfaceStatusStarting
 		if err := r.Status().Update(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
@@ -279,9 +279,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		ifname := node.Network().WireGuard().Name()
 		addrv4 := node.Network().WireGuard().AddressV4().String()
 		addrv6 := node.Network().WireGuard().AddressV6().String()
-		if container.Status.Status != cniv1.InterfaceStatusRunning {
+		if container.Status.Phase != cniv1.InterfaceStatusRunning {
 			// Update the status to running and sets its IP address.
-			container.Status.Status = cniv1.InterfaceStatusRunning
+			container.Status.Phase = cniv1.InterfaceStatusRunning
 			updateStatus = true
 		}
 		if container.Status.IPv4Address != addrv4 {
@@ -354,7 +354,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 }
 
 func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
-	container.Status.Status = cniv1.InterfaceStatusFailed
+	container.Status.Phase = cniv1.InterfaceStatusFailed
 	container.Status.Error = reason.Error()
 	if err := r.Status().Update(ctx, container); err != nil {
 		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
