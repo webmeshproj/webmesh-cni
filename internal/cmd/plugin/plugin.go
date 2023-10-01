@@ -84,6 +84,8 @@ const (
 	testConnectionTimeout = time.Second * 2
 	// How long we wait to try to create the peer container instance.
 	createPeerContainerTimeout = time.Second * 2
+	// How long to wait for the controller to setup the container interface.
+	setupContainerInterfaceTimeout = time.Second * 10
 )
 
 // A global logger set when configuration is loaded.
@@ -181,7 +183,16 @@ func cmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 	// TODO: Wait for the PeerContainer to be ready and then give its interface to the container.
-	return err
+	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for container interface to be ready")
+		case <-time.After(time.Second):
+			// Try to fetch the container status
+		}
+	}
 }
 
 // cmdCheck is the CNI CHECK command handler.
@@ -197,6 +208,9 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	err = cli.Ping(testConnectionTimeout)
 	// TODO: Check if the PeerContainer exists and is ready.
+	if err == nil {
+		fmt.Println("OK")
+	}
 	return err
 }
 

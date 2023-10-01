@@ -31,6 +31,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	"github.com/webmeshproj/webmesh/pkg/plugins/builtins/ipam"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -128,6 +129,20 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to encode public key: %w", err)
+		}
+		if container.Spec.IPv4Address == "" && !container.Spec.DisableIPv4 {
+			// If the container does not have an IPv4 address and we are not disabling
+			// IPv4, use the default plugin to allocate one.
+			plugin := ipam.NewWithDB(r.Provider.MeshDB())
+			alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
+				NodeID: nodeID.String(),
+				Subnet: r.NetworkV4.String(),
+			})
+			if err != nil {
+				r.setFailedStatus(ctx, container, err)
+				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
+			}
+			container.Spec.IPv4Address = alloc.GetIp()
 		}
 		// Try to register this node as a peer directly via the API.
 		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
