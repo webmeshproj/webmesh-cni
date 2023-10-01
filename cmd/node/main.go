@@ -60,6 +60,7 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctx := ctrl.SetupSignalHandler()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -72,7 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	storageProider, err := provider.NewWithManager(mgr, provider.Options{
+	storageProvider, err := provider.NewWithManager(mgr, provider.Options{
 		NodeID:                      os.Getenv("KUBERNETES_NODE_NAME"),
 		LeaderElectionLeaseDuration: time.Second * 15,
 		LeaderElectionRenewDeadline: time.Second * 10,
@@ -82,11 +83,16 @@ func main() {
 		setupLog.Error(err, "unable to create webmesh storage provider")
 		os.Exit(1)
 	}
+	err = storageProvider.StartManaged(ctx)
+	if err != nil {
+		setupLog.Error(err, "unable to start webmesh storage provider")
+		os.Exit(1)
+	}
 
 	if err = (&controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Provider: storageProider,
+		Provider: storageProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)
@@ -102,7 +108,7 @@ func main() {
 	}
 
 	setupLog.Info("Starting peer container manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
