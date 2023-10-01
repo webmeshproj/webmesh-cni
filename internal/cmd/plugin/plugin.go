@@ -141,8 +141,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 		},
 	}
 	// Check if an IPAM plugin is configured.
-	if conf.IPAM.Type != "" {
-		// run the IPAM plugin and get back the config to apply
+	if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
+		// Run the IPAM plugin and get back the config to apply
 		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
 		r, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
 		if err != nil {
@@ -167,7 +167,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 				container.Spec.IPv4Address = conf.Address.String()
 				break
 			}
-			// We manage IPv6 addresses by public key.
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
@@ -175,7 +174,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
 	if err != nil {
 		// Release the interface IP address
-		if conf.IPAM.Type != "" {
+		if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
 			err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
 			if err != nil {
 				log.Error("Failed to run IPAM plugin", "error", err.Error())
@@ -207,7 +206,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 	err = cli.Ping(testConnectionTimeout)
-	// TODO: Check if the PeerContainer exists and is ready.
+	// TODO: Check if the PeerContainer exists and is ready, or just return OK?.
 	if err == nil {
 		fmt.Println("OK")
 	}
@@ -248,7 +247,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
 	}
 	// Release the interface IP address by any IPAM plugin.
-	if conf.IPAM.Type != "" {
+	if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
 		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
 		err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
 		if err != nil {

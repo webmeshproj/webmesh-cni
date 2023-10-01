@@ -338,11 +338,18 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	node, ok := r.nodes[name]
 	if !ok {
 		log.Info("Mesh node for container not found, we must have already deleted it", "container", name)
+	} else {
+		if err := node.Close(ctx); err != nil {
+			log.Error(err, "Failed to stop mesh node for container", "container", name)
+		}
+		delete(r.nodes, name)
 	}
-	if err := node.Close(ctx); err != nil {
-		log.Error(err, "Failed to stop mesh node for container", "container", name)
+	// Make sure we've deleted the mesh peer from the database.
+	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(name.Name)); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed to delete peer: %w", err)
+		}
 	}
-	delete(r.nodes, name)
 	return nil
 }
 
