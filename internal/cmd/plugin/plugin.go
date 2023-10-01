@@ -94,9 +94,9 @@ const (
 var log *slog.Logger
 
 func init() {
-	// This ensures that main runs only on main threansionsv1beta1 "k8s.io/api/extensions/v1beta1"d (thread group leader).
-	// since namespace ops (unshare, setns) are done for a single thread, we
-	// must ensure that the goroutine does not jump from OS thread to thread
+	// This ensures that main runs only on main the main thread (thread group leader).
+	// Since namespace ops (unshare, setns) are done for a single thread, we must
+	// ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
 }
 
@@ -307,17 +307,15 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 	// Remove the interface from the container namespace.
-	if args.Netns == "" {
-		// We must be done already.
-		return nil
-	}
-	containerNs, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer containerNs.Close()
-	if err := moveLinkOut(containerNs, args.IfName); err != nil {
-		return err
+	if args.Netns != "" {
+		containerNs, err := ns.GetNS(args.Netns)
+		if err != nil {
+			return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		}
+		defer containerNs.Close()
+		if err := moveLinkOut(containerNs, args.IfName); err != nil {
+			return err
+		}
 	}
 	// Delete the PeerContainer.
 	container := &meshcniv1.PeerContainer{
@@ -333,7 +331,7 @@ func cmdDel(args *skel.CmdArgs) error {
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
 	defer cancel()
 	err = cli.Delete(ctx, container)
-	if err != nil {
+	if err != nil && client.IgnoreNotFound(err) != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
 	}
 	// Release the interface IP address by any IPAM plugin.

@@ -32,10 +32,12 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
-// Pass through patch options for easier access.
+// Pass through types for easier access.
+
 var (
 	Apply          = client.Apply
 	ForceOwnership = client.ForceOwnership
+	IgnoreNotFound = client.IgnoreNotFound
 )
 
 type (
