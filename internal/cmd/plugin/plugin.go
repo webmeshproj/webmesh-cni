@@ -35,6 +35,11 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
+
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
