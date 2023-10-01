@@ -127,6 +127,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			PreferIPv6:         !container.Spec.DisableIPv6,
 		})
 		if err != nil {
+			log.Error(err, "Failed to connect meshnode", "container", container)
+			// Try to update the status to failed.
+			container.Status.Status = cniv1.InterfaceStatusFailed
+			container.Status.Error = err.Error()
+			if err := r.Status().Update(ctx, container); err != nil {
+				log.Error(err, "Failed to update container status", "container", container)
+			}
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
