@@ -114,7 +114,7 @@ create-cluster:
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(CURDIR)/manifests/ref/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*' \
+		--volume '$(CURDIR)/config/ref/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*' \
 
-delete-cluster:
+remove-cluster:
 	$(K3D) cluster delete $(CLUSTER_NAME)

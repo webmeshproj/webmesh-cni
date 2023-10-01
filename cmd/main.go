@@ -27,16 +27,16 @@ import (
 )
 
 func main() {
+	// We run the entrypoint based on how we were invoked.
 	exec, err := os.Executable()
 	if err != nil {
 		panic(err)
 	}
-	// We run the entrypoint based on how we were invoked.
 	switch exec {
-	case "webmesh-cni":
-		node.Main(version.Version)
-	case "webmesh-cni-plugin":
+	case "webmesh":
 		plugin.Main(version.Version)
+	case "webmesh-cni-node":
+		node.Main(version.Version)
 	case "webmesh-cni-install":
 		install.Main(version.Version)
 	default:
