@@ -20,7 +20,10 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
+	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
+	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -42,6 +45,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(cniv1.AddToScheme(scheme))
+	utilruntime.Must(storagev1.AddToScheme(scheme))
 }
 
 func main() {
@@ -68,9 +72,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	storageProider, err := provider.NewWithManager(mgr, provider.Options{
+		NodeID:                      os.Getenv("KUBERNETES_NODE_NAME"),
+		LeaderElectionLeaseDuration: time.Second * 15,
+		LeaderElectionRenewDeadline: time.Second * 10,
+		LeaderElectionRetryPeriod:   time.Second * 2,
+	})
+	if err != nil {
+		setupLog.Error(err, "unable to create webmesh storage provider")
+		os.Exit(1)
+	}
+
 	if err = (&controller.PeerContainerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Provider: storageProider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)
