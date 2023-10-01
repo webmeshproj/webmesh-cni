@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"sync"
 
 	v1 "github.com/webmeshproj/api/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	"github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
@@ -103,7 +103,30 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	}
 	// If the node is not started, start it.
 	if !node.Started() {
-		err := node.Connect(ctx, meshnode.ConnectOptions{
+		// Get the next available wireguard port.
+		wireguardPort, err := r.nextAvailableWireGuardPort()
+		if err != nil {
+			return fmt.Errorf("failed to get next available wireguard port: %w", err)
+		}
+		// Detect the current endpoints on the machine.
+		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
+			DetectIPv6:           true,
+			DetectPrivate:        true,
+			AllowRemoteDetection: true,
+			SkipInterfaces: func() []string {
+				var out []string
+				for _, n := range r.nodes {
+					if n.Started() {
+						out = append(out, n.Network().WireGuard().Name())
+					}
+				}
+				return out
+			}(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to detect endpoints: %w", err)
+		}
+		err = node.Connect(ctx, meshnode.ConnectOptions{
 			StorageProvider: r.Provider,
 			JoinRoundTripper: transport.JoinRoundTripperFunc(func(ctx context.Context, req *v1.JoinRequest) (*v1.JoinResponse, error) {
 				// Look up all currently known peers and return them.
@@ -114,7 +137,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
-				ListenPort:            0, // TODO: Generate a unique one from all other nodes.
+				ListenPort:            int(wireguardPort),
 				MTU:                   container.Spec.MTU,
 				RecordMetrics:         false, // Maybe by configuration?
 				RecordMetricsInterval: 0,
@@ -123,10 +146,18 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				DisableIPv6:           container.Spec.DisableIPv6,
 			},
 			// Detect and set these.
-			PrimaryEndpoint:    netip.Addr{},
-			WireGuardEndpoints: []netip.AddrPort{},
-			// Set to everyone else on this node is a direct peer.
-			DirectPeers:    map[string]v1.ConnectProtocol{},
+			PrimaryEndpoint:    eps.FirstPublicAddr(),
+			WireGuardEndpoints: eps.AddrPorts(wireguardPort),
+			DirectPeers: func() map[string]v1.ConnectProtocol {
+				peers := make(map[string]v1.ConnectProtocol)
+				for _, n := range r.nodes {
+					if n.ID() == node.ID() {
+						continue
+					}
+					peers[string(n.ID())] = v1.ConnectProtocol_CONNECT_NATIVE
+				}
+				return peers
+			}(),
 			PreferIPv6:     !container.Spec.DisableIPv6,
 			MaxJoinRetries: 1,
 		})
@@ -204,6 +235,29 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	}
 	delete(r.nodes, name)
 	return nil
+}
+
+func (r *PeerContainerReconciler) nextAvailableWireGuardPort() (uint16, error) {
+	const startPort uint16 = 51820
+	const endPort uint16 = 65535
+Ports:
+	for i := startPort; i <= endPort; i++ {
+	Nodes:
+		for _, node := range r.nodes {
+			if !node.Started() {
+				continue Nodes
+			}
+			lport, err := node.Network().WireGuard().ListenPort()
+			if err != nil {
+				return 0, err
+			}
+			if uint16(lport) == i {
+				continue Ports
+			}
+		}
+		return i, nil
+	}
+	return 0, fmt.Errorf("no available ports")
 }
 
 // SetupWithManager sets up the controller with the Manager.
