@@ -17,17 +17,39 @@ limitations under the License.
 package plugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
-	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
+	"github.com/containernetworking/cni/pkg/types"
 	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
 )
 
-// How long we wait to see if we can contact the kubernetes API server for a command
-// before giving up.
-const testConnectionTimeout = 2 * time.Second
+// NetConf is the configuration for the CNI plugin.
+type NetConf struct {
+	// NetConf is the typed configuration for the CNI plugin.
+	types.NetConf `json:"inline"`
+
+	// MTU is the MTU to set on interfaces.
+	MTU int `json:"mtu"`
+	// Kubernetes is the configuration for the Kubernetes API server and
+	// information about the node we are running on.
+	Kubernetes Kubernetes `json:"kubernetes"`
+	// LogLevel is the log level for the plugin.
+	LogLevel string `json:"logLevel"`
+}
+
+// Kubernetes is the configuration for the Kubernetes API server and
+// information about the node we are running on.
+type Kubernetes struct {
+	// Kubeconfig is the path to the kubeconfig file.
+	Kubeconfig string `json:"kubeconfig"`
+	// NodeName is the name of the node we are running on.
+	NodeName string `json:"nodeName"`
+	// K8sAPIRoot is the root URL of the Kubernetes API server.
+	K8sAPIRoot string `json:"k8sAPIRoot"`
+}
 
 func init() {
 	// this ensures that main runs only on main thread (thread group leader).
@@ -43,7 +65,8 @@ func Main(version string) {
 
 // cmdAdd is the CNI ADD command handler.
 func cmdAdd(args *skel.CmdArgs) (err error) {
-	return nil
+	_, err = loadConfig(args)
+	return err
 }
 
 // cmdDummyCheck is the CNI CHECK command handler.
@@ -54,5 +77,15 @@ func cmdDummyCheck(args *skel.CmdArgs) (err error) {
 
 // cmdDel is the CNI DEL command handler.
 func cmdDel(args *skel.CmdArgs) (err error) {
-	return nil
+	_, err = loadConfig(args)
+	return err
+}
+
+func loadConfig(args *skel.CmdArgs) (*NetConf, error) {
+	var conf NetConf
+	err := json.Unmarshal(args.StdinData, &conf)
+	if err != nil {
+		return nil, err
+	}
+	return &conf, nil
 }
