@@ -121,10 +121,12 @@ func Main(version string) {
 
 	// Register the peer container controller.
 	if err = (&controller.PeerContainerReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Provider:  storageProvider,
-		NetworkV6: networkState.NetworkV6,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Provider:   storageProvider,
+		NetworkV4:  networkState.NetworkV4,
+		NetworkV6:  networkState.NetworkV6,
+		MeshDomain: networkState.MeshDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)

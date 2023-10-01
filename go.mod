@@ -9,7 +9,7 @@ require (
 	github.com/onsi/gomega v1.27.10
 	github.com/webmeshproj/api v0.7.0
 	github.com/webmeshproj/storage-provider-k8s v0.0.0-20231001202518-1ae862608b17
-	github.com/webmeshproj/webmesh v0.10.1-0.20231001213146-39198a027c2b
+	github.com/webmeshproj/webmesh v0.10.1-0.20231001214010-bd7c9c737755
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2

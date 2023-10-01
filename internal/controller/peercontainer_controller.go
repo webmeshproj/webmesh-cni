@@ -44,11 +44,13 @@ import (
 // PeerContainerReconciler reconciles a PeerContainer object
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Provider  *provider.Provider
-	NetworkV6 netip.Prefix
-	nodes     map[types.NamespacedName]meshnode.Node
-	mu        sync.Mutex
+	Scheme     *runtime.Scheme
+	Provider   *provider.Provider
+	NetworkV4  netip.Prefix
+	NetworkV6  netip.Prefix
+	MeshDomain string
+	nodes      map[types.NamespacedName]meshnode.Node
+	mu         sync.Mutex
 }
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
@@ -82,6 +84,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	}
 	// Check if we have registered the node yet
 	name := types.NamespacedName{Name: container.Spec.NodeName}
+	nodeID := meshtypes.NodeID(container.Spec.ContainerID)
 	node, ok := r.nodes[name]
 	if !ok {
 		// We need to create the node.
@@ -137,8 +140,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to register peer: %w", err)
 		}
 		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
-			NodeID:          container.Spec.ContainerID,
 			Key:             key,
+			NodeID:          container.Spec.ContainerID,
 			ZoneAwarenessID: container.Spec.NodeName,
 			DisableIPv4:     container.Spec.DisableIPv4,
 			DisableIPv6:     container.Spec.DisableIPv6,
@@ -152,21 +155,39 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	}
 	// If the node is not started, start it.
 	if !node.Started() {
+		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
+		if err != nil {
+			return fmt.Errorf("failed to get peer: %w", err)
+		}
+		key, err := crypto.DecodePublicKey(peer.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to decode public key: %w", err)
+		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
-			// Look up all currently known peers and return them.
-			// TODO: Implement
-			return &v1.JoinResponse{}, fmt.Errorf("not implemented")
+			// Build the current network topology and return to the peer. They'll use
+			// the storage provider to subscribe to changes.
+			peers, err := meshnet.WireGuardPeersFor(ctx, r.Provider.MeshDB(), nodeID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get peers: %w", err)
+			}
+			return &v1.JoinResponse{
+				MeshDomain:  r.MeshDomain,
+				NetworkIPv4: r.NetworkV4.String(),
+				NetworkIPv6: r.NetworkV6.String(),
+				AddressIPv6: netutil.AssignToPrefix(r.NetworkV6, key).String(),
+				AddressIPv4: container.Spec.IPv4Address,
+				Peers:       peers,
+			}, nil
 		})
-		err := node.Connect(ctx, meshnode.ConnectOptions{
+		err = node.Connect(ctx, meshnode.ConnectOptions{
 			StorageProvider:  r.Provider,
-			MaxJoinRetries:   3, // Make configurable
+			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
-				NodeID:        meshtypes.NodeID(container.Spec.ContainerID),
-				InterfaceName: container.Spec.IfName,
-				ForceReplace:  true,
-				// TODO: Grab from the one we registered above.
-				ListenPort:            int(0),
+				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
+				InterfaceName:         container.Spec.IfName,
+				ForceReplace:          true,
+				ListenPort:            int(peer.WireGuardPort()),
 				MTU:                   container.Spec.MTU,
 				RecordMetrics:         false, // Maybe by configuration?
 				RecordMetricsInterval: 0,
