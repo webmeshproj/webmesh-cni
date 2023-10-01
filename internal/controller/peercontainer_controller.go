@@ -27,6 +27,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	"github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -103,13 +104,17 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	// If the node is not started, start it.
 	if !node.Started() {
 		err := node.Connect(ctx, meshnode.ConnectOptions{
-			StorageProvider:  r.Provider,
-			JoinRoundTripper: nil, // Needs a nil one that returns all currently known peers.
+			StorageProvider: r.Provider,
+			JoinRoundTripper: transport.JoinRoundTripperFunc(func(ctx context.Context, req *v1.JoinRequest) (*v1.JoinResponse, error) {
+				// Look up all currently known peers and return them.
+				// TODO: Implement
+				return &v1.JoinResponse{}, fmt.Errorf("not implemented")
+			}),
 			NetworkOptions: meshnet.Options{
 				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
-				ListenPort:            0, // TODO
+				ListenPort:            0, // TODO: Generate a unique one from all other nodes.
 				MTU:                   container.Spec.MTU,
 				RecordMetrics:         false, // Maybe by configuration?
 				RecordMetricsInterval: 0,
@@ -117,13 +122,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				DisableIPv4:           container.Spec.DisableIPv4,
 				DisableIPv6:           container.Spec.DisableIPv6,
 			},
-			MaxJoinRetries:     1,
+			// Detect and set these.
 			PrimaryEndpoint:    netip.Addr{},
 			WireGuardEndpoints: []netip.AddrPort{},
-			Routes:             []netip.Prefix{},
-			// Everyone else on this node is a direct peer.
-			DirectPeers: map[string]v1.ConnectProtocol{},
-			PreferIPv6:  !container.Spec.DisableIPv6,
+			// Set to everyone else on this node is a direct peer.
+			DirectPeers:    map[string]v1.ConnectProtocol{},
+			PreferIPv6:     !container.Spec.DisableIPv6,
+			MaxJoinRetries: 1,
 		})
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
