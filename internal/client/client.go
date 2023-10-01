@@ -32,6 +32,16 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
+// Pass through patch options for easier access.
+var (
+	Apply          = client.Apply
+	ForceOwnership = client.ForceOwnership
+)
+
+type (
+	FieldOwner = client.FieldOwner
+)
+
 // Client is the client for the CNI plugin.
 type Client struct {
 	client.Client
