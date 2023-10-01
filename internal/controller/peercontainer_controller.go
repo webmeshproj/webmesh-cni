@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	cniwebmeshiov1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
 // PeerContainerReconciler reconciles a PeerContainer object
@@ -57,6 +57,6 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cniwebmeshiov1.PeerContainer{}).
+		For(&cniv1.PeerContainer{}).
 		Complete(r)
 }

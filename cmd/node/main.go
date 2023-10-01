@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	cniwebmeshiov1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 )
 
@@ -41,7 +41,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(cniwebmeshiov1.AddToScheme(scheme))
+	utilruntime.Must(cniv1.AddToScheme(scheme))
 }
 
 func main() {
