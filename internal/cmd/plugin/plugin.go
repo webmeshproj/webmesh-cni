@@ -45,13 +45,23 @@ type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
 	types.NetConf `json:"inline"`
 
-	// MTU is the MTU to set on interfaces.
-	MTU int `json:"mtu"`
 	// Kubernetes is the configuration for the Kubernetes API server and
 	// information about the node we are running on.
 	Kubernetes Kubernetes `json:"kubernetes"`
-	// LogLevel is the log level for the plugin.
+	// Interface is the configuration for the interface.
+	Interface Interface `json:"interface"`
+	// LogLevel is the log level for the plugin and managed interfaces.
 	LogLevel string `json:"logLevel"`
+}
+
+// Interface is the configuration for a single interface.
+type Interface struct {
+	// MTU is the MTU to set on interfaces.
+	MTU int `json:"mtu"`
+	// DisableIPv4 is whether to disable IPv4 on the interface.
+	DisableIPv4 bool `json:"disableIPv4"`
+	// DisableIPv6 is whether to disable IPv6 on the interface.
+	DisableIPv6 bool `json:"disableIPv6"`
 }
 
 // Kubernetes is the configuration for the Kubernetes API server and
@@ -116,7 +126,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 			Netns:       args.Netns,
 			IfName:      args.IfName,
 			NodeName:    conf.Kubernetes.NodeName,
-			MTU:         conf.MTU,
+			MTU:         conf.Interface.MTU,
+			DisableIPv4: conf.Interface.DisableIPv4,
+			DisableIPv6: conf.Interface.DisableIPv6,
 			LogLevel:    conf.LogLevel,
 		},
 	}

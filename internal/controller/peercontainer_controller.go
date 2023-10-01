@@ -18,9 +18,16 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"net/netip"
 	"sync"
 
+	v1 "github.com/webmeshproj/api/v1"
+	"github.com/webmeshproj/webmesh/pkg/crypto"
+	"github.com/webmeshproj/webmesh/pkg/logging"
+	"github.com/webmeshproj/webmesh/pkg/meshnet"
 	"github.com/webmeshproj/webmesh/pkg/meshnode"
+	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,11 +69,112 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 // reconcilePeerContainer reconciles the given PeerContainer.
 func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, container *cniv1.PeerContainer) error {
-	_ = log.FromContext(ctx)
+	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.nodes == nil {
 		r.nodes = make(map[types.NamespacedName]meshnode.Node)
+	}
+	// Check if we have started the node yet.
+	name := types.NamespacedName{Name: container.Spec.NodeName}
+	node, ok := r.nodes[name]
+	if !ok {
+		log.Info("Mesh node for container not found, we must need to create it", "container", name)
+		// We need to create the node.
+		key, err := crypto.GenerateKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate key: %w", err)
+		}
+		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
+			NodeID:          container.Spec.ContainerID,
+			Key:             key,
+			ZoneAwarenessID: container.Spec.NodeName,
+			DisableIPv4:     container.Spec.DisableIPv4,
+			DisableIPv6:     container.Spec.DisableIPv6,
+		})
+		// Update the status to created.
+		container.Status.Status = cniv1.InterfaceStatusCreated
+		if err := r.Status().Update(ctx, container); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+		return nil
+	}
+	// If the node is not started, start it.
+	if !node.Started() {
+		err := node.Connect(ctx, meshnode.ConnectOptions{
+			StorageProvider:  nil, // Need a global provider we give all containers.
+			JoinRoundTripper: nil, // Needs a nil one.
+			NetworkOptions: meshnet.Options{
+				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
+				InterfaceName:         container.Spec.IfName,
+				ForceReplace:          true,
+				ListenPort:            0, // TODO
+				MTU:                   container.Spec.MTU,
+				RecordMetrics:         false, // Maybe by configuration?
+				RecordMetricsInterval: 0,
+				StoragePort:           0,
+				GRPCPort:              0,
+				ZoneAwarenessID:       container.Spec.NodeName,
+				DisableIPv4:           container.Spec.DisableIPv4,
+				DisableIPv6:           container.Spec.DisableIPv6,
+				Relays:                meshnet.RelayOptions{}, // TODO
+			},
+			MaxJoinRetries:     1,
+			PrimaryEndpoint:    netip.Addr{},
+			WireGuardEndpoints: []netip.AddrPort{},
+			Routes:             []netip.Prefix{},
+			DirectPeers:        map[string]v1.ConnectProtocol{},
+			PreferIPv6:         !container.Spec.DisableIPv6,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to connect node: %w", err)
+		}
+		// Update the status to starting.
+		container.Status.Status = cniv1.InterfaceStatusStarting
+		if err := r.Status().Update(ctx, container); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+		return nil
+	}
+	select {
+	case <-node.Ready():
+		var updateStatus bool
+		ifname := node.Network().WireGuard().Name()
+		addrv4 := node.Network().WireGuard().AddressV4().String()
+		addrv6 := node.Network().WireGuard().AddressV6().String()
+		if container.Status.Status != cniv1.InterfaceStatusRunning {
+			// Update the status to running and sets its IP address.
+			container.Status.Status = cniv1.InterfaceStatusRunning
+			updateStatus = true
+		}
+		if container.Status.IPv4Address != addrv4 {
+			container.Status.IPv4Address = addrv4
+			updateStatus = true
+		}
+		if container.Status.IPv6Address != addrv6 {
+			container.Status.IPv6Address = addrv6
+			updateStatus = true
+		}
+		if container.Status.InterfaceName != ifname {
+			container.Status.InterfaceName = ifname
+			updateStatus = true
+		}
+		if container.Status.Error != "" {
+			container.Status.Error = ""
+			updateStatus = true
+		}
+		if updateStatus {
+			if err := r.Status().Update(ctx, container); err != nil {
+				return fmt.Errorf("failed to update status: %w", err)
+			}
+		}
+	case <-ctx.Done():
+		// Update the status to failed.
+		container.Status.Error = ctx.Err().Error()
+		container.Status.Status = cniv1.InterfaceStatusFailed
+		if err := r.Status().Update(ctx, container); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
 	}
 	return nil
 }

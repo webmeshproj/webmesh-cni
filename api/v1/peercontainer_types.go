@@ -24,9 +24,9 @@ import (
 type InterfaceStatus string
 
 const (
-	InterfaceStatusCreating InterfaceStatus = "Creating"
 	InterfaceStatusCreated  InterfaceStatus = "Created"
 	InterfaceStatusStarting InterfaceStatus = "Starting"
+	InterfaceStatusRunning  InterfaceStatus = "Running"
 	InterfaceStatusFailed   InterfaceStatus = "Failed"
 )
 
@@ -42,6 +42,10 @@ type PeerContainerSpec struct {
 	NodeName string `json:"nodeName"`
 	// MTU is the MTU to set on the interface.
 	MTU int `json:"mtu"`
+	// DisableIPv4 is whether to disable IPv4 on the interface.
+	DisableIPv4 bool `json:"disableIPv4"`
+	// DisableIPv6 is whether to disable IPv6 on the interface.
+	DisableIPv6 bool `json:"disableIPv6"`
 	// LogLevel is the log level for the webmesh interface.
 	LogLevel string `json:"logLevel"`
 }
@@ -50,12 +54,12 @@ type PeerContainerSpec struct {
 type PeerContainerStatus struct {
 	// Status is the current status of the interface.
 	Status InterfaceStatus `json:"status"`
+	// InterfaceName is the name of the interface.
+	InterfaceName string `json:"interfaceName"`
 	// IPv4Address is the IPv4 address of the interface.
 	IPv4Address string `json:"ipv4Address"`
 	// IPv6Address is the IPv6 address of the interface.
 	IPv6Address string `json:"ipv6Address"`
-	// MacAddress is the MAC address of the interface.
-	MacAddress string `json:"macAddress"`
 	// Error is any error that occurred while peering the interface.
 	Error string `json:"error"`
 }

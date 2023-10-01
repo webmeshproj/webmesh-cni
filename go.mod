@@ -6,8 +6,9 @@ require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/onsi/ginkgo/v2 v2.12.1
 	github.com/onsi/gomega v1.27.10
+	github.com/webmeshproj/api v0.7.0
 	github.com/webmeshproj/storage-provider-k8s v0.0.0-20231001153311-a46da95302cc
-	github.com/webmeshproj/webmesh v0.10.0
+	github.com/webmeshproj/webmesh v0.10.1-0.20231001183800-89abcc0d41d0
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
@@ -164,7 +165,6 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
-	github.com/webmeshproj/api v0.7.0 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.18.0 // indirect
