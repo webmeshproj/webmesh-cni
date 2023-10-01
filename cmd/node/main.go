@@ -53,26 +53,30 @@ func init() {
 func main() {
 	// Parse flags and setup logging.
 	var (
-		metricsAddr   string
-		probeAddr     string
-		clusterDomain string
-		podCIDR       string
-		nodeID        string
+		metricsAddr              string
+		probeAddr                string
+		clusterDomain            string
+		podCIDR                  string
+		nodeID                   string
+		leaderElectLeaseDuration time.Duration
+		leaderElectRenewDeadline time.Duration
+		leaderElectRetryPeriod   time.Duration
+		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&nodeID, "node-id", os.Getenv("KUBERNETES_NODE_NAME"), "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", "172.16.0.0/12", "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local", "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
+	flag.DurationVar(&leaderElectLeaseDuration, "leader-elect-lease-duration", time.Second*15, "The duration that non-leader candidates will wait to force acquire leadership.")
+	flag.DurationVar(&leaderElectRenewDeadline, "leader-elect-renew-deadline", time.Second*10, "The duration that the acting leader will retry refreshing leadership before giving up.")
+	flag.DurationVar(&leaderElectRetryPeriod, "leader-elect-retry-period", time.Second*2, "The duration the LeaderElector clients should wait between tries of actions.")
+	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	ctx := ctrl.SetupSignalHandler()
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
 
 	// Create the manager.
+	ctx := ctrl.SetupSignalHandler()
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -86,9 +90,9 @@ func main() {
 
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageprovider.Options{
 		NodeID:                      nodeID,
-		LeaderElectionLeaseDuration: time.Second * 15,
-		LeaderElectionRenewDeadline: time.Second * 10,
-		LeaderElectionRetryPeriod:   time.Second * 2,
+		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
+		LeaderElectionRenewDeadline: leaderElectRenewDeadline,
+		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create webmesh storage provider")
@@ -105,7 +109,7 @@ func main() {
 		IPv4Network:          podCIDR,
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true,
+		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
 	})
 	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
 		setupLog.Error(err, "Unable to bootstrap network state")
