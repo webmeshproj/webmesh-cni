@@ -40,6 +40,12 @@ spec:
               ifName:
                 description: IfName is the name of the interface to peer with.
                 type: string
+              logLevel:
+                description: LogLevel is the log level for the webmesh interface.
+                type: string
+              mtu:
+                description: MTU is the MTU to set on the interface.
+                type: integer
               netns:
                 description: Netns is the network namespace of the container to peer
                   with.
@@ -51,11 +57,35 @@ spec:
             required:
             - containerID
             - ifName
+            - logLevel
+            - mtu
             - netns
             - nodeName
             type: object
           status:
             description: PeerContainerStatus defines the observed state of PeerContainer
+            properties:
+              error:
+                description: Error is any error that occurred while peering the interface.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address of the interface.
+                type: string
+              ipv6Address:
+                description: IPv6Address is the IPv6 address of the interface.
+                type: string
+              macAddress:
+                description: MacAddress is the MAC address of the interface.
+                type: string
+              status:
+                description: Status is the current status of the interface.
+                type: string
+            required:
+            - error
+            - ipv4Address
+            - ipv6Address
+            - macAddress
+            - status
             type: object
         type: object
     served: true

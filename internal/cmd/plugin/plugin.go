@@ -116,6 +116,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 			Netns:       args.Netns,
 			IfName:      args.IfName,
 			NodeName:    conf.Kubernetes.NodeName,
+			MTU:         conf.MTU,
+			LogLevel:    conf.LogLevel,
 		},
 	}
 	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
