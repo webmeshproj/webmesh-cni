@@ -28,10 +28,12 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	cniv1 "github.com/containernetworking/cni/pkg/types/100"
 	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
+	"github.com/containernetworking/plugins/pkg/ipam"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
@@ -77,8 +79,12 @@ type Kubernetes struct {
 	Namespace string `json:"namespace"`
 }
 
-// How long we wait to try to ping the API server before giving up.
-const testConnectionTimeout = time.Second * 2
+const (
+	// How long we wait to try to ping the API server before giving up.
+	testConnectionTimeout = time.Second * 2
+	// How long we wait to try to create the peer container instance.
+	createPeerContainerTimeout = time.Second * 2
+)
 
 // A global logger set when configuration is loaded.
 var log *slog.Logger
@@ -110,21 +116,21 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
-	defer cancel()
-	container := &cniv1.PeerContainer{
+	// Start building a container type.
+	desiredIfName := "webmesh" + args.ContainerID[:min(11, len(args.ContainerID))]
+	container := &meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
-			APIVersion: cniv1.GroupVersion.String(),
+			APIVersion: meshcniv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      args.ContainerID,
 			Namespace: conf.Kubernetes.Namespace,
 		},
-		Spec: cniv1.PeerContainerSpec{
+		Spec: meshcniv1.PeerContainerSpec{
 			ContainerID: args.ContainerID,
 			Netns:       args.Netns,
-			IfName:      args.IfName,
+			IfName:      desiredIfName,
 			NodeName:    conf.Kubernetes.NodeName,
 			MTU:         conf.Interface.MTU,
 			DisableIPv4: conf.Interface.DisableIPv4,
@@ -132,7 +138,44 @@ func cmdAdd(args *skel.CmdArgs) error {
 			LogLevel:    conf.LogLevel,
 		},
 	}
+	// Check if an IPAM plugin is configured.
+	if conf.IPAM.Type != "" {
+		// run the IPAM plugin and get back the config to apply
+		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
+		r, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+		res, err := cniv1.GetResult(r)
+		if err != nil {
+			// Release the interface IP address, something went wrong
+			err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
+			if err != nil {
+				log.Error("Failed to run IPAM plugin", "error", err.Error())
+			}
+			log.Error("Failed to get IPAM result", "error", err.Error())
+			return err
+		}
+		for _, conf := range res.IPs {
+			if conf.Address.IP.To4() != nil {
+				container.Spec.IPv4Address = conf.Address.String()
+				break
+			}
+			// We manage IPv6 addresses by public key.
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
+	defer cancel()
 	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
+	if err != nil {
+		// Release the interface IP address
+		if conf.IPAM.Type != "" {
+			err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
+			if err != nil {
+				log.Error("Failed to run IPAM plugin", "error", err.Error())
+			}
+		}
+	}
 	// TODO: Wait for the PeerContainer to be ready and then give its interface to the container.
 	return err
 }
@@ -170,10 +213,10 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 	// Delete the PeerContainer.
-	container := &cniv1.PeerContainer{
+	container := &meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
-			APIVersion: cniv1.GroupVersion.String(),
+			APIVersion: meshcniv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      args.ContainerID,
@@ -185,6 +228,14 @@ func cmdDel(args *skel.CmdArgs) error {
 	err = cli.Delete(ctx, container)
 	if err != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
+	}
+	// Release the interface IP address by any IPAM plugin.
+	if conf.IPAM.Type != "" {
+		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
+		err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
+		if err != nil {
+			log.Error("Failed to run IPAM plugin", "error", err.Error())
+		}
 	}
 	return err
 }

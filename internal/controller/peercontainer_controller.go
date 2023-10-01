@@ -128,7 +128,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}
 		err = node.Connect(ctx, meshnode.ConnectOptions{
 			StorageProvider: r.Provider,
-			JoinRoundTripper: transport.JoinRoundTripperFunc(func(ctx context.Context, req *v1.JoinRequest) (*v1.JoinResponse, error) {
+			MaxJoinRetries:  3, // Make configurable
+			JoinRoundTripper: transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 				// Look up all currently known peers and return them.
 				// TODO: Implement
 				return &v1.JoinResponse{}, fmt.Errorf("not implemented")
@@ -158,8 +159,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				}
 				return peers
 			}(),
-			PreferIPv6:     !container.Spec.DisableIPv6,
-			MaxJoinRetries: 1,
+			PreferIPv6: !container.Spec.DisableIPv6,
 		})
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
