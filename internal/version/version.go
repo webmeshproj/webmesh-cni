@@ -14,14 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cni contains the plugin implementation for the webmesh-cni.
-package main
+// Package version contains the build-time version information.
+package version
 
-import (
-	"github.com/webmeshproj/webmesh-cni/internal/cmd/plugin"
-	"github.com/webmeshproj/webmesh-cni/internal/version"
+// Compile-time variables set by the build script.
+var (
+	Version   = "0.0.0"
+	Commit    = "unknown"
+	BuildDate = "unknown"
 )
-
-func main() {
-	plugin.Main(version.Version)
-}

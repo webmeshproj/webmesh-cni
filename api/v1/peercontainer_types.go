@@ -20,22 +20,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // PeerContainerSpec defines the desired state of PeerContainer
 type PeerContainerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of PeerContainer. Edit peercontainer_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// ContainerID is the ID of the container to peer with.
+	ContainerID string `json:"containerID"`
+	// Netns is the network namespace of the container to peer with.
+	Netns string `json:"netns"`
+	// IfName is the name of the interface to peer with.
+	IfName string `json:"ifName"`
+	// NodeName is the name of the node the container is running on.
+	NodeName string `json:"nodeName"`
 }
 
 // PeerContainerStatus defines the observed state of PeerContainer
 type PeerContainerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
