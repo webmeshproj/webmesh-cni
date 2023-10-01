@@ -24,6 +24,8 @@ import (
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
+	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
+	"github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -51,6 +53,10 @@ func init() {
 func main() {
 	var metricsAddr string
 	var probeAddr string
+	var clusterDomain string
+	var podCIDR string
+	flag.StringVar(&podCIDR, "pod-cidr", "172.16.0.0/12", "The pod CIDR to use for the webmesh cluster.")
+	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local", "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	opts := zap.Options{
@@ -88,10 +94,20 @@ func main() {
 		setupLog.Error(err, "unable to start webmesh storage provider")
 		os.Exit(1)
 	}
+	// Make sure the network state is boostrapped.
+	_, err = meshstorage.Bootstrap(ctx, storageProvider.MeshDB(), meshstorage.BootstrapOptions{
+		MeshDomain:           clusterDomain,
+		IPv4Network:          podCIDR,
+		Admin:                meshstorage.DefaultMeshAdmin,
+		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
+		DisableRBAC:          true,
+	})
+	if err != nil && !errors.Is(err, errors.ErrAlreadyBootstrapped) {
+		setupLog.Error(err, "Unable to bootstrap network state")
+		os.Exit(1)
+	}
 
-	// Check if an IPv6 prefix is set for the webmesh cluster yet. This is usually handled
-	// by the bootstrap process of a node. But for now we'll just do it here.
-
+	// Register the peer container controller.
 	if err = (&controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
