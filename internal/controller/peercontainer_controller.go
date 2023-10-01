@@ -106,11 +106,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			}(),
 		})
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to detect endpoints: %w", err)
 		}
 		// Get the next available wireguard port.
 		wireguardPort, err := r.nextAvailableWireGuardPort()
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to get next available wireguard port: %w", err)
 		}
 		var wgeps []string
@@ -119,10 +121,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}
 		key, err := crypto.GenerateKey()
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to generate key: %w", err)
 		}
 		encoded, err := key.PublicKey().Encode()
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to encode public key: %w", err)
 		}
 		// Try to register this node as a peer directly via the API.
@@ -138,6 +142,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			},
 		})
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to register peer: %w", err)
 		}
 		// Create edges for all other nodes in the same zone.
@@ -147,6 +152,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			meshstorage.ZoneIDFilter(container.Spec.NodeName),
 		)
 		if err != nil {
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to list peers: %w", err)
 		}
 		for _, peer := range peers {
@@ -154,6 +160,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				Source: nodeID.String(),
 				Target: peer.NodeID().String(),
 			}}); err != nil {
+				r.setFailedStatus(ctx, container, err)
 				return fmt.Errorf("failed to create edge: %w", err)
 			}
 		}
@@ -175,10 +182,24 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	if !node.Started() {
 		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
 		if err != nil {
+			// Try to update the status to failed.
+			container.Status.Status = cniv1.InterfaceStatusFailed
+			container.Status.Error = err.Error()
+			if err := r.Status().Update(ctx, container); err != nil {
+				log.Error(err, "Failed to update container status", "container", container)
+			}
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to get peer: %w", err)
 		}
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
+			// Try to update the status to failed.
+			container.Status.Status = cniv1.InterfaceStatusFailed
+			container.Status.Error = err.Error()
+			if err := r.Status().Update(ctx, container); err != nil {
+				log.Error(err, "Failed to update container status", "container", container)
+			}
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
@@ -227,12 +248,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		})
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
-			// Try to update the status to failed.
-			container.Status.Status = cniv1.InterfaceStatusFailed
-			container.Status.Error = err.Error()
-			if err := r.Status().Update(ctx, container); err != nil {
-				log.Error(err, "Failed to update container status", "container", container)
-			}
+			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
@@ -276,11 +292,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
-		container.Status.Error = ctx.Err().Error()
-		container.Status.Status = cniv1.InterfaceStatusFailed
-		if err := r.Status().Update(ctx, container); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
-		}
+		r.setFailedStatus(ctx, container, ctx.Err())
+		return ctx.Err()
 	}
 	// Make sure all MeshEdges are up to date for this node.
 	peers, err := r.Provider.MeshDB().Peers().List(
@@ -316,6 +329,14 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	}
 	delete(r.nodes, name)
 	return nil
+}
+
+func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
+	container.Status.Status = cniv1.InterfaceStatusFailed
+	container.Status.Error = reason.Error()
+	if err := r.Status().Update(ctx, container); err != nil {
+		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
+	}
 }
 
 func (r *PeerContainerReconciler) nextAvailableWireGuardPort() (uint16, error) {
