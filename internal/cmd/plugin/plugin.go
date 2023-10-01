@@ -20,10 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
+
+	"github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
 // NetConf is the configuration for the CNI plugin.
@@ -51,8 +54,10 @@ type Kubernetes struct {
 	K8sAPIRoot string `json:"k8sAPIRoot"`
 }
 
+const testConnectionTimeout = time.Second * 2
+
 func init() {
-	// This ensures that main runs only on main thread (thread group leader).
+	// This ensures that main runs only on main threansionsv1beta1 "k8s.io/api/extensions/v1beta1"d (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	// must ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
@@ -64,20 +69,36 @@ func Main(version string) {
 }
 
 // cmdAdd is the CNI ADD command handler.
-func cmdAdd(args *skel.CmdArgs) (err error) {
-	_, err = loadConfig(args)
+func cmdAdd(args *skel.CmdArgs) error {
+	conf, err := loadConfig(args)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	err = cli.Ping(testConnectionTimeout)
 	return err
 }
 
 // cmdDummyCheck is the CNI CHECK command handler.
-func cmdDummyCheck(args *skel.CmdArgs) (err error) {
+func cmdDummyCheck(args *skel.CmdArgs) error {
 	fmt.Println("OK")
 	return nil
 }
 
 // cmdDel is the CNI DEL command handler.
-func cmdDel(args *skel.CmdArgs) (err error) {
-	_, err = loadConfig(args)
+func cmdDel(args *skel.CmdArgs) error {
+	conf, err := loadConfig(args)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	err = cli.Ping(testConnectionTimeout)
 	return err
 }
 

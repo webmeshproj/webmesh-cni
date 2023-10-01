@@ -18,7 +18,11 @@ limitations under the License.
 package client
 
 import (
+	"context"
+	"time"
+
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -49,6 +53,10 @@ func NewForConfig(cfg *rest.Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = apiextensions.AddToScheme(scheme)
+	if err != nil {
+		return nil, err
+	}
 	err = storagev1.AddToScheme(scheme)
 	if err != nil {
 		return nil, err
@@ -66,4 +74,17 @@ func NewForConfig(cfg *rest.Config) (*Client, error) {
 	return &Client{
 		Client: client,
 	}, nil
+}
+
+// Ping will make sure the client can contact the API server using
+// the given timeout.
+func (c *Client) Ping(timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	// Try to fetch the description of the cniv1.PeerContainer resource.
+	// This will fail if the API server is not reachable.
+	var crd apiextensions.CustomResourceDefinition
+	return c.Get(ctx, client.ObjectKey{
+		Name: "peercontainers.cni.webmesh.io",
+	}, &crd)
 }
