@@ -23,9 +23,9 @@ import (
 	"time"
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
-	"github.com/webmeshproj/storage-provider-k8s/provider"
+	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
-	"github.com/webmeshproj/webmesh/pkg/storage/errors"
+	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -51,10 +51,15 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var probeAddr string
-	var clusterDomain string
-	var podCIDR string
+	// Parse flags and setup logging.
+	var (
+		metricsAddr   string
+		probeAddr     string
+		clusterDomain string
+		podCIDR       string
+		nodeID        string
+	)
+	flag.StringVar(&nodeID, "node-id", os.Getenv("KUBERNETES_NODE_NAME"), "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", "172.16.0.0/12", "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local", "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -64,10 +69,10 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	ctx := ctrl.SetupSignalHandler()
 
+	// Create the manager.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -79,8 +84,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	storageProvider, err := provider.NewWithManager(mgr, provider.Options{
-		NodeID:                      os.Getenv("KUBERNETES_NODE_NAME"),
+	storageProvider, err := storageprovider.NewWithManager(mgr, storageprovider.Options{
+		NodeID:                      nodeID,
 		LeaderElectionLeaseDuration: time.Second * 15,
 		LeaderElectionRenewDeadline: time.Second * 10,
 		LeaderElectionRetryPeriod:   time.Second * 2,
@@ -102,7 +107,7 @@ func main() {
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
 		DisableRBAC:          true,
 	})
-	if err != nil && !errors.Is(err, errors.ErrAlreadyBootstrapped) {
+	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
 		setupLog.Error(err, "Unable to bootstrap network state")
 		os.Exit(1)
 	}
