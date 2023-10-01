@@ -107,7 +107,7 @@ func Main(version string) {
 		os.Exit(1)
 	}
 	// Make sure the network state is boostrapped.
-	_, err = meshstorage.Bootstrap(ctx, storageProvider.MeshDB(), meshstorage.BootstrapOptions{
+	networkState, err := meshstorage.Bootstrap(ctx, storageProvider.MeshDB(), meshstorage.BootstrapOptions{
 		MeshDomain:           clusterDomain,
 		IPv4Network:          podCIDR,
 		Admin:                meshstorage.DefaultMeshAdmin,
@@ -121,9 +121,10 @@ func Main(version string) {
 
 	// Register the peer container controller.
 	if err = (&controller.PeerContainerReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Provider: storageProvider,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Provider:  storageProvider,
+		NetworkV6: networkState.NetworkV6,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)

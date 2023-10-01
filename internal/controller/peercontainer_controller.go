@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sync"
 
 	v1 "github.com/webmeshproj/api/v1"
@@ -28,6 +29,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
+	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	"github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,10 +44,11 @@ import (
 // PeerContainerReconciler reconciles a PeerContainer object
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Provider *provider.Provider
-	nodes    map[types.NamespacedName]meshnode.Node
-	mu       sync.Mutex
+	Scheme    *runtime.Scheme
+	Provider  *provider.Provider
+	NetworkV6 netip.Prefix
+	nodes     map[types.NamespacedName]meshnode.Node
+	mu        sync.Mutex
 }
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
@@ -127,7 +130,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				WireguardEndpoints: wgeps,
 				ZoneAwarenessID:    container.Spec.NodeName,
 				PrivateIPv4:        container.Spec.IPv4Address,
-				PrivateIPv6:        "", // TODO: Grab the IPv6 domain from the cluster.
+				PrivateIPv6:        netutil.AssignToPrefix(r.NetworkV6, key.PublicKey()).String(),
 			},
 		})
 		if err != nil {
@@ -158,14 +161,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			StorageProvider:  r.Provider,
 			MaxJoinRetries:   3, // Make configurable
 			JoinRoundTripper: rtt,
-			Bootstrap: &meshnode.BootstrapOptions{
-				Transport:            nil,
-				IPv4Network:          "",
-				MeshDomain:           "",
-				Admin:                "",
-				DisableRBAC:          true,
-				DefaultNetworkPolicy: "accept",
-			},
 			NetworkOptions: meshnet.Options{
 				NodeID:        meshtypes.NodeID(container.Spec.ContainerID),
 				InterfaceName: container.Spec.IfName,
