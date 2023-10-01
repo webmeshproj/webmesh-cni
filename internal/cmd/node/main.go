@@ -62,6 +62,7 @@ func Main(version string) {
 		leaderElectLeaseDuration time.Duration
 		leaderElectRenewDeadline time.Duration
 		leaderElectRetryPeriod   time.Duration
+		shutdownTimeout          time.Duration
 		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&nodeID, "node-id", os.Getenv("KUBERNETES_NODE_NAME"), "The node ID to use for the webmesh cluster.")
@@ -72,6 +73,7 @@ func Main(version string) {
 	flag.DurationVar(&leaderElectLeaseDuration, "leader-elect-lease-duration", time.Second*15, "The duration that non-leader candidates will wait to force acquire leadership.")
 	flag.DurationVar(&leaderElectRenewDeadline, "leader-elect-renew-deadline", time.Second*10, "The duration that the acting leader will retry refreshing leadership before giving up.")
 	flag.DurationVar(&leaderElectRetryPeriod, "leader-elect-retry-period", time.Second*2, "The duration the LeaderElector clients should wait between tries of actions.")
+	flag.DurationVar(&shutdownTimeout, "shutdown-timeout", time.Second*10, "The duration to wait for the manager to shutdown.")
 	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
@@ -81,16 +83,17 @@ func Main(version string) {
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         false,
+		Scheme:                  scheme,
+		Metrics:                 metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:  probeAddr,
+		GracefulShutdownTimeout: &shutdownTimeout,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
+	// Create the storage provider.
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageprovider.Options{
 		NodeID:                      nodeID,
 		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
@@ -101,11 +104,13 @@ func Main(version string) {
 		setupLog.Error(err, "unable to create webmesh storage provider")
 		os.Exit(1)
 	}
-	err = storageProvider.StartManaged(ctx)
+	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
 		setupLog.Error(err, "unable to start webmesh storage provider")
 		os.Exit(1)
 	}
+	defer storageProvider.Close()
+
 	// Make sure the network state is boostrapped.
 	networkState, err := meshstorage.Bootstrap(ctx, storageProvider.MeshDB(), meshstorage.BootstrapOptions{
 		MeshDomain:           clusterDomain,
@@ -141,9 +146,26 @@ func Main(version string) {
 		os.Exit(1)
 	}
 
-	setupLog.Info("Starting peer container manager")
-	if err := mgr.Start(ctx); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+	// TODO: Register a cleanup function to remove the node and all containers
+	// when the manager is shutting down.
+
+	donec := make(chan struct{})
+	go func() {
+		defer close(donec)
+		setupLog.Info("Starting peer container manager")
+		if err := mgr.Start(ctx); err != nil {
+			setupLog.Error(err, "problem running manager")
+			os.Exit(1)
+		}
+	}()
+
+	// TODO: Attempt to recover from any ungraceful shutdowns.
+
+	<-ctx.Done()
+	select {
+	case <-donec:
+		setupLog.Info("Finished running manager")
+	case <-time.After(shutdownTimeout):
+		setupLog.Info("Shutdown timeout reached, exiting")
 	}
 }

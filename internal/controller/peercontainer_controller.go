@@ -30,7 +30,8 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
-	"github.com/webmeshproj/webmesh/pkg/meshnode"
+	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -138,6 +139,23 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		})
 		if err != nil {
 			return fmt.Errorf("failed to register peer: %w", err)
+		}
+		// Create edges for all other nodes in the same zone.
+		peers, err := r.Provider.MeshDB().Peers().List(
+			ctx,
+			meshstorage.NotNodeIDFilter(nodeID),
+			meshstorage.ZoneIDFilter(container.Spec.NodeName),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to list peers: %w", err)
+		}
+		for _, peer := range peers {
+			if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
+				Source: nodeID.String(),
+				Target: peer.NodeID().String(),
+			}}); err != nil {
+				return fmt.Errorf("failed to create edge: %w", err)
+			}
 		}
 		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
 			Key:             key,
@@ -264,7 +282,23 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 	}
-	// TODO: Make sure all MeshEdges are up to date.
+	// Make sure all MeshEdges are up to date for this node.
+	peers, err := r.Provider.MeshDB().Peers().List(
+		ctx,
+		meshstorage.NotNodeIDFilter(nodeID),
+		meshstorage.ZoneIDFilter(container.Spec.NodeName),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to list peers: %w", err)
+	}
+	for _, peer := range peers {
+		if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
+			Source: nodeID.String(),
+			Target: peer.NodeID().String(),
+		}}); err != nil {
+			return fmt.Errorf("failed to create edge: %w", err)
+		}
+	}
 	return nil
 }
 
