@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
@@ -51,10 +52,9 @@ type PeerContainerReconciler struct {
 	Scheme           *runtime.Scheme
 	Provider         *provider.Provider
 	NodeName         string
-	PodCIDR          netip.Prefix
-	ClusterDomain    string
 	ReconcileTimeout time.Duration
 
+	ready      atomic.Bool
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
 	meshDomain string
@@ -66,19 +66,29 @@ type PeerContainerReconciler struct {
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
+func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapResults) {
+	r.meshDomain = results.MeshDomain
+	r.networkV4 = results.NetworkV4
+	r.networkV6 = results.NetworkV6
+	r.ready.Store(true)
+}
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
+	if !r.ready.Load() {
+		log.Info("Controller is not ready yet, requeing reconcile request")
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: 1 * time.Second,
+		}, nil
+	}
 	if r.ReconcileTimeout > 0 {
 		log.V(1).Info("Setting reconcile timeout", "timeout", r.ReconcileTimeout)
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, r.ReconcileTimeout)
 		defer cancel()
-	}
-	log.V(1).Info("Ensuring network is bootstrapped")
-	if err := r.tryBootstrap(ctx); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to bootstrap network state: %w", err)
 	}
 	var container cniv1.PeerContainer
 	if err := r.Get(ctx, req.NamespacedName, &container); err != nil {
@@ -87,7 +97,8 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Info("Stopping mesh node for container", "container", req.NamespacedName)
 			return ctrl.Result{}, r.teardownPeerContainer(ctx, req.NamespacedName)
 		}
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		log.Error(err, "Failed to get container")
+		return ctrl.Result{}, err
 	}
 	if container.Spec.NodeName != r.NodeName {
 		// This container is not for this node, so we don't care about it.
@@ -95,50 +106,6 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	log.Info("Reconciling mesh node for container", "container", req.NamespacedName)
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, &container)
-}
-
-// tryBootstrap ensures the network is bootstrapped if we don't have a local configuration yet.
-func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
-	// TODO: This logic needs to be moved to setup.
-	log := log.FromContext(ctx)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	// Check if we have already set the network domain.
-	if r.meshDomain != "" {
-		// Nothing to do.
-		log.V(2).Info("Network already bootstrapped")
-		return nil
-	}
-	log.Info("Bootstrapping network state")
-	// Try to bootstrap the storage provider.
-	if err := r.Provider.Bootstrap(ctx); err != nil {
-		if !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-			log.Error(err, "Unable to bootstrap storage provider")
-			return fmt.Errorf("failed to bootstrap storage provider: %w", err)
-		}
-		log.Info("Storage provider already bootstrapped, making sure network state is boostrapped")
-	}
-	// Make sure the network state is boostrapped.
-	networkState, err := meshstorage.Bootstrap(ctx, r.Provider.MeshDB(), meshstorage.BootstrapOptions{
-		MeshDomain:           r.ClusterDomain,
-		IPv4Network:          r.PodCIDR.String(),
-		Admin:                meshstorage.DefaultMeshAdmin,
-		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
-	})
-	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		log.Error(err, "Unable to bootstrap network state")
-		return fmt.Errorf("failed to bootstrap network state: %w", err)
-	} else if mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		log.Info("Network already bootstrapped")
-	} else {
-		log.Info("Network state bootstrapped for the first time")
-	}
-	// Set the state of the network to the local fields.
-	r.meshDomain = networkState.MeshDomain
-	r.networkV4 = networkState.NetworkV4
-	r.networkV6 = networkState.NetworkV6
-	return nil
 }
 
 // reconcilePeerContainer reconciles the given PeerContainer.

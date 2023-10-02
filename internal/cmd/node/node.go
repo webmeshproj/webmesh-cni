@@ -18,14 +18,18 @@ limitations under the License.
 package node
 
 import (
+	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"net/netip"
 	"os"
 	"time"
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
+	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -67,6 +71,7 @@ func Main(version string) {
 		leaderElectRetryPeriod   time.Duration
 		reconcileTimeout         time.Duration
 		shutdownTimeout          time.Duration
+		cacheSyncTimeout         time.Duration
 		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&namespace, "namespace", os.Getenv(install.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
@@ -80,6 +85,7 @@ func Main(version string) {
 	flag.DurationVar(&leaderElectRetryPeriod, "leader-elect-retry-period", time.Second*2, "The duration the LeaderElector clients should wait between tries of actions.")
 	flag.DurationVar(&reconcileTimeout, "reconcile-timeout", time.Second*10, "The duration to wait for the manager to reconcile a request.")
 	flag.DurationVar(&shutdownTimeout, "shutdown-timeout", time.Second*10, "The duration to wait for the manager to shutdown.")
+	flag.DurationVar(&cacheSyncTimeout, "cache-sync-timeout", time.Second*10, "The duration to wait for the manager to sync caches.")
 	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
@@ -92,6 +98,11 @@ func Main(version string) {
 	}
 	if nodeID == "" {
 		setupLog.Error(errors.New("invalid options"), "node ID must be specified")
+		os.Exit(1)
+	}
+	podcidr, err := netip.ParsePrefix(podCIDR)
+	if err != nil {
+		setupLog.Error(err, "Unable to parse pod CIDR")
 		os.Exit(1)
 	}
 
@@ -132,20 +143,15 @@ func Main(version string) {
 	}
 
 	// Register the peer container controller.
-	podcidr, err := netip.ParsePrefix(podCIDR)
-	if err != nil {
-		setupLog.Error(err, "Unable to parse pod CIDR")
-		os.Exit(1)
-	}
-	if err = (&controller.PeerContainerReconciler{
+
+	containerReconciler := &controller.PeerContainerReconciler{
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
 		Provider:         storageProvider,
 		NodeName:         nodeID,
-		PodCIDR:          podcidr,
-		ClusterDomain:    clusterDomain,
 		ReconcileTimeout: reconcileTimeout,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err = containerReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)
 	}
@@ -172,6 +178,7 @@ func Main(version string) {
 		}
 	}()
 
+	// Start the storage provider in unmanaged mode.
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
 		setupLog.Error(err, "Unable to start webmesh storage provider")
@@ -179,14 +186,65 @@ func Main(version string) {
 	}
 	defer storageProvider.Close()
 
+	// Wait for the manager cache to sync and then ensure the mesh network is bootstrapped.
+	cacheCtx, cancel := context.WithTimeout(ctx, cacheSyncTimeout)
+	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
+		cancel()
+		setupLog.Error(err, "Timed out waiting for caches to sync")
+		os.Exit(1)
+	}
+	cancel()
+
+	setupLog.Info("Caches synced, bootstrapping network state")
+	results, err := tryBootstrap(ctx, storageProvider, podcidr, clusterDomain)
+	if err != nil {
+		setupLog.Error(err, "Unable to bootstrap network state")
+		os.Exit(1)
+	}
+	containerReconciler.SetNetworkState(results)
+
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
 
+	// Wait for the manager to exit.
 	<-ctx.Done()
+
 	select {
 	case <-donec:
 		setupLog.Info("Finished running manager")
 	case <-time.After(shutdownTimeout):
 		setupLog.Info("Shutdown timeout reached, exiting")
 	}
+}
+
+func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, podcidr netip.Prefix, clusterDomain string) (meshstorage.BootstrapResults, error) {
+	log := ctrl.Log.WithName("bootstrap")
+	log.Info("Bootstrapping network state")
+	// Try to bootstrap the storage provider.
+	var networkState meshstorage.BootstrapResults
+	err := provider.Bootstrap(ctx)
+	if err != nil {
+		if !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+			log.Error(err, "Unable to bootstrap storage provider")
+			return networkState, fmt.Errorf("failed to bootstrap storage provider: %w", err)
+		}
+		log.Info("Storage provider already bootstrapped, making sure network state is boostrapped")
+	}
+	// Make sure the network state is boostrapped.
+	networkState, err = meshstorage.Bootstrap(ctx, provider.MeshDB(), meshstorage.BootstrapOptions{
+		MeshDomain:           clusterDomain,
+		IPv4Network:          podcidr.String(),
+		Admin:                meshstorage.DefaultMeshAdmin,
+		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
+		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
+	})
+	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+		log.Error(err, "Unable to bootstrap network state")
+		return networkState, fmt.Errorf("failed to bootstrap network state: %w", err)
+	} else if mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+		log.Info("Network already bootstrapped")
+	} else {
+		log.Info("Network state bootstrapped for the first time")
+	}
+	return networkState, nil
 }
