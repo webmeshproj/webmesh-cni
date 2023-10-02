@@ -72,6 +72,10 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
+LINT_TIMEOUT := 10m
+lint: ## Run linters.
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run --timeout=$(LINT_TIMEOUT)
+
 ##@ Build
 
 .PHONY: build
@@ -82,9 +86,10 @@ build: manifests generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
+##@ Distribute
 
-##@ Deployment
-
+bundle: manifests generate ## Bundle creates a distribution bundle manifest.
+	# TODO: Add bundle steps here
 
 ##@ Build Dependencies
 
@@ -101,6 +106,8 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+##@ Local Development
 
 K3D ?= k3d
 CLUSTER_NAME ?= webmesh-cni

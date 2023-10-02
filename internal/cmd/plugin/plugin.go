@@ -268,8 +268,7 @@ WaitForInterface:
 		Mac:     contDev.Attrs().HardwareAddr.String(),
 		Sandbox: containerNs.Path(),
 	}}
-	types.PrintResult(result, conf.CNIVersion)
-	return nil
+	return types.PrintResult(result, conf.CNIVersion)
 }
 
 // cmdCheck is the CNI CHECK command handler.
