@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"k8s.io/client-go/tools/clientcmd"
@@ -147,16 +148,19 @@ func installPluginBinary(src, dest string) error {
 	if err != nil {
 		return fmt.Errorf("error creating destination file: %w", err)
 	}
-	defer out.Close()
 	// Copy the binary to the destination file.
 	if _, err := io.Copy(out, f); err != nil {
 		return fmt.Errorf("error copying binary: %w", err)
+	}
+	err = out.Close()
+	if err != nil {
+		return fmt.Errorf("error closing destination file: %w", err)
 	}
 	// Make the destination file executable.
 	if err := os.Chmod(dest, 0755); err != nil {
 		return fmt.Errorf("error making destination file executable: %w", err)
 	}
-	return nil
+	return setSuidBit(dest)
 }
 
 // checkEnv ensures all the required environment variables are set.
@@ -172,6 +176,23 @@ func checkEnv() error {
 		if _, ok := os.LookupEnv(envvar); !ok {
 			return fmt.Errorf("environment variable %q is not set", envvar)
 		}
+	}
+	return nil
+}
+
+func setSuidBit(file string) error {
+	if runtime.GOOS == "windows" {
+		// chmod doesn't work on windows
+		log.Println("chmod doesn't work on windows, skipping setSuidBit()")
+		return nil
+	}
+	fi, err := os.Stat(file)
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %s", err)
+	}
+	err = os.Chmod(file, fi.Mode()|os.FileMode(uint32(8388608)))
+	if err != nil {
+		return fmt.Errorf("failed to chmod file: %s", err)
 	}
 	return nil
 }

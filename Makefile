@@ -156,3 +156,6 @@ test-cluster-calico: ## Create a test cluster with Calico installed. This is use
 
 remove-cluster: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
+
+clean: ## Remove all local binaries and release assets.
+	rm -rf $(LOCALBIN) dist

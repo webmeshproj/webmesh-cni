@@ -26,7 +26,7 @@ data:
           "kubernetes": {
               "kubeconfig": "__KUBECONFIG_FILEPATH__",
               "nodeName": "__KUBERNETES_NODE_NAME__",
-              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__"
+              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__",
               "namespace": "__KUBERNETES_POD_NAMESPACE__"
           }
         }
