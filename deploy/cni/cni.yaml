@@ -16,7 +16,7 @@ data:
       "plugins": [
         {
           "type": "webmesh",
-          "logLevel": "info",
+          "logLevel": "debug",
           "interface": {
               "mtu": 1450,
               "disableIPv4": false,
