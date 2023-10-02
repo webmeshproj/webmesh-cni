@@ -113,6 +113,36 @@ func Main(version string) {
 		}
 		cfg.CertData = caData
 	}
+	// If our bearer token is a file, convert it to the contents of the file.
+	if cfg.BearerTokenFile != "" {
+		log.Println("reading bearer token from file -> ", cfg.BearerTokenFile)
+		token, err := os.ReadFile(cfg.BearerTokenFile)
+		if err != nil {
+			log.Println("error reading bearer token:", err)
+			os.Exit(1)
+		}
+		cfg.BearerToken = string(token)
+	}
+	// If our client certificate is a file, convert it to the contents of the file.
+	if cfg.CertFile != "" {
+		log.Println("reading client certificate from file -> ", cfg.CertFile)
+		cert, err := os.ReadFile(cfg.CertFile)
+		if err != nil {
+			log.Println("error reading client certificate:", err)
+			os.Exit(1)
+		}
+		cfg.CertData = cert
+	}
+	// Same for any key
+	if cfg.KeyFile != "" {
+		log.Println("reading client key from file -> ", cfg.KeyFile)
+		key, err := os.ReadFile(cfg.KeyFile)
+		if err != nil {
+			log.Println("error reading client key:", err)
+			os.Exit(1)
+		}
+		cfg.KeyData = key
+	}
 	clientconfig := clientcmdapi.Config{
 		Kind:       "Config",
 		APIVersion: "v1",
@@ -126,11 +156,11 @@ func Main(version string) {
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"webmesh-cni": {
-				ClientCertificate: cfg.CertFile,
-				ClientKey:         cfg.KeyFile,
-				Token:             cfg.BearerToken,
-				Impersonate:       cfg.Impersonate.UserName,
-				ImpersonateGroups: cfg.Impersonate.Groups,
+				ClientCertificateData: cfg.CertData,
+				ClientKeyData:         cfg.KeyData,
+				Token:                 cfg.BearerToken,
+				Impersonate:           cfg.Impersonate.UserName,
+				ImpersonateGroups:     cfg.Impersonate.Groups,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
