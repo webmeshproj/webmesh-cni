@@ -96,7 +96,7 @@ const (
 var log *slog.Logger
 
 func init() {
-	// This ensures that main runs only on main the main thread (thread group leader).
+	// This ensures that main runs only on the main thread (thread group leader).
 	// Since namespace ops (unshare, setns) are done for a single thread, we must
 	// ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
