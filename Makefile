@@ -1,6 +1,8 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+REPO    ?= github.com/webmesh/webmesh-cni
+VERSION ?= latest
+IMG     ?= $(REPO):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
@@ -79,18 +81,28 @@ lint: ## Run linters.
 
 ##@ Build
 
-.PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+PARALLEL   ?= $(shell nproc)
+GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
+BUILD_ARGS ?= --clean --parallelism=$(PARALLEL)
 
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+build: ## Build cni binaries for the current architecture.
+	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
+
+.PHONY: dist
+dist: ## Build cni binaries for all supported architectures.
+	$(GORELEASER) build $(BUILD_ARGS)
+
+snapshot: ## Same as dist, but without running the release hooks.
+	$(GORELEASER) build --snapshot $(BUILD_ARGS)
+
+DOCKER ?= docker
+docker: build ## Build docker image for the current architecture.
+	$(DOCKER) build -t $(IMG) .
 
 ##@ Distribute
 
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
-BUNDLE ?= deploy/bundle.yaml
+BUNDLE ?= $(CURDIR)/deploy/bundle.yaml
 bundle: manifests generate ## Bundle creates a distribution bundle manifest.
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "# Source: $(STORAGE_PROVIDER_BUNDLE)" > $(BUNDLE)
@@ -126,7 +138,13 @@ $(ENVTEST): $(LOCALBIN)
 K3D ?= k3d
 CLUSTER_NAME ?= webmesh-cni
 
-create-cluster:
+test-cluster:
+	$(K3D) cluster create $(CLUSTER_NAME) \
+		--k3s-arg '--flannel-backend=none@server:*' \
+		--k3s-arg "--disable-network-policy@server:*" \
+		--volume '$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*' \
+
+test-cluster-calico:
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \

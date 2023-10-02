@@ -1,0 +1,51 @@
+project_name: webmesh-cni
+
+before:
+  hooks:
+    - go mod tidy
+    - make generate
+
+builds:
+  - id: webmesh-cni
+    main: cmd/main.go
+    binary: webmesh-cni
+    tags:
+      - osusergo
+      - netgo
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w 
+      - -X github.com/kvdi/kvdi/pkg/version.Version={{ .Version }}
+      - -X github.com/kvdi/kvdi/pkg/version.Commit={{ .Commit }}
+      - -X github.com/kvdi/kvdi/pkg/version.BuildDate={{ .Date }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - '386'
+      - ppc64le
+      - s390x
+      - mips64le
+      - mips64
+      - mipsle
+      - mips
+    env:
+     - CGO_ENABLED=0
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^examples:'
+
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
