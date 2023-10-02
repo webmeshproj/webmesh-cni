@@ -148,6 +148,7 @@ test-cluster: ## Create a test cluster with the WebMesh CNI installed.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
+		--volume '/dev/net/tun:/dev/net/tun@server:*' \
 		--volume '$(CURDIR)/$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
 	kubens $(CNI_NAMESPACE)
 
