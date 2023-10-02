@@ -28,10 +28,6 @@ builds:
       - '386'
       - ppc64le
       - s390x
-      - mips64le
-      - mips64
-      - mipsle
-      - mips
     env:
      - CGO_ENABLED=0
 
