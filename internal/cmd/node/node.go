@@ -130,20 +130,22 @@ func Main(version string) {
 	}
 
 	// Create the storage provider.
-	storageProvider, err := storageprovider.NewWithManager(mgr, storageprovider.Options{
+	storageOpts := storageprovider.Options{
 		NodeID:                      nodeID,
 		Namespace:                   namespace,
 		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
 		LeaderElectionRenewDeadline: leaderElectRenewDeadline,
 		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
-	})
+	}
+	setupLog.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
+	storageProvider, err := storageprovider.NewWithManager(mgr, storageOpts)
 	if err != nil {
 		setupLog.Error(err, "Unable to create webmesh storage provider")
 		os.Exit(1)
 	}
 
 	// Register the peer container controller.
-
+	setupLog.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
@@ -156,6 +158,8 @@ func Main(version string) {
 		os.Exit(1)
 	}
 
+	// Register the health and ready checks.
+	setupLog.V(1).Info("Registering health and ready checks")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "Unable to set up health check")
 		os.Exit(1)
@@ -178,8 +182,8 @@ func Main(version string) {
 		}
 	}()
 
-	setupLog.Info("Starting webmesh storage provider")
 	// Start the storage provider in unmanaged mode.
+	setupLog.Info("Starting webmesh storage provider")
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
 		setupLog.Error(err, "Unable to start webmesh storage provider")
@@ -187,8 +191,8 @@ func Main(version string) {
 	}
 	defer storageProvider.Close()
 
-	setupLog.Info("Waiting for caches to sync", "timeout", cacheSyncTimeout)
 	// Wait for the manager cache to sync and then ensure the mesh network is bootstrapped.
+	setupLog.Info("Waiting for manager cache to sync", "timeout", cacheSyncTimeout)
 	cacheCtx, cancel := context.WithTimeout(ctx, cacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
 		cancel()
@@ -197,7 +201,7 @@ func Main(version string) {
 	}
 	cancel()
 
-	setupLog.Info("Caches synced, bootstrapping network state")
+	setupLog.V(1).Info("Caches synced, bootstrapping network state")
 	results, err := tryBootstrap(ctx, storageProvider, podcidr, clusterDomain)
 	if err != nil {
 		setupLog.Error(err, "Unable to bootstrap network state")
@@ -209,6 +213,7 @@ func Main(version string) {
 	// to join the network.
 
 	setupLog.Info("Webmesh CNI node started")
+
 	// Wait for the manager to exit.
 	<-ctx.Done()
 
@@ -222,8 +227,9 @@ func Main(version string) {
 
 func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, podcidr netip.Prefix, clusterDomain string) (meshstorage.BootstrapResults, error) {
 	log := ctrl.Log.WithName("bootstrap")
-	log.Info("Bootstrapping network state")
+	log.Info("Bootstrapping webmesh network")
 	// Try to bootstrap the storage provider.
+	log.V(1).Info("Attempting to bootstrap storage provider")
 	var networkState meshstorage.BootstrapResults
 	err := provider.Bootstrap(ctx)
 	if err != nil {
@@ -231,16 +237,18 @@ func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, podci
 			log.Error(err, "Unable to bootstrap storage provider")
 			return networkState, fmt.Errorf("failed to bootstrap storage provider: %w", err)
 		}
-		log.Info("Storage provider already bootstrapped, making sure network state is boostrapped")
+		log.V(1).Info("Storage provider already bootstrapped, making sure network state is boostrapped")
 	}
 	// Make sure the network state is boostrapped.
-	networkState, err = meshstorage.Bootstrap(ctx, provider.MeshDB(), meshstorage.BootstrapOptions{
+	bootstrapOpts := meshstorage.BootstrapOptions{
 		MeshDomain:           clusterDomain,
 		IPv4Network:          podcidr.String(),
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
 		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
-	})
+	}
+	log.V(1).Info("Attempting to bootstrap network state", "options", bootstrapOpts)
+	networkState, err = meshstorage.Bootstrap(ctx, provider.MeshDB(), bootstrapOpts)
 	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
 		log.Error(err, "Unable to bootstrap network state")
 		return networkState, fmt.Errorf("failed to bootstrap network state: %w", err)
