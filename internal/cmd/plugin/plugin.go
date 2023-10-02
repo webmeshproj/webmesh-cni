@@ -272,6 +272,7 @@ WaitForInterface:
 }
 
 // cmdCheck is the CNI CHECK command handler.
+// TODO: Use this to force a refresh of peers for a container.
 func cmdCheck(args *skel.CmdArgs) error {
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {

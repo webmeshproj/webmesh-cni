@@ -238,7 +238,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
-				NodeID:                meshtypes.NodeID(container.Spec.ContainerID),
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
 				ListenPort:            int(peer.WireGuardPort()),
@@ -331,6 +330,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}}); err != nil {
 			return fmt.Errorf("failed to create edge: %w", err)
 		}
+	}
+	// Force a sync of the node.
+	err = node.Network().Peers().Sync(ctx)
+	if err != nil {
+		log.Error(err, "Failed to sync peers", "container", container)
+		// We leave this as non-fatal for now
 	}
 	return nil
 }
