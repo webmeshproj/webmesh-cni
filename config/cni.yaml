@@ -8,6 +8,8 @@ metadata:
 data:
   ## TODO: Add the webmesh-cni-node configurations here as well to
   ## potentially override command line arguments and other defaults.
+  #
+  # The network config to install on each node.
   cni-network-config: |-
     {
       "name": "k8s-pod-network",
