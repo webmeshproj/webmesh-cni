@@ -139,10 +139,6 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
-	if conf.Kubernetes.Kubeconfig == "" {
-		// We were invoked without our configuration, but it's probably next to the executable.
-		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
-	}
 	log.Debug("New ADD request", "config", conf, "args", args)
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
@@ -305,10 +301,6 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
-	if conf.Kubernetes.Kubeconfig == "" {
-		// We were invoked without our configuration, but it's probably next to the executable.
-		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
-	}
 	log.Debug("New CHECK request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
@@ -353,10 +345,6 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
-	}
-	if conf.Kubernetes.Kubeconfig == "" {
-		// We were invoked without our configuration, but it's probably next to the executable.
-		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
 	}
 	log.Debug("New DEL request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
@@ -430,5 +418,10 @@ func loadConfigAndLogger(args *skel.CmdArgs) (*NetConf, error) {
 		AddSource: true,
 		Level:     level,
 	}))
+	if conf.Kubernetes.Kubeconfig == "" {
+		// We were invoked without our configuration, but it's probably next to the executable.
+		log.Debug("No kubeconfig provided, using default path")
+		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
+	}
 	return &conf, nil
 }
