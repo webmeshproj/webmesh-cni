@@ -19,6 +19,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
@@ -65,10 +66,14 @@ func NewOrDie() *Client {
 // NewFromKubeconfig creates a new client from the given kubeconfig.
 func NewFromKubeconfig(kubeconfig string) (*Client, error) {
 	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
-		return clientcmd.LoadFromFile(kubeconfig)
+		conf, err := clientcmd.LoadFromFile(kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig from file: %w", err)
+		}
+		return conf, nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
 	}
 	return NewForConfig(cfg)
 }
@@ -96,7 +101,7 @@ func NewForConfig(cfg *rest.Config) (*Client, error) {
 		Scheme: scheme,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	return &Client{
 		Client: client,
