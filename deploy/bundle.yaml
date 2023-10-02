@@ -831,9 +831,6 @@ spec:
               ifName:
                 description: IfName is the name of the interface to peer with.
                 type: string
-              ipv4Address:
-                description: IPv4Address is the IPv4 address to assign to the interface.
-                type: string
               logLevel:
                 description: LogLevel is the log level for the webmesh interface.
                 type: string
@@ -853,7 +850,6 @@ spec:
             - disableIPv4
             - disableIPv6
             - ifName
-            - ipv4Address
             - logLevel
             - mtu
             - netns
@@ -900,14 +896,6 @@ kind: ClusterRole
 metadata:
   name: webmesh-cni-role
 rules:
-- apiGroups:
-  - apiextensions.k8s.io
-  resources:
-  - customresourcedefinitions
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - cni.webmesh.io
   resources:
