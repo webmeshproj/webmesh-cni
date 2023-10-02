@@ -124,6 +124,7 @@ func Main(version string) {
 		cfg.BearerToken = string(token)
 	}
 	// If our client certificate is a file, convert it to the contents of the file.
+	var clientCertData []byte
 	if cfg.CertFile != "" {
 		log.Println("reading client certificate from file -> ", cfg.CertFile)
 		cert, err := os.ReadFile(cfg.CertFile)
@@ -131,7 +132,7 @@ func Main(version string) {
 			log.Println("error reading client certificate:", err)
 			os.Exit(1)
 		}
-		cfg.CertData = cert
+		clientCertData = cert
 	}
 	// Same for any key
 	if cfg.KeyFile != "" {
@@ -156,7 +157,7 @@ func Main(version string) {
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"webmesh-cni": {
-				ClientCertificateData: cfg.CertData,
+				ClientCertificateData: clientCertData,
 				ClientKeyData:         cfg.KeyData,
 				Token:                 cfg.BearerToken,
 				Impersonate:           cfg.Impersonate.UserName,
