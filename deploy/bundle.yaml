@@ -963,9 +963,8 @@ metadata:
   name: webmesh-config
   namespace: kube-system
 data:
-  ## TODO: Add the webmesh-cni-node configurations here as well to
-  ## potentially override command line arguments and other defaults.
-  #
+  cluster-domain: "cluster.local"
+  pod-cidr: "10.42.0.0/24"
   # The network config to install on each node.
   cni-network-config: |-
     {
@@ -1063,6 +1062,8 @@ spec:
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
+            - mountPath: /var/lib/cni/networks
+              name: host-local-net-dir
           securityContext:
             privileged: true
       containers:
@@ -1084,6 +1085,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Set the pod cidr based on the one we are running.
+            - name: POD_CIDR
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: pod-cidr
+            # Set the cluster domain based on the one we are running.
+            - name: CLUSTER_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cluster-domain
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules
@@ -1103,3 +1116,9 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        # Mount in the directory for host-local IPAM allocations. This is
+        # used when upgrading from host-local to calico-ipam, and can be removed
+        # if not using the upgrade-ipam init container.
+        - name: host-local-net-dir
+          hostPath:
+            path: /var/lib/cni/networks

@@ -30,7 +30,7 @@ import (
 func main() {
 	// We run the entrypoint based on how we were invoked.
 	switch filepath.Base(os.Args[0]) {
-	case "webmesh":
+	case "webmesh", "loopback":
 		plugin.Main(version.Version)
 	case "webmesh-cni-node":
 		node.Main(version.Version)

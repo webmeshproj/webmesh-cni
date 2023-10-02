@@ -80,11 +80,13 @@ func Main(version string) {
 		os.Exit(1)
 	}
 	// Copy the binary to the destination directory.
-	pluginBin := filepath.Join(os.Getenv(BinaryDestBinEnvVar), PluginBinaryName)
-	log.Println("installing plugin binary to -> ", pluginBin)
-	if err := installPluginBinary(exec, pluginBin); err != nil {
-		log.Println("error copying binary:", err)
-		os.Exit(1)
+	for _, binName := range []string{PluginBinaryName, "loopback"} {
+		pluginBin := filepath.Join(os.Getenv(BinaryDestBinEnvVar), binName)
+		log.Println("installing plugin binary to -> ", pluginBin)
+		if err := installPluginBinary(exec, pluginBin); err != nil {
+			log.Println("error copying binary:", err)
+			os.Exit(1)
+		}
 	}
 	// Write a kubeconfig file to the destination directory.
 	kubeconfigPath := filepath.Join(os.Getenv(BinaryDestBinEnvVar), "webmesh-kubeconfig")

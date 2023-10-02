@@ -6,9 +6,8 @@ metadata:
   name: webmesh-config
   namespace: kube-system
 data:
-  ## TODO: Add the webmesh-cni-node configurations here as well to
-  ## potentially override command line arguments and other defaults.
-  #
+  cluster-domain: "cluster.local"
+  pod-cidr: "10.42.0.0/24"
   # The network config to install on each node.
   cni-network-config: |-
     {
@@ -129,6 +128,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Set the pod cidr based on the one we are running.
+            - name: POD_CIDR
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: pod-cidr
+            # Set the cluster domain based on the one we are running.
+            - name: CLUSTER_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cluster-domain
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules
