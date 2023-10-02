@@ -32,7 +32,7 @@ func main() {
 	switch filepath.Base(os.Args[0]) {
 	case "webmesh":
 		plugin.Main(version.Version)
-	case "webmesh-cni-node":
+	case "webmesh-cni-node", "webmesh-node":
 		node.Main(version.Version)
 	case "webmesh-cni-install":
 		install.Main(version.Version)
