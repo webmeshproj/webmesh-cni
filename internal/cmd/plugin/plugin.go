@@ -127,7 +127,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI ADD was an error", "error", err.Error())
 			cnierr := types.Error{
 				Code:    100,
-				Msg:     "falied to run ADD command",
+				Msg:     "failed to run ADD command",
 				Details: err.Error(),
 			}
 			cnierr.Print()
@@ -289,7 +289,7 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI CHECK was an error", "error", err.Error())
 			cnierr := types.Error{
 				Code:    100,
-				Msg:     "falied to run CHECK command",
+				Msg:     "failed to run CHECK command",
 				Details: err.Error(),
 			}
 			cnierr.Print()
@@ -334,7 +334,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI DEL was an error", "error", err.Error())
 			cnierr := types.Error{
 				Code:    100,
-				Msg:     "falied to run DEL command",
+				Msg:     "failed to run DEL command",
 				Details: err.Error(),
 			}
 			cnierr.Print()
