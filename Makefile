@@ -101,17 +101,21 @@ docker: build ## Build docker image for the current architecture.
 
 ##@ Distribute
 
+RAW_REPO_URL ?= https://github.com/webmeshproj/webmesh-cni/raw/main
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
-BUNDLE ?= $(CURDIR)/deploy/bundle.yaml
+BUNDLE ?= deploy/bundle.yaml
 bundle: manifests ## Bundle creates a distribution bundle manifest.
+	rm -f $(BUNDLE)
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
-	@echo "# Source: $(STORAGE_PROVIDER_BUNDLE)" > $(BUNDLE)
-	curl -JL $(STORAGE_PROVIDER_BUNDLE) >> $(BUNDLE)
+	@echo "---" >> $(BUNDLE)
+	@echo "# BEGIN: $(STORAGE_PROVIDER_BUNDLE)" >> $(BUNDLE)
+	@echo "---" >> $(BUNDLE)
+	@curl -JL --silent $(STORAGE_PROVIDER_BUNDLE) >> $(BUNDLE)
 	@echo "---" >> $(BUNDLE)
 	@echo "# END: $(STORAGE_PROVIDER_BUNDLE)" >> $(BUNDLE)
 	@echo "+ Appending WebMesh CNI assets to $(BUNDLE)"
 	@echo "---" >> $(BUNDLE)
-	@echo "# Source: $(BUNDLE)" >> $(BUNDLE)
+	@echo "# Source: $(RAW_REPO_URL)/$(BUNDLE)" >> $(BUNDLE)
 	@for i in `find deploy/ -type f -not -name bundle.yaml` ; do \
 		echo "---" >> $(BUNDLE) ; \
 		echo "# Source: $$i" >> $(BUNDLE) ; \
@@ -144,7 +148,7 @@ test-cluster: ## Create a test cluster with the WebMesh CNI installed.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
+		--volume '$(CURDIR)/$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
 	kubens $(CNI_NAMESPACE)
 
 load: docker ## Load the docker image into the test cluster.
