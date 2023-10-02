@@ -172,7 +172,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 	// Start building a container type.
-	desiredIfName := "webmesh" + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
+	desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
 	desiredState := &meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
