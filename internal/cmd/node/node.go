@@ -208,6 +208,7 @@ func Main(version string) {
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
 
+	setupLog.Info("Webmesh CNI node started")
 	// Wait for the manager to exit.
 	<-ctx.Done()
 
