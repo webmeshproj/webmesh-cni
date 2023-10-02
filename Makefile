@@ -85,11 +85,11 @@ PARALLEL   ?= $(shell nproc)
 GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
 BUILD_ARGS ?= --clean --parallelism=$(PARALLEL)
 
-build: ## Build cni binaries for the current architecture.
+build: generate ## Build cni binaries for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
 
 .PHONY: dist
-dist: ## Build cni binaries for all supported architectures.
+dist: generate ## Build cni binaries for all supported architectures.
 	$(GORELEASER) build $(BUILD_ARGS)
 
 snapshot: ## Same as dist, but without running the release hooks.
@@ -103,7 +103,7 @@ docker: build ## Build docker image for the current architecture.
 
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
 BUNDLE ?= $(CURDIR)/deploy/bundle.yaml
-bundle: manifests generate ## Bundle creates a distribution bundle manifest.
+bundle: manifests ## Bundle creates a distribution bundle manifest.
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "# Source: $(STORAGE_PROVIDER_BUNDLE)" > $(BUNDLE)
 	curl -JL $(STORAGE_PROVIDER_BUNDLE) >> $(BUNDLE)
