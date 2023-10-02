@@ -16,9 +16,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w 
-      - -X github.com/kvdi/kvdi/pkg/version.Version={{ .Version }}
-      - -X github.com/kvdi/kvdi/pkg/version.Commit={{ .Commit }}
-      - -X github.com/kvdi/kvdi/pkg/version.BuildDate={{ .Date }}
+      - -X github.com/webmeshproj/webmesh-cni/internal/version.Version={{ .Version }}
+      - -X github.com/webmeshproj/webmesh-cni/internal/version.Commit={{ .Commit }}
+      - -X github.com/webmeshproj/webmesh-cni/internal/version.BuildDate={{ .Date }}
     goos:
       - linux
     goarch:
