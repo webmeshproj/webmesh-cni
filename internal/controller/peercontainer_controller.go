@@ -69,15 +69,17 @@ type PeerContainerReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
 	if r.ReconcileTimeout > 0 {
+		log.V(1).Info("Setting reconcile timeout", "timeout", r.ReconcileTimeout)
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, r.ReconcileTimeout)
 		defer cancel()
 	}
+	log.V(1).Info("Ensuring network is bootstrapped")
 	if err := r.tryBootstrap(ctx); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to bootstrap network state: %w", err)
 	}
-	log := log.FromContext(ctx)
 	var container cniv1.PeerContainer
 	if err := r.Get(ctx, req.NamespacedName, &container); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -103,6 +105,7 @@ func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
 	// Check if we have already set the network domain.
 	if r.meshDomain != "" {
 		// Nothing to do.
+		log.V(2).Info("Network already bootstrapped")
 		return nil
 	}
 	// Make sure the network state is boostrapped.
@@ -116,6 +119,10 @@ func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
 	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
 		log.Error(err, "Unable to bootstrap network state")
 		return fmt.Errorf("failed to bootstrap network state: %w", err)
+	} else if mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+		log.V(1).Info("Network already bootstrapped")
+	} else {
+		log.Info("Network state bootstrapped for the first time")
 	}
 	// Set the state of the network to the local fields.
 	r.meshDomain = networkState.MeshDomain
