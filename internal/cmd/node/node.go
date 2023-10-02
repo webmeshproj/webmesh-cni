@@ -65,8 +65,8 @@ func Main(version string) {
 		shutdownTimeout          time.Duration
 		zapopts                  = zap.Options{Development: true}
 	)
-	flag.StringVar(&namespace, "namespace", install.PodNamespaceEnvVar, "The namespace to use for the webmesh resources.")
-	flag.StringVar(&nodeID, "node-id", install.NodeNameEnvVar, "The node ID to use for the webmesh cluster.")
+	flag.StringVar(&namespace, "namespace", os.Getenv(install.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
+	flag.StringVar(&nodeID, "node-id", os.Getenv(install.NodeNameEnvVar), "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", "172.16.0.0/12", "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local", "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")

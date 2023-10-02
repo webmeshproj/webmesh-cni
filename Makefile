@@ -107,6 +107,7 @@ bundle: manifests ## Bundle creates a distribution bundle manifest.
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "# Source: $(STORAGE_PROVIDER_BUNDLE)" > $(BUNDLE)
 	curl -JL $(STORAGE_PROVIDER_BUNDLE) >> $(BUNDLE)
+	@echo "---" >> $(BUNDLE)
 	@echo "# END: $(STORAGE_PROVIDER_BUNDLE)" >> $(BUNDLE)
 	@echo "+ Appending WebMesh CNI assets to $(BUNDLE)"
 	@echo "---" >> $(BUNDLE)

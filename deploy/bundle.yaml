@@ -764,6 +764,7 @@ rules:
   - get
   - patch
   - update
+---
 # END: https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
 ---
 # Source: /home/aizimmerman/devel/webmesh/cni/deploy/bundle.yaml
