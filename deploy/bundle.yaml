@@ -968,6 +968,10 @@ data:
   cluster-domain: "cluster.local"
   pod-cidr: "10.42.0.0/16"
   # The network config to install on each node.
+  # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
+  # disableIPv4/disableIPv6 fields in the interface section. You can also
+  # set the MTU for the webmesh interface by setting the mtu field. The 
+  # default is 1420.
   cni-network-config: |-
     {
       "name": "k8s-pod-network",
@@ -977,7 +981,7 @@ data:
           "type": "webmesh",
           "logLevel": "debug",
           "interface": {
-              "mtu": 1450,
+              "mtu": 1420,
               "disableIPv4": false,
               "disableIPv6": true
           },

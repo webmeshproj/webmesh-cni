@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
+	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
@@ -47,11 +48,12 @@ import (
 // PeerContainerReconciler reconciles a PeerContainer object
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	Provider      *provider.Provider
-	NodeName      string
-	PodCIDR       netip.Prefix
-	ClusterDomain string
+	Scheme           *runtime.Scheme
+	Provider         *provider.Provider
+	NodeName         string
+	PodCIDR          netip.Prefix
+	ClusterDomain    string
+	ReconcileTimeout time.Duration
 
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
@@ -67,6 +69,11 @@ type PeerContainerReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.ReconcileTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.ReconcileTimeout)
+		defer cancel()
+	}
 	if err := r.tryBootstrap(ctx); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to bootstrap network state: %w", err)
 	}
