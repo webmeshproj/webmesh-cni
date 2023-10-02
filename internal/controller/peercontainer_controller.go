@@ -33,6 +33,7 @@ import (
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins/ipam"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
+	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,6 +52,7 @@ type PeerContainerReconciler struct {
 	NetworkV4  netip.Prefix
 	NetworkV6  netip.Prefix
 	MeshDomain string
+	NodeName   string
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
 }
@@ -71,6 +73,10 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, r.teardownPeerContainer(ctx, req.NamespacedName)
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if container.Spec.NodeName != r.NodeName {
+		// This container is not for this node, so we don't care about it.
+		return ctrl.Result{}, nil
 	}
 	log.Info("Reconciling mesh node for container", "container", req.NamespacedName)
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, &container)
@@ -163,8 +169,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		// Create edges for all other nodes in the same zone.
 		peers, err := r.Provider.MeshDB().Peers().List(
 			ctx,
-			meshstorage.NotNodeIDFilter(nodeID),
-			meshstorage.ZoneIDFilter(container.Spec.NodeName),
+			meshstorage.FilterAgainstNode(nodeID),
+			meshstorage.FilterByZoneID(container.Spec.NodeName),
 		)
 		if err != nil {
 			r.setFailedStatus(ctx, container, err)
@@ -197,23 +203,11 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	if !node.Started() {
 		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
 		if err != nil {
-			// Try to update the status to failed.
-			container.Status.Phase = cniv1.InterfaceStatusFailed
-			container.Status.Error = err.Error()
-			if err := r.Status().Update(ctx, container); err != nil {
-				log.Error(err, "Failed to update container status", "container", container)
-			}
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to get peer: %w", err)
 		}
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
-			// Try to update the status to failed.
-			container.Status.Phase = cniv1.InterfaceStatusFailed
-			container.Status.Error = err.Error()
-			if err := r.Status().Update(ctx, container); err != nil {
-				log.Error(err, "Failed to update container status", "container", container)
-			}
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
@@ -311,14 +305,15 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
+		log.Error(ctx.Err(), "timed out waiting for mesh node to start", "container", container)
 		r.setFailedStatus(ctx, container, ctx.Err())
 		return ctx.Err()
 	}
 	// Make sure all MeshEdges are up to date for this node.
 	peers, err := r.Provider.MeshDB().Peers().List(
 		ctx,
-		meshstorage.NotNodeIDFilter(nodeID),
-		meshstorage.ZoneIDFilter(container.Spec.NodeName),
+		meshstorage.FilterAgainstNode(nodeID),
+		meshstorage.FilterByZoneID(container.Spec.NodeName),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to list peers: %w", err)
@@ -347,7 +342,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	defer r.mu.Unlock()
 	node, ok := r.nodes[name]
 	if !ok {
-		log.Info("Mesh node for container not found, we must have already deleted it", "container", name)
+		log.Info("Mesh node for container not found, we must have already deleted it or it wasn't ours", "container", name)
 	} else {
 		if err := node.Close(ctx); err != nil {
 			log.Error(err, "Failed to stop mesh node for container", "container", name)
@@ -356,7 +351,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	}
 	// Make sure we've deleted the mesh peer from the database.
 	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(name.Name)); err != nil {
-		if client.IgnoreNotFound(err) != nil {
+		if !mesherrors.Is(err, mesherrors.ErrNodeNotFound) {
 			return fmt.Errorf("failed to delete peer: %w", err)
 		}
 	}

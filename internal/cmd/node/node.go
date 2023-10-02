@@ -132,6 +132,7 @@ func Main(version string) {
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		Provider:   storageProvider,
+		NodeName:   nodeID,
 		NetworkV4:  networkState.NetworkV4,
 		NetworkV6:  networkState.NetworkV6,
 		MeshDomain: networkState.MeshDomain,
