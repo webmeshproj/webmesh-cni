@@ -27,6 +27,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -48,6 +49,16 @@ type (
 // Client is the client for the CNI plugin.
 type Client struct {
 	client.Client
+}
+
+// NewOrDie creates a new client from the given kubeconfig or panics.
+func NewOrDie() *Client {
+	cfg := ctrl.GetConfigOrDie()
+	client, err := NewForConfig(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return client
 }
 
 // NewFromKubeconfig creates a new client from the given kubeconfig.
