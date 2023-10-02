@@ -341,12 +341,18 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	select {
 	case <-node.Ready():
 		// Update the status to running and sets its IP address.
-		log.Info("Updating status to running")
 		var updateStatus bool
 		ifname := node.Network().WireGuard().Name()
 		addrv4 := node.Network().WireGuard().AddressV4().String()
 		addrv6 := node.Network().WireGuard().AddressV6().String()
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
+		log.Info("Updating status to running",
+			"container", container,
+			"interfaceName", ifname,
+			"macAddress", hwaddr.String(),
+			"ipv4Address", addrv4,
+			"ipv6Address", addrv6,
+		)
 		if container.Status.Phase != cniv1.InterfaceStatusRunning {
 			// Update the status to running and sets its IP address.
 			container.Status.Phase = cniv1.InterfaceStatusRunning
@@ -379,10 +385,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
-		log.Error(ctx.Err(), "timed out waiting for mesh node to start", "container", container)
+		log.Error(ctx.Err(), "Timed out waiting for mesh node to start", "container", container)
 		r.setFailedStatus(ctx, container, ctx.Err())
 		return ctx.Err()
 	}
+
+	// Anything else from here on out is non-fatal from an interface perspective.
+	// So we don't touch the status and just log errors.
+
 	// Make sure all MeshEdges are up to date for this node.
 	log.Info("Forcing sync of peers and topology")
 	peers, err := r.Provider.MeshDB().Peers().List(
@@ -391,6 +401,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		meshstorage.FilterByZoneID(container.Spec.NodeName),
 	)
 	if err != nil {
+		log.Error(err, "Failed to list peers", "container", container)
 		return fmt.Errorf("failed to list peers: %w", err)
 	}
 	for _, peer := range peers {
@@ -398,6 +409,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			Source: nodeID.String(),
 			Target: peer.NodeID().String(),
 		}}); err != nil {
+			log.Error(err, "Failed to create edge", "container", container)
 			return fmt.Errorf("failed to create edge: %w", err)
 		}
 	}
@@ -405,7 +417,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	err = node.Network().Peers().Sync(ctx)
 	if err != nil {
 		log.Error(err, "Failed to sync peers", "container", container)
-		// We leave this as non-fatal for now
+		// We don't return an error because the peer will eventually sync on its own.
 	}
 	return nil
 }
@@ -427,6 +439,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	// Make sure we've deleted the mesh peer from the database.
 	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(name.Name)); err != nil {
 		if !mesherrors.Is(err, mesherrors.ErrNodeNotFound) {
+			log.Error(err, "Failed to delete peer", "container", name)
 			return fmt.Errorf("failed to delete peer: %w", err)
 		}
 	}
