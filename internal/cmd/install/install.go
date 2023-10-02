@@ -73,18 +73,18 @@ func Main(version string) {
 		os.Exit(1)
 	}
 	log.Println("using source executable path:", exec)
-	// Clear any local host CNI plugins.
-	log.Println("clearing host-local CNI plugins from", HostLocalNetDir)
+	// Clear any local host IPAM allocations that already exist.
+	log.Println("clearing host-local IPAM allocations from", HostLocalNetDir)
 	if err := clearHostLocalNetDir(); err != nil {
-		log.Println("error clearing host-local CNI plugins:", err)
+		log.Println("error clearing host-local IPAM allocations:", err)
 		os.Exit(1)
 	}
 	// Copy the binary to the destination directory.
-	for _, binName := range []string{PluginBinaryName, "loopback"} {
+	for _, binName := range []string{PluginBinaryName, "loopback", "host-local"} {
 		pluginBin := filepath.Join(os.Getenv(BinaryDestBinEnvVar), binName)
 		log.Println("installing plugin binary to -> ", pluginBin)
 		if err := installPluginBinary(exec, pluginBin); err != nil {
-			log.Println("error copying binary:", err)
+			log.Printf("error installing binary to %s: %v", pluginBin, err)
 			os.Exit(1)
 		}
 	}
@@ -139,7 +139,7 @@ func Main(version string) {
 		log.Println("error writing CNI configuration:", err)
 		os.Exit(1)
 	}
-	log.Println("webmesh-cni install complete")
+	log.Println("webmesh-cni install complete!")
 }
 
 // clearHostLocalNetDir removes any host-local CNI plugins from the CNI configuration.
