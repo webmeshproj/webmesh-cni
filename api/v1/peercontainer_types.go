@@ -42,8 +42,6 @@ type PeerContainerSpec struct {
 	NodeName string `json:"nodeName"`
 	// MTU is the MTU to set on the interface.
 	MTU int `json:"mtu"`
-	// IPv4Address is the IPv4 address to assign to the interface.
-	IPv4Address string `json:"ipv4Address"`
 	// DisableIPv4 is whether to disable IPv4 on the interface.
 	DisableIPv4 bool `json:"disableIPv4"`
 	// DisableIPv6 is whether to disable IPv6 on the interface.

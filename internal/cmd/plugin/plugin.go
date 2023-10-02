@@ -205,7 +205,8 @@ WaitForInterface:
 			if err != nil {
 				if client.IgnoreNotFound(err) != nil {
 					log.Error("Failed to get PeerContainer", "error", err.Error())
-					return err
+					err = fmt.Errorf("failed to get PeerContainer: %w", err)
+					return
 				}
 				err = nil
 				continue

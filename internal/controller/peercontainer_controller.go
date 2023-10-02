@@ -171,7 +171,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to encode public key: %w", err)
 		}
-		if container.Spec.IPv4Address == "" && !container.Spec.DisableIPv4 {
+		var ipv4addr string
+		if !container.Spec.DisableIPv4 {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
 			plugin := meshipam.NewWithDB(r.Provider.MeshDB())
@@ -183,7 +184,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				r.setFailedStatus(ctx, container, err)
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}
-			container.Spec.IPv4Address = alloc.GetIp()
+			ipv4addr = alloc.GetIp()
 		}
 		// Try to register this node as a peer directly via the API.
 		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
@@ -193,7 +194,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 				WireguardEndpoints: wgeps,
 				ZoneAwarenessID:    container.Spec.NodeName,
-				PrivateIPv4:        container.Spec.IPv4Address,
+				PrivateIPv4:        ipv4addr,
 				PrivateIPv6:        netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String(),
 			},
 		})
@@ -229,6 +230,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		})
 		// Update the status to created.
 		container.Status.Phase = cniv1.InterfaceStatusCreated
+		container.Status.IPv4Address = ipv4addr
 		if err := r.Status().Update(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
@@ -258,7 +260,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				NetworkIPv4: r.networkV4.String(),
 				NetworkIPv6: r.networkV6.String(),
 				AddressIPv6: netutil.AssignToPrefix(r.networkV6, key).String(),
-				AddressIPv4: container.Spec.IPv4Address,
+				AddressIPv4: container.Status.IPv4Address,
 				Peers:       peers,
 			}, nil
 		})
