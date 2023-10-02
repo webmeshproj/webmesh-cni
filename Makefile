@@ -144,6 +144,9 @@ test-cluster:
 		--k3s-arg "--disable-network-policy@server:*" \
 		--volume '$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*' \
 
+build-and-load: docker
+	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
+
 test-cluster-calico:
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \

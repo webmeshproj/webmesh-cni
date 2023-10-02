@@ -1018,7 +1018,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: install-cni
-          image: ghcr.io/webmeshproj/webmesh-cni:v0.0.1
+          image: ghcr.io/webmeshproj/webmesh-cni:latest
           command: ["/webmesh-cni-install"]
           env:
             # Paths to install the CNI binaries and config.
@@ -1054,7 +1054,7 @@ spec:
             privileged: true
       containers:
         - name: webmesh-node
-          image: ghcr.io/webmeshproj/webmesh-cni:v0.0.1
+          image: ghcr.io/webmeshproj/webmesh-cni:latest
           command: ["/webmesh-cni-node"]
           env:
             # Use the kubernetes storage provider. This is the only
