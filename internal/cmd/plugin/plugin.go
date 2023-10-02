@@ -29,7 +29,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
-	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
+	cniversions "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
@@ -104,7 +104,7 @@ func init() {
 
 // Main is the entrypoint for the webmesh-cni plugin.
 func Main(version string) {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniSpecVersion.PluginSupports("0.1.0"), "Webmesh CNI plugin "+version)
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversions.All, "Webmesh CNI plugin "+version)
 }
 
 // cmdAdd is the CNI ADD command handler.

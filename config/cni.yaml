@@ -1,4 +1,36 @@
 ---
+# This ConfigMap is used to configure a webmesh-cni installation.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: webmesh-config
+  namespace: kube-system
+data:
+  ## TODO: Add the webmesh-cni-node configurations here as well to
+  ## potentially override command line arguments and other defaults.
+  cni-network-config: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "webmesh",
+          "logLevel": "info",
+          "interface": {
+              "mtu": 1500,
+              "disableIPv4": false,
+              "disableIPv6": false
+          },
+          "kubernetes": {
+              "kubeconfig": "__KUBECONFIG_FILEPATH__",
+              "nodeName": "__KUBERNETES_NODE_NAME__",
+              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__"
+              "namespace": "__K8S_POD_NAMESPACE__"
+          }
+        }
+      ]
+    }
+---
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
@@ -36,15 +68,33 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: install-cni
-          image: {{ .CNIImage }}
-          command: ["/install-cni.sh"]
+          image: ghcr.io/webmeshproj/webmesh-cni:v0.1.0
+          command: ["/webmesh-cni-install"]
           env:
+            # Paths to install the CNI binaries and config.
+            - name: CNI_BIN_DIR
+              value: "/host/opt/cni/bin"
+            - name: CNI_CONF_DIR
+              value: "/host/etc/cni/net.d"
+            # Name of the CNI config file to create.
             - name: CNI_CONF_NAME
               value: "10-webmesh.conflist"
+            # Set the hostname based on the k8s node name.
             - name: KUBERNETES_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: K8S_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # The CNI network config to install on each node.
+            - name: CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cni-network-config
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
@@ -54,16 +104,23 @@ spec:
             privileged: true
       containers:
         - name: webmesh-node
-          image: {{ .NodeImage }}
+          image: ghcr.io/webmeshproj/webmesh-cni:v0.1.0
+          command: ["/webmesh-cni-node"]
           env:
+            # Use the kubernetes storage provider. This is the only
+            # supported storage provider at the moment for k8s.
             - name: STORAGE_PROVIDER
               value: "kubernetes"
-            - name: WAIT_FOR_STORAGE
-              value: "true"
+            # Set the hostname based on the k8s node name.
             - name: KUBERNETES_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: K8S_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules

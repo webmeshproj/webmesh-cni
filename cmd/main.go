@@ -19,6 +19,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/install"
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/node"
@@ -28,11 +29,7 @@ import (
 
 func main() {
 	// We run the entrypoint based on how we were invoked.
-	exec, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	switch exec {
+	switch filepath.Base(os.Args[0]) {
 	case "webmesh":
 		plugin.Main(version.Version)
 	case "webmesh-cni-node":
