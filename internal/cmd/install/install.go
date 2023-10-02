@@ -31,8 +31,6 @@ import (
 )
 
 const (
-	// KubernetesAPIEndpointEnvVar is the name of the environment variable that contains the Kubernetes API endpoint.
-	KubernetesAPIEndpointEnvVar = "KUBERNETES_API_ENDPOINT"
 	// NetConfEnvVar is the name of the environment variable that contains the CNI configuration.
 	NetConfEnvVar = "CNI_NETWORK_CONFIG"
 	// NetConfFileName is the name of the file that contains the CNI configuration.
@@ -76,7 +74,7 @@ func Main(version string) {
 		APIVersion: "v1",
 		Clusters: map[string]*clientcmdapi.Cluster{
 			"webmesh-cni": {
-				Server:                   os.Getenv("KUBERNETES_API_ENDPOINT"),
+				Server:                   cfg.Host,
 				TLSServerName:            cfg.ServerName,
 				InsecureSkipTLSVerify:    cfg.Insecure,
 				CertificateAuthority:     cfg.CAFile,
@@ -108,7 +106,7 @@ func Main(version string) {
 	conf := os.Getenv(NetConfEnvVar)
 	conf = strings.Replace(conf, "__KUBERNETES_NODE_NAME__", os.Getenv(NodeNameEnvVar), -1)
 	conf = strings.Replace(conf, "__K8S_POD_NAMESPACE__", os.Getenv(PodNamespaceEnvVar), -1)
-	conf = strings.Replace(conf, "__KUBERNETES_API_ENDPOINT__", os.Getenv("KUBERNETES_API_ENDPOINT"), -1)
+	conf = strings.Replace(conf, "__KUBERNETES_API_ENDPOINT__", cfg.Host, -1)
 	conf = strings.Replace(conf, "__KUBECONFIG_FILEPATH__", kubeconfigPath, -1)
 	// Write the CNI configuration to the destination directory.
 	confPath := filepath.Join(os.Getenv(BinaryDestConfEnvVar), os.Getenv(NetConfFileNameEnvVar))
@@ -151,7 +149,6 @@ func installPluginBinary(src, dest string) error {
 // checkEnv ensures all the required environment variables are set.
 func checkEnv() error {
 	for _, envvar := range []string{
-		KubernetesAPIEndpointEnvVar,
 		NetConfEnvVar,
 		NetConfFileNameEnvVar,
 		NodeNameEnvVar,
