@@ -31,7 +31,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
-	"github.com/webmeshproj/webmesh/pkg/plugins/builtins/ipam"
+	meshipam "github.com/webmeshproj/webmesh/pkg/plugins/builtins/ipam"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
@@ -139,7 +139,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if container.Spec.IPv4Address == "" && !container.Spec.DisableIPv4 {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
-			plugin := ipam.NewWithDB(r.Provider.MeshDB())
+			plugin := meshipam.NewWithDB(r.Provider.MeshDB())
 			alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
 				NodeID: nodeID.String(),
 				Subnet: r.NetworkV4.String(),
