@@ -99,6 +99,7 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 // tryBootstrap ensures the network is bootstrapped if we don't have a local configuration yet.
 func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
+	// TODO: This logic needs to be moved to setup.
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -107,6 +108,15 @@ func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
 		// Nothing to do.
 		log.V(2).Info("Network already bootstrapped")
 		return nil
+	}
+	log.Info("Bootstrapping network state")
+	// Try to bootstrap the storage provider.
+	if err := r.Provider.Bootstrap(ctx); err != nil {
+		if !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+			log.Error(err, "Unable to bootstrap storage provider")
+			return fmt.Errorf("failed to bootstrap storage provider: %w", err)
+		}
+		log.Info("Storage provider already bootstrapped, making sure network state is boostrapped")
 	}
 	// Make sure the network state is boostrapped.
 	networkState, err := meshstorage.Bootstrap(ctx, r.Provider.MeshDB(), meshstorage.BootstrapOptions{
@@ -120,7 +130,7 @@ func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
 		log.Error(err, "Unable to bootstrap network state")
 		return fmt.Errorf("failed to bootstrap network state: %w", err)
 	} else if mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		log.V(1).Info("Network already bootstrapped")
+		log.Info("Network already bootstrapped")
 	} else {
 		log.Info("Network state bootstrapped for the first time")
 	}
