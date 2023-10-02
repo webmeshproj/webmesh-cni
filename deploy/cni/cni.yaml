@@ -120,7 +120,13 @@ spec:
       containers:
         - name: webmesh-node
           image: ghcr.io/webmeshproj/webmesh-cni:latest
-          command: ["/webmesh-cni-node"]
+          command:
+            - /webmesh-cni-node
+            - --reconcile-timeout=10s
+            - --shutdown-timeout=10s
+            - --leader-elect-lease-duration=15s
+            - --leader-elect-renew-deadline=10s
+            - --leader-elect-retry-period=2s
           env:
             # Use the kubernetes storage provider. This is the only
             # supported storage provider at the moment for k8s.
@@ -148,6 +154,13 @@ spec:
                 configMapKeyRef:
                   name: webmesh-config
                   key: cluster-domain
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules

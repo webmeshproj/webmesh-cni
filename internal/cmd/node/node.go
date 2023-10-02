@@ -18,6 +18,7 @@ limitations under the License.
 package node
 
 import (
+	"errors"
 	"flag"
 	"net/netip"
 	"os"
@@ -82,6 +83,17 @@ func Main(version string) {
 	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
+	if clusterDomain == "" {
+		clusterDomain = "cluster.local"
+	}
+	if podCIDR == "" {
+		setupLog.Error(errors.New("invalid options"), "pod CIDR must be specified")
+		os.Exit(1)
+	}
+	if nodeID == "" {
+		setupLog.Error(errors.New("invalid options"), "node ID must be specified")
+		os.Exit(1)
+	}
 
 	setupLog.Info("Starting webmesh-cni node", "version", version)
 
@@ -102,7 +114,7 @@ func Main(version string) {
 		},
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(err, "Unable to create manager")
 		os.Exit(1)
 	}
 
@@ -115,14 +127,14 @@ func Main(version string) {
 		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to create webmesh storage provider")
+		setupLog.Error(err, "Unable to create webmesh storage provider")
 		os.Exit(1)
 	}
 
 	// Register the peer container controller.
 	podcidr, err := netip.ParsePrefix(podCIDR)
 	if err != nil {
-		setupLog.Error(err, "unable to parse pod CIDR")
+		setupLog.Error(err, "Unable to parse pod CIDR")
 		os.Exit(1)
 	}
 	if err = (&controller.PeerContainerReconciler{
@@ -155,14 +167,14 @@ func Main(version string) {
 		defer close(donec)
 		setupLog.Info("Starting peer container manager")
 		if err := mgr.Start(ctx); err != nil {
-			setupLog.Error(err, "problem running manager")
+			setupLog.Error(err, "Problem running manager")
 			os.Exit(1)
 		}
 	}()
 
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
-		setupLog.Error(err, "unable to start webmesh storage provider")
+		setupLog.Error(err, "Unable to start webmesh storage provider")
 		os.Exit(1)
 	}
 	defer storageProvider.Close()
