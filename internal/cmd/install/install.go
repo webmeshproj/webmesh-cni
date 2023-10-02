@@ -61,8 +61,11 @@ func Main(version string) {
 		log.Println("error getting executable path:", err)
 		os.Exit(1)
 	}
+	log.Println("using source executable path:", exec)
 	// Copy the binary to the destination directory.
-	if err := installPluginBinary(exec, os.Getenv(BinaryDestBinEnvVar)); err != nil {
+	pluginBin := filepath.Join(os.Getenv(BinaryDestBinEnvVar), PluginBinaryName)
+	log.Println("installing plugin binary to -> ", pluginBin)
+	if err := installPluginBinary(exec, pluginBin); err != nil {
 		log.Println("error copying binary:", err)
 		os.Exit(1)
 	}
@@ -98,6 +101,7 @@ func Main(version string) {
 		},
 		CurrentContext: "webmesh-cni",
 	}
+	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
 	if err := clientcmd.WriteToFile(clientconfig, kubeconfigPath); err != nil {
 		log.Println("error writing kubeconfig:", err)
 		os.Exit(1)
@@ -110,6 +114,9 @@ func Main(version string) {
 	conf = strings.Replace(conf, "__KUBECONFIG_FILEPATH__", kubeconfigPath, -1)
 	// Write the CNI configuration to the destination directory.
 	confPath := filepath.Join(os.Getenv(BinaryDestConfEnvVar), os.Getenv(NetConfFileNameEnvVar))
+	log.Println("Effective CNI configuration -> ")
+	fmt.Println(conf)
+	log.Println("installing CNI configuration to -> ", confPath)
 	if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
 		log.Println("error writing CNI configuration:", err)
 		os.Exit(1)
@@ -129,8 +136,7 @@ func installPluginBinary(src, dest string) error {
 		return fmt.Errorf("error creating destination directory: %w", err)
 	}
 	// Create the destination file.
-	dst := filepath.Join(dest, PluginBinaryName)
-	out, err := os.Create(dst)
+	out, err := os.Create(dest)
 	if err != nil {
 		return fmt.Errorf("error creating destination file: %w", err)
 	}
@@ -140,7 +146,7 @@ func installPluginBinary(src, dest string) error {
 		return fmt.Errorf("error copying binary: %w", err)
 	}
 	// Make the destination file executable.
-	if err := os.Chmod(dst, 0755); err != nil {
+	if err := os.Chmod(dest, 0755); err != nil {
 		return fmt.Errorf("error making destination file executable: %w", err)
 	}
 	return nil
