@@ -178,6 +178,7 @@ func Main(version string) {
 		}
 	}()
 
+	setupLog.Info("Starting webmesh storage provider")
 	// Start the storage provider in unmanaged mode.
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
@@ -186,6 +187,7 @@ func Main(version string) {
 	}
 	defer storageProvider.Close()
 
+	setupLog.Info("Waiting for caches to sync", "timeout", cacheSyncTimeout)
 	// Wait for the manager cache to sync and then ensure the mesh network is bootstrapped.
 	cacheCtx, cancel := context.WithTimeout(ctx, cacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
