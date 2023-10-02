@@ -140,7 +140,7 @@ func installPluginBinary(src, dest string) error {
 	}
 	defer f.Close()
 	// Create the destination directory if it doesn't exist.
-	if err := os.MkdirAll(dest, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return fmt.Errorf("error creating destination directory: %w", err)
 	}
 	// Create the destination file.
