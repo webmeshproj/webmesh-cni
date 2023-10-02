@@ -99,9 +99,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		log.Info("Mesh node for container not found, we must need to create it", "container", name)
 		// Detect the current endpoints on the machine.
 		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
-			DetectIPv6:           true,
-			DetectPrivate:        true,
-			AllowRemoteDetection: true,
+			DetectIPv6:           true, // TODO: Make configurable.
+			DetectPrivate:        true, // Required for finding endpoints on the local node.
+			AllowRemoteDetection: true, // TODO: Make configurable.
 			SkipInterfaces: func() []string {
 				var out []string
 				for _, n := range r.nodes {
