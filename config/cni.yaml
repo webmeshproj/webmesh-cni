@@ -1,5 +1,5 @@
 ---
-# This ConfigMap is used to configure a webmesh-cni installation.
+# This ConfigMap is used to configure the webmesh-cni installation.
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -31,6 +31,10 @@ data:
       ]
     }
 ---
+# The webmesh-node DaemonSet is used to install the webmesh-cni binaries
+# and configuration on each node in the cluster. It also runs the
+# webmesh-cni-node binary as a privileged container to manage the
+# network interfaces on each node.
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
