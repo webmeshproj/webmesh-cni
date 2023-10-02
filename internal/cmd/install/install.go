@@ -122,8 +122,7 @@ func Main(version string) {
 	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
 	// Write the CNI configuration to the destination directory.
 	confPath := filepath.Join(os.Getenv(BinaryDestConfEnvVar), os.Getenv(NetConfFileNameEnvVar))
-	log.Println("effective CNI configuration -> ")
-	fmt.Println(conf)
+	log.Println("effective CNI configuration ->\n", conf)
 	log.Println("installing CNI configuration to -> ", confPath)
 	if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
 		log.Println("error writing CNI configuration:", err)

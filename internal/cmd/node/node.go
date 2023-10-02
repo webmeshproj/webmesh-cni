@@ -34,6 +34,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	"github.com/webmeshproj/webmesh-cni/internal/cmd/install"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 )
 
@@ -64,8 +65,8 @@ func Main(version string) {
 		shutdownTimeout          time.Duration
 		zapopts                  = zap.Options{Development: true}
 	)
-	flag.StringVar(&namespace, "namespace", os.Getenv("K8S_POD_NAMESPACE"), "The namespace to use for the webmesh resources.")
-	flag.StringVar(&nodeID, "node-id", os.Getenv("KUBERNETES_NODE_NAME"), "The node ID to use for the webmesh cluster.")
+	flag.StringVar(&namespace, "namespace", install.PodNamespaceEnvVar, "The namespace to use for the webmesh resources.")
+	flag.StringVar(&nodeID, "node-id", install.NodeNameEnvVar, "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", "172.16.0.0/12", "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local", "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
