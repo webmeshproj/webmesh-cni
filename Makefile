@@ -149,10 +149,11 @@ load: docker ## Load the docker image into the test cluster.
 	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
 
 test-cluster-calico: ## Create a test cluster with Calico installed. This is used for testing the storage provider.
+	curl -JL -o $(LOCALBIN)/calico.yaml https://k3d.io/v5.3.0/usage/advanced/calico.yaml
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(CURDIR)/config/ref/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*' \
+		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*' \
 
 remove-cluster: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)

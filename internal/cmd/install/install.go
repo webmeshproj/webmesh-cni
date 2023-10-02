@@ -52,6 +52,8 @@ const (
 	APIEndpointReplaceStr = "__KUBERNETES_API_ENDPOINT__"
 	// KubeconfigFilepathReplaceStr is the string that will be replaced in the CNI configuration with the kubeconfig filepath.
 	KubeconfigFilepathReplaceStr = "__KUBECONFIG_FILEPATH__"
+	// HostLocalNetDir is the directory containing host-local CNI plugins. We remove these plugins from the CNI configuration.
+	HostLocalNetDir = "/var/lib/cni/networks"
 	// PluginBinaryName is the name of the plugin binary.
 	PluginBinaryName = "webmesh"
 )
@@ -71,6 +73,12 @@ func Main(version string) {
 		os.Exit(1)
 	}
 	log.Println("using source executable path:", exec)
+	// Clear any local host CNI plugins.
+	log.Println("clearing host-local CNI plugins from", HostLocalNetDir)
+	if err := clearHostLocalNetDir(); err != nil {
+		log.Println("error clearing host-local CNI plugins:", err)
+		os.Exit(1)
+	}
 	// Copy the binary to the destination directory.
 	pluginBin := filepath.Join(os.Getenv(BinaryDestBinEnvVar), PluginBinaryName)
 	log.Println("installing plugin binary to -> ", pluginBin)
@@ -130,6 +138,24 @@ func Main(version string) {
 		os.Exit(1)
 	}
 	log.Println("webmesh-cni install complete")
+}
+
+// clearHostLocalNetDir removes any host-local CNI plugins from the CNI configuration.
+func clearHostLocalNetDir() error {
+	dir, err := os.ReadDir(HostLocalNetDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("error reading host-local CNI directory: %w", err)
+	}
+	for _, file := range dir {
+		err = os.RemoveAll(filepath.Join(HostLocalNetDir, file.Name()))
+		if err != nil {
+			return fmt.Errorf("error removing host-local CNI plugin: %w", err)
+		}
+	}
+	return nil
 }
 
 // installPluginBinary copies the binary to the destination directory.
