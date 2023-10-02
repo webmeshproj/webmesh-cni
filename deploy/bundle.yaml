@@ -1,0 +1,1092 @@
+# Source: https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
+# Source: deploy/bundle.yaml
+---
+# Source: deploy/crds/storage.webmesh.io_peers.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: peers.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: Peer
+    listKind: PeerList
+    plural: peers
+    singular: peer
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Peer is the Schema for the peers API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PeerSpec defines the desired state of a Peer.
+            properties:
+              node:
+                description: MeshNode wraps a mesh node.
+                properties:
+                  features:
+                    description: features are a list of features and the ports they
+                      are advertised on.
+                    items:
+                      description: FeaturePort describes a feature and the port it
+                        is advertised on.
+                      properties:
+                        feature:
+                          description: feature is the feature.
+                          format: int32
+                          type: integer
+                        port:
+                          description: port is the port the feature is advertised
+                            on.
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                  id:
+                    description: id is the ID of the node.
+                    type: string
+                  joinedAt:
+                    description: joined_at is the time the node joined the cluster.
+                    properties:
+                      nanos:
+                        description: Non-negative fractions of a second at nanosecond
+                          resolution. Negative second values with fractions must still
+                          have non-negative nanos values that count forward in time.
+                          Must be from 0 to 999,999,999 inclusive.
+                        format: int32
+                        type: integer
+                      seconds:
+                        description: Represents seconds of UTC time since Unix epoch
+                          1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z
+                          to 9999-12-31T23:59:59Z inclusive.
+                        format: int64
+                        type: integer
+                    type: object
+                  multiaddrs:
+                    description: multiaddrs are the multiaddrs of the node.
+                    items:
+                      type: string
+                    type: array
+                  primaryEndpoint:
+                    description: primary_endpoint is the primary endpoint of the node.
+                    type: string
+                  privateIPv4:
+                    description: private_ipv4 is the private IPv4 address of the node.
+                    type: string
+                  privateIPv6:
+                    description: private_ipv6 is the private IPv6 address of the node.
+                    type: string
+                  publicKey:
+                    description: public_key is the public key of the node.
+                    type: string
+                  wireguardEndpoints:
+                    description: wireguard_endpoints is a list of WireGuard endpoints
+                      for the node.
+                    items:
+                      type: string
+                    type: array
+                  zoneAwarenessID:
+                    description: zone_awareness_id is the zone awareness ID of the
+                      node.
+                    type: string
+                type: object
+            required:
+            - node
+            type: object
+          status:
+            description: PeerStatus defines the observed state of a Peer.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_roles.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: roles.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: Role
+    listKind: RoleList
+    plural: roles
+    singular: role
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Role is the Schema for the roles API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RoleSpec defines the desired state of a Role.
+            properties:
+              role:
+                description: Role wraps a role.
+                properties:
+                  name:
+                    description: name is the name of the role.
+                    type: string
+                  rules:
+                    description: rules is the list of rules that apply to the role.
+                    items:
+                      description: Rule is a rule that applies to a resource.
+                      properties:
+                        resourceNames:
+                          description: resource_names is the list of resource names
+                            to which the rule applies.
+                          items:
+                            type: string
+                          type: array
+                        resources:
+                          description: resources is the resources to which the rule
+                            applies.
+                          items:
+                            description: RuleResource is the resource type for a rule.
+                            format: int32
+                            type: integer
+                          type: array
+                        verbs:
+                          description: verbs is the list of verbs that apply to the
+                            resource.
+                          items:
+                            description: RuleVerb is the verb type for a rule.
+                            format: int32
+                            type: integer
+                          type: array
+                      type: object
+                    type: array
+                type: object
+            required:
+            - role
+            type: object
+          status:
+            description: RoleStatus defines the observed state of a Role.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_groups.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: groups.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: Group
+    listKind: GroupList
+    plural: groups
+    singular: group
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Group is the Schema for the Groups API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GroupSpec defines the desired state of a Group.
+            properties:
+              group:
+                description: Group wraps a group.
+                properties:
+                  name:
+                    description: name is the name of the group.
+                    type: string
+                  subjects:
+                    description: subjects is the list of subjects in the group.
+                    items:
+                      description: Subject is a subject to which a role can be bound.
+                      properties:
+                        name:
+                          description: name is the name of the subject.
+                          type: string
+                        type:
+                          description: type is the type of the subject.
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                type: object
+            required:
+            - group
+            type: object
+          status:
+            description: GroupStatus defines the observed state of a Group.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_networkacls.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: networkacls.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: NetworkACL
+    listKind: NetworkACLList
+    plural: networkacls
+    singular: networkacl
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: NetworkACL is the Schema for the NetworkACLs API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NetworkACLSpec defines the desired state of a NetworkACL.
+            properties:
+              networkACL:
+                description: NetworkACL is a Network ACL.
+                properties:
+                  action:
+                    description: action is the action to take when a request matches
+                      the ACL.
+                    format: int32
+                    type: integer
+                  destinationCIDRs:
+                    description: destination_cidrs is a list of destination CIDRs
+                      to match against. If empty, all CIDRs are matched. If one or
+                      more of the CIDRs is '*', all CIDRs are matched.
+                    items:
+                      type: string
+                    type: array
+                  destinationNodes:
+                    description: destination_nodes is a list of destination nodes
+                      to match against. If empty, all nodes are matched. Groups can
+                      be specified with the prefix "group:". If one or more of the
+                      nodes is '*', all nodes are matched.
+                    items:
+                      type: string
+                    type: array
+                  name:
+                    description: name is the name of the ACL.
+                    type: string
+                  priority:
+                    description: priority is the priority of the ACL. ACLs with higher
+                      priority are evaluated first.
+                    format: int32
+                    type: integer
+                  sourceCIDRs:
+                    description: source_cidrs is a list of source CIDRs to match against.
+                      If empty, all CIDRs are matched. If one or more of the CIDRs
+                      is '*', all CIDRs are matched.
+                    items:
+                      type: string
+                    type: array
+                  sourceNodes:
+                    description: source_nodes is a list of source nodes to match against.
+                      If empty, all nodes are matched. Groups can be specified with
+                      the prefix "group:". If one or more of the nodes is '*', all
+                      nodes are matched.
+                    items:
+                      type: string
+                    type: array
+                type: object
+            required:
+            - networkACL
+            type: object
+          status:
+            description: NetworkACLStatus defines the observed state of a NetworkACL.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_rolebindings.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: rolebindings.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: RoleBinding
+    listKind: RoleBindingList
+    plural: rolebindings
+    singular: rolebinding
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: RoleBinding is the Schema for the rolebindings API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RoleBindingSpec defines the desired state of a RoleBinding.
+            properties:
+              roleBinding:
+                description: RoleBinding wraps a rolebinding.
+                properties:
+                  name:
+                    description: name is the name of the role binding.
+                    type: string
+                  role:
+                    description: role is the name of the role to which the binding
+                      applies.
+                    type: string
+                  subjects:
+                    description: subjects is the list of subjects to which the binding
+                      applies.
+                    items:
+                      description: Subject is a subject to which a role can be bound.
+                      properties:
+                        name:
+                          description: name is the name of the subject.
+                          type: string
+                        type:
+                          description: type is the type of the subject.
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                type: object
+            required:
+            - roleBinding
+            type: object
+          status:
+            description: RoleBindingStatus defines the observed state of a RoleBinding.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_routes.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: routes.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: Route
+    listKind: RouteList
+    plural: routes
+    singular: route
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Route is the Schema for the Routes API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RouteSpec defines the desired state of a Route.
+            properties:
+              route:
+                description: Route wraps a Route.
+                properties:
+                  destinationCIDRs:
+                    description: destination_cidrs are the destination CIDRs of the
+                      route.
+                    items:
+                      type: string
+                    type: array
+                  name:
+                    description: name is the name of the route.
+                    type: string
+                  nextHopNode:
+                    description: nextHopNode is an optional node that is used as the
+                      next hop for the route.
+                    type: string
+                  node:
+                    description: node is the node that broadcasts the route. A group
+                      can be specified with the prefix "group:".
+                    type: string
+                type: object
+            required:
+            - route
+            type: object
+          status:
+            description: RouteStatus defines the observed state of a Route.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_meshedges.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: meshedges.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: MeshEdge
+    listKind: MeshEdgeList
+    plural: meshedges
+    singular: meshedge
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: MeshEdge is the Schema for the MeshEdges API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MeshEdgeSpec defines the desired state of a MeshEdge.
+            properties:
+              meshEdge:
+                description: MeshEdge wraps a mesh edge.
+                properties:
+                  attributes:
+                    additionalProperties:
+                      type: string
+                    description: attributes is a list of attributes for the edge.
+                    type: object
+                  source:
+                    description: source is the source node.
+                    type: string
+                  target:
+                    description: target is the target node.
+                    type: string
+                  weight:
+                    description: weight is the weight of the edge.
+                    format: int32
+                    type: integer
+                type: object
+            required:
+            - meshEdge
+            type: object
+          status:
+            description: MeshEdgeStatus defines the observed state of a MeshEdge.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/crds/storage.webmesh.io_meshstates.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: meshstates.storage.webmesh.io
+spec:
+  group: storage.webmesh.io
+  names:
+    kind: MeshState
+    listKind: MeshStateList
+    plural: meshstates
+    singular: meshstate
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: MeshState is the Schema for the MeshState API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          ipv4Prefix:
+            description: IPv4Prefix is the IPv4 prefix for the mesh.
+            type: string
+          ipv6Prefix:
+            description: IPv6Prefix is the IPv6 prefix for the mesh.
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          meshDomain:
+            description: MeshDomain is the domain name for the mesh.
+            type: string
+          metadata:
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webmesh-storage-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - groups
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - groups/status
+  - rolebindings/status
+  - roles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - meshedges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - meshedges/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - meshstates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - networkacls
+  - routes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - networkacls/status
+  - routes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - peers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - peers/status
+  verbs:
+  - get
+  - patch
+  - update
+# END: https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
+---
+# Source: deploy/bundle.yaml
+---
+# Source: deploy/crd/cni.webmesh.io_peercontainers.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: peercontainers.cni.webmesh.io
+spec:
+  group: cni.webmesh.io
+  names:
+    kind: PeerContainer
+    listKind: PeerContainerList
+    plural: peercontainers
+    singular: peercontainer
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: PeerContainer is the Schema for the peercontainers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PeerContainerSpec defines the desired state of PeerContainer
+            properties:
+              containerID:
+                description: ContainerID is the ID of the container to peer with.
+                type: string
+              disableIPv4:
+                description: DisableIPv4 is whether to disable IPv4 on the interface.
+                type: boolean
+              disableIPv6:
+                description: DisableIPv6 is whether to disable IPv6 on the interface.
+                type: boolean
+              ifName:
+                description: IfName is the name of the interface to peer with.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address to assign to the interface.
+                type: string
+              logLevel:
+                description: LogLevel is the log level for the webmesh interface.
+                type: string
+              mtu:
+                description: MTU is the MTU to set on the interface.
+                type: integer
+              netns:
+                description: Netns is the network namespace of the container to peer
+                  with.
+                type: string
+              nodeName:
+                description: NodeName is the name of the node the container is running
+                  on.
+                type: string
+            required:
+            - containerID
+            - disableIPv4
+            - disableIPv6
+            - ifName
+            - ipv4Address
+            - logLevel
+            - mtu
+            - netns
+            - nodeName
+            type: object
+          status:
+            description: PeerContainerStatus defines the observed state of PeerContainer
+            properties:
+              error:
+                description: Error is any error that occurred while peering the interface.
+                type: string
+              interfaceName:
+                description: InterfaceName is the name of the interface.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address of the interface.
+                type: string
+              ipv6Address:
+                description: IPv6Address is the IPv6 address of the interface.
+                type: string
+              macAddress:
+                description: MACAddress is the MAC address of the interface.
+                type: string
+              status:
+                description: Phase is the current status of the interface.
+                type: string
+            required:
+            - error
+            - interfaceName
+            - ipv4Address
+            - ipv6Address
+            - macAddress
+            - status
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: deploy/rbac/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webmesh-cni-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+# Source: deploy/rbac/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webmesh-cni-sa
+  namespace: kube-system
+---
+# Source: deploy/rbac/rolebindings.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: webmesh-cni-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: webmesh-cni-role
+subjects:
+  - kind: ServiceAccount
+    name: webmesh-cni-sa
+    namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: webmesh-cni-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: webmesh-storage-role
+subjects:
+  - kind: ServiceAccount
+    name: webmesh-cni-sa
+    namespace: kube-system
+---
+# Source: deploy/cni/cni.yaml
+# This ConfigMap is used to configure the webmesh-cni installation.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: webmesh-config
+  namespace: kube-system
+data:
+  ## TODO: Add the webmesh-cni-node configurations here as well to
+  ## potentially override command line arguments and other defaults.
+  #
+  # The network config to install on each node.
+  cni-network-config: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "webmesh",
+          "logLevel": "info",
+          "interface": {
+              "mtu": 1500,
+              "disableIPv4": false,
+              "disableIPv6": false
+          },
+          "kubernetes": {
+              "kubeconfig": "__KUBECONFIG_FILEPATH__",
+              "nodeName": "__KUBERNETES_NODE_NAME__",
+              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__"
+              "namespace": "__K8S_POD_NAMESPACE__"
+          }
+        }
+      ]
+    }
+---
+# The webmesh-node DaemonSet is used to install the webmesh-cni binaries
+# and configuration on each node in the cluster. It also runs the
+# webmesh-cni-node binary as a privileged container to manage the
+# network interfaces on each node.
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: webmesh-node
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-node
+spec:
+  selector:
+    matchLabels:
+      k8s-app: webmesh-node
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: webmesh-node
+    spec:
+      serviceAccountName: webmesh-cni-sa
+      terminationGracePeriodSeconds: 0
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      initContainers:
+        - name: install-cni
+          image: ghcr.io/webmeshproj/webmesh-cni:v0.1.0
+          command: ["/webmesh-cni-install"]
+          env:
+            # Paths to install the CNI binaries and config.
+            - name: CNI_BIN_DIR
+              value: "/host/opt/cni/bin"
+            - name: CNI_CONF_DIR
+              value: "/host/etc/cni/net.d"
+            # Name of the CNI config file to create.
+            - name: CNI_CONF_NAME
+              value: "10-webmesh.conflist"
+            # Set the hostname based on the k8s node name.
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: K8S_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # The CNI network config to install on each node.
+            - name: CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cni-network-config
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
+          securityContext:
+            privileged: true
+      containers:
+        - name: webmesh-node
+          image: ghcr.io/webmeshproj/webmesh-cni:v0.1.0
+          command: ["/webmesh-cni-node"]
+          env:
+            # Use the kubernetes storage provider. This is the only
+            # supported storage provider at the moment for k8s.
+            - name: STORAGE_PROVIDER
+              value: "kubernetes"
+            # Set the hostname based on the k8s node name.
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: K8S_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - mountPath: /lib/modules
+              name: lib-modules
+              readOnly: true
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 250m
+      volumes:
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: cni-bin-dir
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni-net-dir
+          hostPath:
+            path: /etc/cni/net.d

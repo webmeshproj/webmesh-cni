@@ -54,7 +54,7 @@ ROLE_NAME ?= webmesh-cni-role
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd webhook paths="./..." output:crd:artifacts:config=deploy/crd
-	$(CONTROLLER_GEN) rbac:roleName=$(ROLE_NAME) webhook paths="./..." output:crd:artifacts:config=deploy/rbac
+	$(CONTROLLER_GEN) rbac:roleName=$(ROLE_NAME) webhook paths="./..." output:rbac:artifacts:config=deploy/rbac
 
 .PHONY: generate
 HEADER_FILE := api/v1/boilerplate.go.txt
@@ -89,8 +89,21 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 ##@ Distribute
 
+STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
+BUNDLE ?= deploy/bundle.yaml
 bundle: manifests generate ## Bundle creates a distribution bundle manifest.
-	# TODO: Add bundle steps here
+	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
+	@echo "# Source: $(STORAGE_PROVIDER_BUNDLE)" > $(BUNDLE)
+	curl -JL $(STORAGE_PROVIDER_BUNDLE) >> $(BUNDLE)
+	@echo "# END: $(STORAGE_PROVIDER_BUNDLE)" >> $(BUNDLE)
+	@echo "+ Appending WebMesh CNI assets to $(BUNDLE)"
+	@echo "---" >> $(BUNDLE)
+	@echo "# Source: $(BUNDLE)" >> $(BUNDLE)
+	@for i in `find deploy/ -type f -not -name bundle.yaml` ; do \
+		echo "---" >> $(BUNDLE) ; \
+		echo "# Source: $$i" >> $(BUNDLE) ; \
+		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
+	done
 
 ##@ Build Dependencies
 
