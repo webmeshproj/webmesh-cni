@@ -150,6 +150,10 @@ func clearHostLocalNetDir() error {
 		return fmt.Errorf("error reading host-local CNI directory: %w", err)
 	}
 	for _, file := range dir {
+		// Skip parent directory.
+		if file.Name() == filepath.Base(HostLocalNetDir) {
+			continue
+		}
 		err = os.RemoveAll(filepath.Join(HostLocalNetDir, file.Name()))
 		if err != nil {
 			return fmt.Errorf("error removing host-local CNI plugin: %w", err)

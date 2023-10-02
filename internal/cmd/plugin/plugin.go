@@ -24,13 +24,13 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
-	cniversions "github.com/containernetworking/cni/pkg/version"
-	"github.com/containernetworking/plugins/pkg/ipam"
+	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,7 +93,7 @@ const (
 )
 
 // A global logger set when configuration is loaded.
-var log *slog.Logger
+var log = slog.Default()
 
 func init() {
 	// This ensures that main runs only on the main thread (thread group leader).
@@ -104,28 +104,55 @@ func init() {
 
 // Main is the entrypoint for the webmesh-cni plugin.
 func Main(version string) {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversions.All, "Webmesh CNI plugin "+version)
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniSpecVersion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version)
 }
 
 // cmdAdd is the CNI ADD command handler.
-func cmdAdd(args *skel.CmdArgs) error {
+func cmdAdd(args *skel.CmdArgs) (err error) {
+	// Defer a panic recover, so that in case we panic we can still return
+	// a proper error to the runtime.
+	defer func() {
+		if e := recover(); e != nil {
+			msg := fmt.Sprintf("Webmesh CNI panicked during ADD: %s\nStack trace:\n%s", e, string(debug.Stack()))
+			if err != nil {
+				// If we're recovering and there was also an error, then we need to
+				// present both.
+				msg = fmt.Sprintf("%s: error=%s", msg, err)
+			}
+			err = fmt.Errorf(msg)
+		}
+		if err != nil {
+			log.Error("Final result of CNI ADD was an error", "error", err.Error())
+			cnierr := types.Error{
+				Code:    100,
+				Msg:     "falied to run ADD command",
+				Details: err.Error(),
+			}
+			cnierr.Print()
+			os.Exit(1)
+		}
+	}()
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		err = fmt.Errorf("failed to load config: %w", err)
+		return
 	}
 	log.Debug("New ADD request", "config", conf, "args", args)
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		return
 	}
 	defer containerNs.Close()
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		err = fmt.Errorf("failed to create client: %w", err)
+		return
 	}
 	err = cli.Ping(testConnectionTimeout)
 	if err != nil {
-		return err
+		err = fmt.Errorf("failed to ping API server: %w", err)
+		return
 	}
 	// Start building a container type.
 	desiredIfName := "webmesh" + args.ContainerID[:min(9, len(args.ContainerID))]
@@ -149,47 +176,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 			LogLevel:    conf.LogLevel,
 		},
 	}
-	// Check if an IPAM plugin is configured.
-	if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
-		// Run the IPAM plugin and get back the config to apply
-		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
-		r, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return err
-		}
-		res, err := cniv1.GetResult(r)
-		if err != nil {
-			// Release the interface IP address, something went wrong
-			err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
-			if err != nil {
-				log.Error("Failed to run IPAM plugin", "error", err.Error())
-			}
-			log.Error("Failed to get IPAM result", "error", err.Error())
-			return err
-		}
-		if len(res.IPs) == 0 {
-			// The IPAM plugin didn't return an IP address
-			return fmt.Errorf("IPAM plugin returned no IP address")
-		}
-		for _, conf := range res.IPs {
-			if conf.Address.IP.To4() != nil {
-				container.Spec.IPv4Address = conf.Address.String()
-				break
-			}
-		}
-	}
 	log.Info("Creating PeerContainer", "container", container)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
 	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
 	if err != nil {
-		// Release the interface IP address
-		if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
-			err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
-			if err != nil {
-				log.Error("Failed to run IPAM plugin", "error", err.Error())
-			}
-		}
+		log.Error("Failed to create PeerContainer", "error", err.Error())
+		return err
 	}
 	// Wait for the PeerContainer to be ready.
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
@@ -198,7 +191,8 @@ WaitForInterface:
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("timed out waiting for container interface to be ready")
+			err = fmt.Errorf("timed out waiting for container interface to be ready")
+			return
 		case <-time.After(time.Second):
 			// Try to fetch the container status
 			err = cli.Get(ctx, client.ObjectKey{
@@ -257,31 +251,59 @@ WaitForInterface:
 	// Move the wireguard interface to the container namespace.
 	link, err := netlink.LinkByName(container.Status.InterfaceName)
 	if err != nil {
-		return fmt.Errorf("failed to find %q: %v", container.Status.InterfaceName, err)
+		err = fmt.Errorf("failed to find %q: %v", container.Status.InterfaceName, err)
+		return
 	}
 	contDev, err := moveLinkIn(link, containerNs, container.Status.InterfaceName)
 	if err != nil {
-		return fmt.Errorf("move link to container namespace: %v", err)
+		err = fmt.Errorf("move link to container namespace: %v", err)
+		return
 	}
 	result.Interfaces = []*cniv1.Interface{{
 		Name:    contDev.Attrs().Name,
 		Mac:     contDev.Attrs().HardwareAddr.String(),
 		Sandbox: containerNs.Path(),
 	}}
-	return types.PrintResult(result, conf.CNIVersion)
+	err = types.PrintResult(result, conf.CNIVersion)
+	return
 }
 
 // cmdCheck is the CNI CHECK command handler.
 // TODO: Use this to force a refresh of peers for a container.
-func cmdCheck(args *skel.CmdArgs) error {
+func cmdCheck(args *skel.CmdArgs) (err error) {
+	// Defer a panic recover, so that in case we panic we can still return
+	// a proper error to the runtime.
+	defer func() {
+		if e := recover(); e != nil {
+			msg := fmt.Sprintf("Webmesh CNI panicked during CHECK: %s\nStack trace:\n%s", e, string(debug.Stack()))
+			if err != nil {
+				// If we're recovering and there was also an error, then we need to
+				// present both.
+				msg = fmt.Sprintf("%s: error=%s", msg, err)
+			}
+			err = fmt.Errorf(msg)
+		}
+		if err != nil {
+			log.Error("Final result of CNI CHECK was an error", "error", err.Error())
+			cnierr := types.Error{
+				Code:    100,
+				Msg:     "falied to run CHECK command",
+				Details: err.Error(),
+			}
+			cnierr.Print()
+			os.Exit(1)
+		}
+	}()
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		err = fmt.Errorf("failed to load config: %w", err)
+		return
 	}
 	log.Debug("New CHECK request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		err = fmt.Errorf("failed to create client: %w", err)
+		return
 	}
 	err = cli.Ping(testConnectionTimeout)
 	// TODO: Check if the PeerContainer exists and is ready perhaps?
@@ -289,34 +311,62 @@ func cmdCheck(args *skel.CmdArgs) error {
 	if err == nil {
 		fmt.Println("OK")
 	}
-	return err
+	return
 }
 
 // cmdDel is the CNI DEL command handler.
-func cmdDel(args *skel.CmdArgs) error {
+func cmdDel(args *skel.CmdArgs) (err error) {
+	// Defer a panic recover, so that in case we panic we can still return
+	// a proper error to the runtime.
+	defer func() {
+		if e := recover(); e != nil {
+			msg := fmt.Sprintf("Webmesh CNI panicked during DEL: %s\nStack trace:\n%s", e, string(debug.Stack()))
+			if err != nil {
+				// If we're recovering and there was also an error, then we need to
+				// present both.
+				msg = fmt.Sprintf("%s: error=%s", msg, err)
+			}
+			err = fmt.Errorf(msg)
+		}
+		if err != nil {
+			log.Error("Final result of CNI DEL was an error", "error", err.Error())
+			cnierr := types.Error{
+				Code:    100,
+				Msg:     "falied to run DEL command",
+				Details: err.Error(),
+			}
+			cnierr.Print()
+			os.Exit(1)
+		}
+	}()
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		err = fmt.Errorf("failed to load config: %w", err)
+		return
 	}
 	log.Debug("New DEL request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		err = fmt.Errorf("failed to create client: %w", err)
+		return
 	}
 	err = cli.Ping(testConnectionTimeout)
 	if err != nil {
-		log.Error("Failed to ping API server", "error", err.Error())
-		return err
+		err = fmt.Errorf("failed to ping API server: %w", err)
+		return
 	}
 	// Remove the interface from the container namespace.
 	if args.Netns != "" {
-		containerNs, err := ns.GetNS(args.Netns)
+		var containerNs ns.NetNS
+		containerNs, err = ns.GetNS(args.Netns)
 		if err != nil {
-			return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+			err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+			return
 		}
 		defer containerNs.Close()
-		if err := moveLinkOut(containerNs, args.IfName); err != nil {
-			return err
+		if err = moveLinkOut(containerNs, args.IfName); err != nil {
+			err = fmt.Errorf("failed to move link out of container namespace: %w", err)
+			return
 		}
 	}
 	// Delete the PeerContainer.
@@ -336,15 +386,8 @@ func cmdDel(args *skel.CmdArgs) error {
 	if err != nil && client.IgnoreNotFound(err) != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
 	}
-	// Release the interface IP address by any IPAM plugin.
-	if conf.IPAM.Type != "" && !conf.Interface.DisableIPv4 {
-		log.Debug("Running IPAM plugin", "type", conf.IPAM.Type, "args", args)
-		err = ipam.ExecDel(conf.IPAM.Type, args.StdinData)
-		if err != nil {
-			log.Error("Failed to run IPAM plugin", "error", err.Error())
-		}
-	}
-	return err
+	fmt.Println("OK")
+	return
 }
 
 func loadConfigAndLogger(args *skel.CmdArgs) (*NetConf, error) {
@@ -353,7 +396,7 @@ func loadConfigAndLogger(args *skel.CmdArgs) (*NetConf, error) {
 	if err != nil {
 		return nil, err
 	}
-	var writer io.Writer = os.Stderr
+	var writer io.Writer = os.Stdout
 	var level slog.Level
 	switch conf.LogLevel {
 	case "debug":
