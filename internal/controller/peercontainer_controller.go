@@ -187,6 +187,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			ipv4addr = alloc.GetIp()
 		}
 		// Try to register this node as a peer directly via the API.
+		log.Info("Registering peer",
+			"nodeID", nodeID,
+			"publicKey", encoded,
+			"wireguardPort", wireguardPort,
+			"wireguardEndpoints", wgeps,
+			"ipv4addr", ipv4addr,
+			"ipv6addr", netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String(),
+		)
 		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
 			MeshNode: &v1.MeshNode{
 				Id:                 container.Spec.ContainerID,
@@ -199,20 +207,24 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			},
 		})
 		if err != nil {
+			log.Error(err, "Failed to register peer", "container", container)
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to register peer: %w", err)
 		}
 		// Create edges for all other nodes in the same zone.
+		log.Info("Determining current local peers")
 		peers, err := r.Provider.MeshDB().Peers().List(
 			ctx,
 			meshstorage.FilterAgainstNode(nodeID),
 			meshstorage.FilterByZoneID(container.Spec.NodeName),
 		)
 		if err != nil {
+			log.Error(err, "Failed to list peers", "container", container)
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to list peers: %w", err)
 		}
 		for _, peer := range peers {
+			log.Info("Adding edge to peer", "peer", peer)
 			if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
 				Source: nodeID.String(),
 				Target: peer.NodeID().String(),
@@ -221,6 +233,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				return fmt.Errorf("failed to create edge: %w", err)
 			}
 		}
+		log.Info("Updating status to created")
 		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          container.Spec.ContainerID,
@@ -238,21 +251,26 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	}
 	// If the node is not started, start it.
 	if !node.Started() {
+		log.Info("Starting mesh node for container", "container", container)
 		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
 		if err != nil {
+			log.Error(err, "Failed to get peer", "container", container)
 			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to get peer: %w", err)
+			return fmt.Errorf("failed to get peer for container: %w", err)
 		}
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
+			log.Error(err, "Failed to decode public key", "container", container)
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 			// Build the current network topology and return to the peer. They'll use
 			// the storage provider to subscribe to changes.
+			log.Info("Returning current network topology to peer", "container", container)
 			peers, err := meshnet.WireGuardPeersFor(ctx, r.Provider.MeshDB(), nodeID)
 			if err != nil {
+				log.Error(err, "Failed to get peers for join response", "container", container)
 				return nil, fmt.Errorf("failed to get peers: %w", err)
 			}
 			return &v1.JoinResponse{
@@ -298,14 +316,18 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
+		log.Info("Updating status to starting")
 		container.Status.Phase = cniv1.InterfaceStatusStarting
 		if err := r.Status().Update(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 		return nil
 	}
+	log.Info("Waiting for mesh node to start", "container", container)
 	select {
 	case <-node.Ready():
+		// Update the status to running and sets its IP address.
+		log.Info("Updating status to running")
 		var updateStatus bool
 		ifname := node.Network().WireGuard().Name()
 		addrv4 := node.Network().WireGuard().AddressV4().String()
@@ -348,6 +370,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		return ctx.Err()
 	}
 	// Make sure all MeshEdges are up to date for this node.
+	log.Info("Forcing sync of peers and topology")
 	peers, err := r.Provider.MeshDB().Peers().List(
 		ctx,
 		meshstorage.FilterAgainstNode(nodeID),
