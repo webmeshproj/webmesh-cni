@@ -157,8 +157,8 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 	// Start building a container type.
-	desiredIfName := "webmesh" + args.ContainerID[:min(7, len(args.ContainerID))] + "0"
-	container := &meshcniv1.PeerContainer{
+	desiredIfName := "webmesh" + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
+	desiredState := &meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
 			APIVersion: meshcniv1.GroupVersion.String(),
@@ -178,15 +178,16 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			LogLevel:    conf.LogLevel,
 		},
 	}
-	log.Info("Creating PeerContainer", "container", container)
+	log.Info("Creating PeerContainer", "container", desiredState)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
-	err = cli.Patch(ctx, container, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
+	err = cli.Patch(ctx, desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
 	if err != nil {
 		log.Error("Failed to create PeerContainer", "error", err.Error())
 		return err
 	}
 	// Wait for the PeerContainer to be ready.
+	var container meshcniv1.PeerContainer
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
 WaitForInterface:
@@ -200,9 +201,13 @@ WaitForInterface:
 			err = cli.Get(ctx, client.ObjectKey{
 				Name:      args.ContainerID,
 				Namespace: conf.Kubernetes.Namespace,
-			}, container)
+			}, &container)
 			if err != nil {
-				log.Error("Failed to get PeerContainer", "error", err.Error())
+				if client.IgnoreNotFound(err) != nil {
+					log.Error("Failed to get PeerContainer", "error", err.Error())
+					return err
+				}
+				err = nil
 				continue
 			}
 			switch container.Status.Phase {
