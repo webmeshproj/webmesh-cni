@@ -267,6 +267,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
+				Modprobe:              true,
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
 				ListenPort:            int(peer.WireGuardPort()),

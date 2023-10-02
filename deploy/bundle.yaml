@@ -1115,12 +1115,21 @@ spec:
             - mountPath: /lib/modules
               name: lib-modules
               readOnly: true
+            - mountPath: /dev/net/tun
+              name: dev-tun
           securityContext:
             privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
           resources:
             requests:
               cpu: 250m
       volumes:
+        - name: dev-tun
+          hostPath:
+            path: /dev/net/tun
         - name: lib-modules
           hostPath:
             path: /lib/modules
