@@ -135,7 +135,17 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			cnierr.Print()
 			os.Exit(1)
 		}
-		types.PrintResult(result, result.CNIVersion)
+		err = types.PrintResult(result, result.CNIVersion)
+		if err != nil {
+			log.Error("Failed to print CNI result", "error", err.Error())
+			cnierr := types.Error{
+				Code:    100,
+				Msg:     "failed to print CNI result",
+				Details: err.Error(),
+			}
+			cnierr.Print()
+			os.Exit(1)
+		}
 	}()
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {
