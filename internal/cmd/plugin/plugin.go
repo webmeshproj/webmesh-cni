@@ -47,7 +47,7 @@ import (
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
-	types.NetConf `json:"inline"`
+	types.NetConf `json:",inline"`
 
 	// Kubernetes is the configuration for the Kubernetes API server and
 	// information about the node we are running on.
