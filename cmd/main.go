@@ -30,13 +30,14 @@ import (
 func main() {
 	// We run the entrypoint based on how we were invoked.
 	switch filepath.Base(os.Args[0]) {
-	case "webmesh", "loopback":
+	case "webmesh":
 		plugin.Main(version.Version)
 	case "webmesh-cni-node":
 		node.Main(version.Version)
 	case "webmesh-cni-install":
 		install.Main(version.Version)
 	default:
-		panic("unknown executable")
+		// We were invoked as a passthrough plugin.
+		plugin.Main(version.Version)
 	}
 }
