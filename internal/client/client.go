@@ -113,10 +113,12 @@ func NewForConfig(cfg *rest.Config) (*Client, error) {
 func (c *Client) Ping(timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	// Try to fetch the description of the cniv1.PeerContainer resource.
-	// This will fail if the API server is not reachable.
-	var crd apiextensions.CustomResourceDefinition
-	return c.Get(ctx, client.ObjectKey{
-		Name: "peercontainers.cni.webmesh.io",
-	}, &crd)
+	// Try to list peer containers from the API server.
+	err := c.Client.List(ctx, &cniv1.PeerContainerList{}, &client.ListOptions{
+		Limit: 1,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list peer containers: %w", err)
+	}
+	return nil
 }
