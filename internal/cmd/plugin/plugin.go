@@ -396,7 +396,7 @@ func loadConfigAndLogger(args *skel.CmdArgs) (*NetConf, error) {
 	if err != nil {
 		return nil, err
 	}
-	var writer io.Writer = os.Stdout
+	var writer io.Writer = os.Stderr
 	var level slog.Level
 	switch conf.LogLevel {
 	case "debug":

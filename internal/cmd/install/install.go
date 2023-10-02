@@ -142,7 +142,7 @@ func Main(version string) {
 	conf = strings.Replace(conf, NodeNameReplaceStr, os.Getenv(NodeNameEnvVar), -1)
 	conf = strings.Replace(conf, PodNamespaceReplaceStr, os.Getenv(PodNamespaceEnvVar), -1)
 	conf = strings.Replace(conf, APIEndpointReplaceStr, cfg.Host, -1)
-	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
+	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, strings.TrimPrefix(kubeconfigPath, "/host"), -1)
 	// Write the CNI configuration to the destination directory.
 	confPath := filepath.Join(os.Getenv(BinaryDestConfEnvVar), os.Getenv(NetConfFileNameEnvVar))
 	log.Println("effective CNI configuration ->\n", conf)

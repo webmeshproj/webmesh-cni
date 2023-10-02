@@ -144,7 +144,7 @@ test-cluster: ## Create a test cluster with the WebMesh CNI installed.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*' \
+		--volume '$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
 	kubens $(CNI_NAMESPACE)
 
 load: docker ## Load the docker image into the test cluster.
@@ -155,7 +155,7 @@ test-cluster-calico: ## Create a test cluster with Calico installed. This is use
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*' \
+		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*'
 	kubens $(CNI_NAMESPACE)
 
 remove-cluster: ## Remove the test cluster.
