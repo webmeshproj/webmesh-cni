@@ -19,6 +19,7 @@ package node
 
 import (
 	"flag"
+	"net/netip"
 	"os"
 	"time"
 
@@ -108,12 +109,17 @@ func Main(version string) {
 	}
 
 	// Register the peer container controller.
+	podcidr, err := netip.ParsePrefix(podCIDR)
+	if err != nil {
+		setupLog.Error(err, "unable to parse pod CIDR")
+		os.Exit(1)
+	}
 	if err = (&controller.PeerContainerReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		Provider:      storageProvider,
 		NodeName:      nodeID,
-		PodCIDR:       podCIDR,
+		PodCIDR:       podcidr,
 		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")

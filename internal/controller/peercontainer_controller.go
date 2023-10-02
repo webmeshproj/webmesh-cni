@@ -50,7 +50,7 @@ type PeerContainerReconciler struct {
 	Scheme        *runtime.Scheme
 	Provider      *provider.Provider
 	NodeName      string
-	PodCIDR       string
+	PodCIDR       netip.Prefix
 	ClusterDomain string
 
 	networkV4  netip.Prefix
@@ -101,7 +101,7 @@ func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
 	// Make sure the network state is boostrapped.
 	networkState, err := meshstorage.Bootstrap(ctx, r.Provider.MeshDB(), meshstorage.BootstrapOptions{
 		MeshDomain:           r.ClusterDomain,
-		IPv4Network:          r.PodCIDR,
+		IPv4Network:          r.PodCIDR.String(),
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
 		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
