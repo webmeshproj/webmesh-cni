@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -113,6 +114,7 @@ func Main(version string) {
 func cmdAdd(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
+	result := &cniv1.Result{}
 	defer func() {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Webmesh CNI panicked during ADD: %s\nStack trace:\n%s", e, string(debug.Stack()))
@@ -133,12 +135,16 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			cnierr.Print()
 			os.Exit(1)
 		}
+		types.PrintResult(result, result.CNIVersion)
 	}()
 	conf, err := loadConfigAndLogger(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
+	result.CNIVersion = conf.CNIVersion
+	result.Routes = []*types.Route{} // The mesh node handles route configurations.
+	result.DNS = conf.DNS
 	log.Debug("New ADD request", "config", conf, "args", args)
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
@@ -178,6 +184,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			LogLevel:    conf.LogLevel,
 		},
 	}
+	// Send the request to the controller.
 	log.Info("Creating PeerContainer", "container", desiredState)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
@@ -224,37 +231,32 @@ WaitForInterface:
 			}
 		}
 	}
-	// Start building the result
-	result := &cniv1.Result{
-		CNIVersion: conf.CNIVersion,
-		IPs: func() []*cniv1.IPConfig {
-			var ips []*cniv1.IPConfig
-			if container.Status.IPv4Address != "" {
-				ipnet, err := netlink.ParseIPNet(container.Status.IPv4Address)
-				if err != nil {
-					log.Error("Failed to parse IPv4 address", "error", err.Error())
-				} else {
-					ips = append(ips, &cniv1.IPConfig{
-						Address: *ipnet,
-						Gateway: ipnet.IP, // Use system's default gateway or self?
-					})
-				}
-			}
-			if container.Status.IPv6Address != "" {
-				ipnet, err := netlink.ParseIPNet(container.Status.IPv6Address)
-				if err != nil {
-					log.Error("Failed to parse IPv6 address", "error", err.Error())
-				} else {
-					ips = append(ips, &cniv1.IPConfig{
-						Address: *ipnet,
-						Gateway: ipnet.IP, // Use system's default gateway or self?
-					})
-				}
-			}
-			return ips
-		}(),
-		Routes: []*types.Route{}, // The mesh node handles route configurations.
-		DNS:    conf.DNS,
+	// Parse the IP addresses from the container status.
+	if container.Status.IPv4Address != "" {
+		var ipnet *net.IPNet
+		ipnet, err = netlink.ParseIPNet(container.Status.IPv4Address)
+		if err != nil {
+			log.Error("Failed to parse IPv4 address", "error", err.Error())
+			err = fmt.Errorf("failed to parse IPv4 address: %w", err)
+			return
+		}
+		result.IPs = append(result.IPs, &cniv1.IPConfig{
+			Address: *ipnet,
+			Gateway: ipnet.IP, // Use system's default gateway or self?
+		})
+	}
+	if container.Status.IPv6Address != "" {
+		var ipnet *net.IPNet
+		ipnet, err = netlink.ParseIPNet(container.Status.IPv6Address)
+		if err != nil {
+			log.Error("Failed to parse IPv6 address", "error", err.Error())
+			err = fmt.Errorf("failed to parse IPv6 address: %w", err)
+			return
+		}
+		result.IPs = append(result.IPs, &cniv1.IPConfig{
+			Address: *ipnet,
+			Gateway: ipnet.IP, // Use system's default gateway or self?
+		})
 	}
 	// Move the wireguard interface to the container namespace.
 	link, err := netlink.LinkByName(container.Status.InterfaceName)
@@ -272,7 +274,6 @@ WaitForInterface:
 		Mac:     contDev.Attrs().HardwareAddr.String(),
 		Sandbox: containerNs.Path(),
 	}}
-	err = types.PrintResult(result, conf.CNIVersion)
 	return
 }
 
