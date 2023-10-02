@@ -42,7 +42,15 @@ const (
 	// BinaryDestConfEnvVar is the destination directory for the CNI configuration.
 	BinaryDestConfEnvVar = "CNI_CONF_DIR"
 	// PodNamespaceEnvVar is the name of the environment variable that contains the pod namespace.
-	PodNamespaceEnvVar = "K8S_POD_NAMESPACE"
+	PodNamespaceEnvVar = "KUBERNETES_POD_NAMESPACE"
+	// NodeNameReplaceStr is the string that will be replaced in the CNI configuration with the node name.
+	NodeNameReplaceStr = "__KUBERNETES_NODE_NAME__"
+	// PodNamespaceReplaceStr is the string that will be replaced in the CNI configuration with the pod namespace.
+	PodNamespaceReplaceStr = "__KUBERNETES_POD_NAMESPACE__"
+	// KubeAPIEndpointReplaceStr is the string that will be replaced in the CNI configuration with the Kubernetes API endpoint.
+	APIEndpointReplaceStr = "__KUBERNETES_API_ENDPOINT__"
+	// KubeconfigFilepathReplaceStr is the string that will be replaced in the CNI configuration with the kubeconfig filepath.
+	KubeconfigFilepathReplaceStr = "__KUBECONFIG_FILEPATH__"
 	// PluginBinaryName is the name of the plugin binary.
 	PluginBinaryName = "webmesh"
 )
@@ -108,13 +116,13 @@ func Main(version string) {
 	}
 	// Do necessary string replacements on the CNI configuration.
 	conf := os.Getenv(NetConfEnvVar)
-	conf = strings.Replace(conf, "__KUBERNETES_NODE_NAME__", os.Getenv(NodeNameEnvVar), -1)
-	conf = strings.Replace(conf, "__K8S_POD_NAMESPACE__", os.Getenv(PodNamespaceEnvVar), -1)
-	conf = strings.Replace(conf, "__KUBERNETES_API_ENDPOINT__", cfg.Host, -1)
-	conf = strings.Replace(conf, "__KUBECONFIG_FILEPATH__", kubeconfigPath, -1)
+	conf = strings.Replace(conf, NodeNameReplaceStr, os.Getenv(NodeNameEnvVar), -1)
+	conf = strings.Replace(conf, PodNamespaceReplaceStr, os.Getenv(PodNamespaceEnvVar), -1)
+	conf = strings.Replace(conf, APIEndpointReplaceStr, cfg.Host, -1)
+	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
 	// Write the CNI configuration to the destination directory.
 	confPath := filepath.Join(os.Getenv(BinaryDestConfEnvVar), os.Getenv(NetConfFileNameEnvVar))
-	log.Println("Effective CNI configuration -> ")
+	log.Println("effective CNI configuration -> ")
 	fmt.Println(conf)
 	log.Println("installing CNI configuration to -> ", confPath)
 	if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
