@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
-	cniSpecVersion "github.com/containernetworking/cni/pkg/version"
+	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +48,7 @@ import (
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
-	types.NetConf `json:",inline"`
+	cnitypes.NetConf `json:",inline"`
 
 	// Kubernetes is the configuration for the Kubernetes API server and
 	// information about the node we are running on.
@@ -107,7 +107,7 @@ func init() {
 
 // Main is the entrypoint for the webmesh-cni plugin.
 func Main(version string) {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniSpecVersion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version)
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version)
 }
 
 // cmdAdd is the CNI ADD command handler.
@@ -127,7 +127,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		}
 		if err != nil {
 			log.Error("Final result of CNI ADD was an error", "error", err.Error())
-			cnierr := types.Error{
+			cnierr := cnitypes.Error{
 				Code:    100,
 				Msg:     "failed to run ADD command",
 				Details: err.Error(),
@@ -135,10 +135,10 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			cnierr.Print()
 			os.Exit(1)
 		}
-		err = types.PrintResult(result, result.CNIVersion)
+		err = cnitypes.PrintResult(result, result.CNIVersion)
 		if err != nil {
 			log.Error("Failed to print CNI result", "error", err.Error())
-			cnierr := types.Error{
+			cnierr := cnitypes.Error{
 				Code:    100,
 				Msg:     "failed to print CNI result",
 				Details: err.Error(),
@@ -153,7 +153,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 	result.CNIVersion = conf.CNIVersion
-	result.Routes = []*types.Route{} // The mesh node handles route configurations.
+	result.Routes = []*cnitypes.Route{} // The mesh node handles route configurations.
 	result.DNS = conf.DNS
 	log.Debug("New ADD request", "config", conf, "args", args)
 	containerNs, err := ns.GetNS(args.Netns)
@@ -304,7 +304,7 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 		}
 		if err != nil {
 			log.Error("Final result of CNI CHECK was an error", "error", err.Error())
-			cnierr := types.Error{
+			cnierr := cnitypes.Error{
 				Code:    100,
 				Msg:     "failed to run CHECK command",
 				Details: err.Error(),
@@ -349,7 +349,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		}
 		if err != nil {
 			log.Error("Final result of CNI DEL was an error", "error", err.Error())
-			cnierr := types.Error{
+			cnierr := cnitypes.Error{
 				Code:    100,
 				Msg:     "failed to run DEL command",
 				Details: err.Error(),
