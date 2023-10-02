@@ -103,6 +103,16 @@ func Main(version string) {
 	// Write a kubeconfig file to the destination directory.
 	kubeconfigPath := filepath.Join(destBin, "webmesh-kubeconfig")
 	cfg := ctrl.GetConfigOrDie()
+	// If our cert data is empty, convert it to the contents of the cert file.
+	if len(cfg.CertData) == 0 && cfg.CAFile != "" {
+		log.Println("reading certificate authority data from file -> ", cfg.CAFile)
+		caData, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			log.Println("error reading certificate authority data:", err)
+			os.Exit(1)
+		}
+		cfg.CertData = caData
+	}
 	clientconfig := clientcmdapi.Config{
 		Kind:       "Config",
 		APIVersion: "v1",
@@ -111,7 +121,6 @@ func Main(version string) {
 				Server:                   cfg.Host,
 				TLSServerName:            cfg.ServerName,
 				InsecureSkipTLSVerify:    cfg.Insecure,
-				CertificateAuthority:     cfg.CAFile,
 				CertificateAuthorityData: cfg.CertData,
 			},
 		},
