@@ -90,6 +90,8 @@ const (
 	createPeerContainerTimeout = time.Second * 2
 	// How long to wait for the controller to setup the container interface.
 	setupContainerInterfaceTimeout = time.Second * 10
+	// Default kubeconfig path if not provided.
+	defaultKubeconfigPath = "/opt/cni/bin/webmesh-kubeconfig"
 )
 
 // A global logger set when configuration is loaded.
@@ -136,6 +138,10 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
+	}
+	if conf.Kubernetes.Kubeconfig == "" {
+		// We were invoked without our configuration, but it's probably next to the executable.
+		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
 	}
 	log.Debug("New ADD request", "config", conf, "args", args)
 	containerNs, err := ns.GetNS(args.Netns)
@@ -299,6 +305,10 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
+	if conf.Kubernetes.Kubeconfig == "" {
+		// We were invoked without our configuration, but it's probably next to the executable.
+		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
+	}
 	log.Debug("New CHECK request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
@@ -343,6 +353,10 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
+	}
+	if conf.Kubernetes.Kubeconfig == "" {
+		// We were invoked without our configuration, but it's probably next to the executable.
+		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
 	}
 	log.Debug("New DEL request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
