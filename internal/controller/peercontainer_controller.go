@@ -47,12 +47,15 @@ import (
 // PeerContainerReconciler reconciles a PeerContainer object
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	Provider   *provider.Provider
-	NetworkV4  netip.Prefix
-	NetworkV6  netip.Prefix
-	MeshDomain string
-	NodeName   string
+	Scheme        *runtime.Scheme
+	Provider      *provider.Provider
+	NodeName      string
+	PodCIDR       string
+	ClusterDomain string
+
+	networkV4  netip.Prefix
+	networkV6  netip.Prefix
+	meshDomain string
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
 }
@@ -64,6 +67,9 @@ type PeerContainerReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if err := r.tryBootstrap(ctx); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to bootstrap network state: %w", err)
+	}
 	log := log.FromContext(ctx)
 	var container cniv1.PeerContainer
 	if err := r.Get(ctx, req.NamespacedName, &container); err != nil {
@@ -80,6 +86,35 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	log.Info("Reconciling mesh node for container", "container", req.NamespacedName)
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, &container)
+}
+
+// tryBootstrap ensures the network is bootstrapped if we don't have a local configuration yet.
+func (r *PeerContainerReconciler) tryBootstrap(ctx context.Context) error {
+	log := log.FromContext(ctx)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// Check if we have already set the network domain.
+	if r.meshDomain != "" {
+		// Nothing to do.
+		return nil
+	}
+	// Make sure the network state is boostrapped.
+	networkState, err := meshstorage.Bootstrap(ctx, r.Provider.MeshDB(), meshstorage.BootstrapOptions{
+		MeshDomain:           r.ClusterDomain,
+		IPv4Network:          r.PodCIDR,
+		Admin:                meshstorage.DefaultMeshAdmin,
+		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
+		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
+	})
+	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
+		log.Error(err, "Unable to bootstrap network state")
+		return fmt.Errorf("failed to bootstrap network state: %w", err)
+	}
+	// Set the state of the network to the local fields.
+	r.meshDomain = networkState.MeshDomain
+	r.networkV4 = networkState.NetworkV4
+	r.networkV6 = networkState.NetworkV6
+	return nil
 }
 
 // reconcilePeerContainer reconciles the given PeerContainer.
@@ -142,7 +177,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			plugin := meshipam.NewWithDB(r.Provider.MeshDB())
 			alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
 				NodeID: nodeID.String(),
-				Subnet: r.NetworkV4.String(),
+				Subnet: r.networkV4.String(),
 			})
 			if err != nil {
 				r.setFailedStatus(ctx, container, err)
@@ -159,7 +194,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				WireguardEndpoints: wgeps,
 				ZoneAwarenessID:    container.Spec.NodeName,
 				PrivateIPv4:        container.Spec.IPv4Address,
-				PrivateIPv6:        netutil.AssignToPrefix(r.NetworkV6, key.PublicKey()).String(),
+				PrivateIPv6:        netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String(),
 			},
 		})
 		if err != nil {
@@ -219,10 +254,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				return nil, fmt.Errorf("failed to get peers: %w", err)
 			}
 			return &v1.JoinResponse{
-				MeshDomain:  r.MeshDomain,
-				NetworkIPv4: r.NetworkV4.String(),
-				NetworkIPv6: r.NetworkV6.String(),
-				AddressIPv6: netutil.AssignToPrefix(r.NetworkV6, key).String(),
+				MeshDomain:  r.meshDomain,
+				NetworkIPv4: r.networkV4.String(),
+				NetworkIPv6: r.networkV6.String(),
+				AddressIPv6: netutil.AssignToPrefix(r.networkV6, key).String(),
 				AddressIPv4: container.Spec.IPv4Address,
 				Peers:       peers,
 			}, nil

@@ -24,8 +24,6 @@ import (
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
-	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
-	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -98,7 +96,7 @@ func Main(version string) {
 	// Create the storage provider.
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageprovider.Options{
 		NodeID:                      nodeID,
-		Namespace:                   "webmesh",
+		Namespace:                   namespace,
 		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
 		LeaderElectionRenewDeadline: leaderElectRenewDeadline,
 		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
@@ -107,35 +105,15 @@ func Main(version string) {
 		setupLog.Error(err, "unable to create webmesh storage provider")
 		os.Exit(1)
 	}
-	err = storageProvider.StartUnmanaged(ctx)
-	if err != nil {
-		setupLog.Error(err, "unable to start webmesh storage provider")
-		os.Exit(1)
-	}
-	defer storageProvider.Close()
-
-	// Make sure the network state is boostrapped.
-	networkState, err := meshstorage.Bootstrap(ctx, storageProvider.MeshDB(), meshstorage.BootstrapOptions{
-		MeshDomain:           clusterDomain,
-		IPv4Network:          podCIDR,
-		Admin:                meshstorage.DefaultMeshAdmin,
-		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
-	})
-	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		setupLog.Error(err, "Unable to bootstrap network state")
-		os.Exit(1)
-	}
 
 	// Register the peer container controller.
 	if err = (&controller.PeerContainerReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Provider:   storageProvider,
-		NodeName:   nodeID,
-		NetworkV4:  networkState.NetworkV4,
-		NetworkV6:  networkState.NetworkV6,
-		MeshDomain: networkState.MeshDomain,
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Provider:      storageProvider,
+		NodeName:      nodeID,
+		PodCIDR:       podCIDR,
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
 		os.Exit(1)
@@ -162,6 +140,13 @@ func Main(version string) {
 			os.Exit(1)
 		}
 	}()
+
+	err = storageProvider.StartUnmanaged(ctx)
+	if err != nil {
+		setupLog.Error(err, "unable to start webmesh storage provider")
+		os.Exit(1)
+	}
+	defer storageProvider.Close()
 
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
