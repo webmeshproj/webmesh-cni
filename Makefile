@@ -53,7 +53,8 @@ ROLE_NAME ?= webmesh-cni-role
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=$(ROLE_NAME) crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) crd webhook paths="./..." output:crd:artifacts:config=deploy/crd
+	$(CONTROLLER_GEN) rbac:roleName=$(ROLE_NAME) webhook paths="./..." output:crd:artifacts:config=deploy/rbac
 
 .PHONY: generate
 HEADER_FILE := api/v1/boilerplate.go.txt

@@ -57,7 +57,7 @@ spec:
       labels:
         k8s-app: webmesh-node
     spec:
-      serviceAccountName: webmesh-node
+      serviceAccountName: webmesh-cni-sa
       terminationGracePeriodSeconds: 0
       priorityClassName: system-node-critical
       nodeSelector:
