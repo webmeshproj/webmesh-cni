@@ -221,7 +221,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				return fmt.Errorf("failed to create edge: %w", err)
 			}
 		}
-		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel), meshnode.Config{
+		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          container.Spec.ContainerID,
 			ZoneAwarenessID: container.Spec.NodeName,
