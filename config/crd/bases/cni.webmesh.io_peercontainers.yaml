@@ -37,8 +37,17 @@ spec:
               containerID:
                 description: ContainerID is the ID of the container to peer with.
                 type: string
+              disableIPv4:
+                description: DisableIPv4 is whether to disable IPv4 on the interface.
+                type: boolean
+              disableIPv6:
+                description: DisableIPv6 is whether to disable IPv6 on the interface.
+                type: boolean
               ifName:
                 description: IfName is the name of the interface to peer with.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address to assign to the interface.
                 type: string
               logLevel:
                 description: LogLevel is the log level for the webmesh interface.
@@ -56,7 +65,10 @@ spec:
                 type: string
             required:
             - containerID
+            - disableIPv4
+            - disableIPv6
             - ifName
+            - ipv4Address
             - logLevel
             - mtu
             - netns
@@ -68,6 +80,9 @@ spec:
               error:
                 description: Error is any error that occurred while peering the interface.
                 type: string
+              interfaceName:
+                description: InterfaceName is the name of the interface.
+                type: string
               ipv4Address:
                 description: IPv4Address is the IPv4 address of the interface.
                 type: string
@@ -75,13 +90,14 @@ spec:
                 description: IPv6Address is the IPv6 address of the interface.
                 type: string
               macAddress:
-                description: MacAddress is the MAC address of the interface.
+                description: MACAddress is the MAC address of the interface.
                 type: string
               status:
-                description: Status is the current status of the interface.
+                description: Phase is the current status of the interface.
                 type: string
             required:
             - error
+            - interfaceName
             - ipv4Address
             - ipv6Address
             - macAddress
