@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strings"
 
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +66,8 @@ const (
 	PluginKubeconfigName = "webmesh-kubeconfig"
 	// PluginBinaryName is the name of the plugin binary.
 	PluginBinaryName = "webmesh"
+	// KubeconfigContextName is the name of the context in the kubeconfig.
+	KubeconfigContextName = "webmesh-cni"
 )
 
 // InstallOptions are the options for the install component.
@@ -255,39 +258,40 @@ func (i *InstallOptions) GetKubeconfig() (clientcmdapi.Config, error) {
 	if err != nil {
 		return clientcmdapi.Config{}, fmt.Errorf("error getting config: %w", err)
 	}
-	if len(cfg.CertData) == 0 && cfg.CAFile != "" {
-		log.Println("reading certificate authority data from file -> ", cfg.CAFile)
+	return KubeconfigFromRestConfig(cfg, i.Namespace)
+}
+
+// KubeconfigFromRestConfig returns a kubeconfig from the given rest config.
+// It reads in any files and encodes them as base64 in the final configuration.
+// GetKubeconfig tries to build a kubeconfig from the current in cluster
+// configuration.
+func KubeconfigFromRestConfig(cfg *rest.Config, namespace string) (clientcmdapi.Config, error) {
+	if cfg.CAFile != "" {
 		caData, err := os.ReadFile(cfg.CAFile)
 		if err != nil {
-			log.Println("error reading certificate authority data:", err)
 			return clientcmdapi.Config{}, fmt.Errorf("error reading certificate authority data: %w", err)
 		}
-		cfg.CertData = caData
+		cfg.CAData = caData
 	}
 	// If our bearer token is a file, convert it to the contents of the file.
 	if cfg.BearerTokenFile != "" {
-		log.Println("reading bearer token from file -> ", cfg.BearerTokenFile)
 		token, err := os.ReadFile(cfg.BearerTokenFile)
 		if err != nil {
-			log.Println("error reading bearer token:", err)
 			return clientcmdapi.Config{}, fmt.Errorf("error reading bearer token: %w", err)
 		}
 		cfg.BearerToken = string(token)
 	}
 	// If our client certificate is a file, convert it to the contents of the file.
-	var clientCertData []byte
 	if cfg.CertFile != "" {
-		log.Println("reading client certificate from file -> ", cfg.CertFile)
 		cert, err := os.ReadFile(cfg.CertFile)
 		if err != nil {
 			log.Println("error reading client certificate:", err)
 			return clientcmdapi.Config{}, fmt.Errorf("error reading client certificate: %w", err)
 		}
-		clientCertData = cert
+		cfg.CertData = cert
 	}
 	// Same for any key
 	if cfg.KeyFile != "" {
-		log.Println("reading client key from file -> ", cfg.KeyFile)
 		key, err := os.ReadFile(cfg.KeyFile)
 		if err != nil {
 			log.Println("error reading client key:", err)
@@ -299,16 +303,16 @@ func (i *InstallOptions) GetKubeconfig() (clientcmdapi.Config, error) {
 		Kind:       "Config",
 		APIVersion: "v1",
 		Clusters: map[string]*clientcmdapi.Cluster{
-			"webmesh-cni": {
+			KubeconfigContextName: {
 				Server:                   cfg.Host,
 				TLSServerName:            cfg.ServerName,
 				InsecureSkipTLSVerify:    cfg.Insecure,
-				CertificateAuthorityData: cfg.CertData,
+				CertificateAuthorityData: cfg.CAData,
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"webmesh-cni": {
-				ClientCertificateData: clientCertData,
+			KubeconfigContextName: {
+				ClientCertificateData: cfg.CertData,
 				ClientKeyData:         cfg.KeyData,
 				Token:                 cfg.BearerToken,
 				Impersonate:           cfg.Impersonate.UserName,
@@ -316,13 +320,13 @@ func (i *InstallOptions) GetKubeconfig() (clientcmdapi.Config, error) {
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
-			"webmesh-cni": {
-				Cluster:   "webmesh-cni",
-				AuthInfo:  "webmesh-cni",
-				Namespace: i.Namespace,
+			KubeconfigContextName: {
+				Cluster:   KubeconfigContextName,
+				AuthInfo:  KubeconfigContextName,
+				Namespace: namespace,
 			},
 		},
-		CurrentContext: "webmesh-cni",
+		CurrentContext: KubeconfigContextName,
 	}, nil
 }
 

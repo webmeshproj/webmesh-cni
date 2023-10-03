@@ -17,18 +17,104 @@ limitations under the License.
 package types
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func TestClient(t *testing.T) {
-	_ = setupClientTest(t)
+	t.Parallel()
+	cfg := setupClientTest(t)
+
+	t.Run("NewClientForConfig", func(t *testing.T) {
+		t.Parallel()
+		// Invalid configs should fail.
+		_, err := NewClientForConfig(ClientConfig{
+			NetConf:    &NetConf{},
+			RestConfig: nil,
+		})
+		if err == nil {
+			t.Fatal("Expected error for invalid config")
+		}
+		// NewClient should never fail with a valid config.
+		client, err := NewClientForConfig(ClientConfig{
+			NetConf:    &NetConf{},
+			RestConfig: cfg,
+		})
+		if err != nil {
+			t.Fatal("Failed to create client", err)
+		}
+		// The client should be able to "Ping" the API server.
+		err = client.Ping(time.Second * 3)
+		if err != nil {
+			t.Fatal("Failed to ping API server", err)
+		}
+	})
+
+	t.Run("NewClientFromNetConf", func(t *testing.T) {
+		t.Parallel()
+		kubeconfig, err := KubeconfigFromRestConfig(cfg, "default")
+		if err != nil {
+			t.Fatal("Failed to get kubeconfig", err)
+		}
+
+		t.Run("NilConf", func(t *testing.T) {
+			t.Parallel()
+			var netconf *NetConf
+			_, err := netconf.NewClient(time.Second)
+			if err == nil {
+				t.Fatal("Expected error for nil config")
+			}
+		})
+
+		t.Run("InvalidKubeconfig", func(t *testing.T) {
+			t.Parallel()
+			netconf := &NetConf{
+				Kubernetes: Kubernetes{
+					Kubeconfig: "invalid",
+				},
+			}
+			_, err := netconf.NewClient(time.Second)
+			if err == nil {
+				t.Fatal("Expected error for invalid kubeconfig")
+			}
+		})
+
+		t.Run("Valid Kubeconfig", func(t *testing.T) {
+			t.Parallel()
+			dirTmp, err := os.MkdirTemp("", "")
+			if err != nil {
+				t.Fatal("Failed to create temp dir", err)
+			}
+			defer os.RemoveAll(dirTmp)
+			kpath := filepath.Join(dirTmp, "kubeconfig")
+			err = clientcmd.WriteToFile(kubeconfig, kpath)
+			if err != nil {
+				t.Fatal("Failed to write kubeconfig", err)
+			}
+			netconf := &NetConf{
+				Kubernetes: Kubernetes{
+					Kubeconfig: kpath,
+				},
+			}
+			client, err := netconf.NewClient(time.Second)
+			if err != nil {
+				t.Fatal("Failed to create client", err)
+			}
+			err = client.Ping(time.Second * 3)
+			if err != nil {
+				t.Errorf("Failed to ping API server: %v", err)
+			}
+		})
+	})
 }
 
 func setupClientTest(t *testing.T) *rest.Config {
