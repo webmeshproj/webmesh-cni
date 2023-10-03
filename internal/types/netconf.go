@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -69,14 +70,14 @@ type Kubernetes struct {
 
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
 func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
-	netConf := &NetConf{}
-	if err := cnitypes.LoadArgs(string(cmd.StdinData), netConf); err != nil {
-		return nil, err
+	var conf NetConf
+	if err := cnitypes.LoadArgs(string(cmd.StdinData), &conf); err != nil {
+		return nil, fmt.Errorf("failed to load netconf from stdin data: %w", err)
 	}
-	if netConf.Kubernetes.Kubeconfig == "" {
-		netConf.Kubernetes.Kubeconfig = DefaultKubeconfigPath
+	if conf.Kubernetes.Kubeconfig == "" {
+		conf.Kubernetes.Kubeconfig = DefaultKubeconfigPath
 	}
-	return netConf, nil
+	return &conf, nil
 }
 
 // NewLogger creates a new logger for the plugin.
