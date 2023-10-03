@@ -118,12 +118,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		r.nodes = make(map[types.NamespacedName]meshnode.Node)
 	}
 	// Check if we have registered the node yet
-	name := types.NamespacedName{Name: container.Spec.NodeName}
+	id := types.NamespacedName{Name: container.Name, Namespace: container.Namespace}
 	nodeID := meshtypes.NodeID(container.Spec.NodeID)
-	node, ok := r.nodes[name]
+	node, ok := r.nodes[id]
 	if !ok {
 		// We need to create the node.
-		log.Info("Mesh node for container not found, we must need to create it", "container", name)
+		log.Info("Mesh node for container not found, we must need to create it", "container", id)
 		// Detect the current endpoints on the machine.
 		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 			DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
@@ -226,7 +226,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			}
 		}
 		log.Info("Updating status to created")
-		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
+		r.nodes[id] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          nodeID.String(),
 			ZoneAwarenessID: container.Spec.NodeName,
