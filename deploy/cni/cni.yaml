@@ -85,6 +85,10 @@ spec:
               value: "/host/opt/cni/bin"
             - name: CNI_CONF_DIR
               value: "/host/etc/cni/net.d"
+            # The path to clear IPAM allocations from when upgrading from
+            # host-local plugins.
+            - name: CNI_NET_DIR
+              value: "/var/lib/cni/networks"
             # Name of the CNI config file to create.
             - name: CNI_CONF_NAME
               value: "10-webmesh.conflist"

@@ -783,121 +783,6 @@ rules:
 ---
 # Source: https://github.com/webmeshproj/webmesh-cni/raw/main/deploy/bundle.yaml
 ---
-# Source: deploy/crd/cni.webmesh.io_peercontainers.yaml
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
-  name: peercontainers.cni.webmesh.io
-spec:
-  group: cni.webmesh.io
-  names:
-    kind: PeerContainer
-    listKind: PeerContainerList
-    plural: peercontainers
-    singular: peercontainer
-  scope: Namespaced
-  versions:
-  - name: v1
-    schema:
-      openAPIV3Schema:
-        description: PeerContainer is the Schema for the peercontainers API
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: PeerContainerSpec defines the desired state of PeerContainer
-            properties:
-              containerID:
-                description: NodeID is the ID to use for the container.
-                type: string
-              disableIPv4:
-                description: DisableIPv4 is whether to disable IPv4 on the interface.
-                type: boolean
-              disableIPv6:
-                description: DisableIPv6 is whether to disable IPv6 on the interface.
-                type: boolean
-              ifName:
-                description: IfName is the name of the interface to peer with.
-                type: string
-              logLevel:
-                description: LogLevel is the log level for the webmesh interface.
-                type: string
-              mtu:
-                description: MTU is the MTU to set on the interface.
-                type: integer
-              netns:
-                description: Netns is the network namespace of the container to peer
-                  with.
-                type: string
-              nodeName:
-                description: NodeName is the name of the node the container is running
-                  on.
-                type: string
-            required:
-            - containerID
-            - disableIPv4
-            - disableIPv6
-            - ifName
-            - logLevel
-            - mtu
-            - netns
-            - nodeName
-            type: object
-          status:
-            description: PeerContainerStatus defines the observed state of PeerContainer
-            properties:
-              error:
-                description: Error is any error that occurred while peering the interface.
-                type: string
-              interfaceName:
-                description: InterfaceName is the name of the interface.
-                type: string
-              ipv4Address:
-                description: IPv4Address is the IPv4 address of the interface.
-                type: string
-              ipv6Address:
-                description: IPv6Address is the IPv6 address of the interface.
-                type: string
-              macAddress:
-                description: MACAddress is the MAC address of the interface.
-                type: string
-              networkV4:
-                description: NetworkV4 is the IPv4 network of the interface.
-                type: string
-              networkV6:
-                description: NetworkV6 is the IPv6 network of the interface.
-                type: string
-              status:
-                description: Phase is the current status of the interface.
-                type: string
-            required:
-            - error
-            - interfaceName
-            - ipv4Address
-            - ipv6Address
-            - macAddress
-            - networkV4
-            - networkV6
-            - status
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
 # Source: deploy/rbac/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -1052,6 +937,10 @@ spec:
               value: "/host/opt/cni/bin"
             - name: CNI_CONF_DIR
               value: "/host/etc/cni/net.d"
+            # The path to clear IPAM allocations from when upgrading from
+            # host-local plugins.
+            - name: CNI_NET_DIR
+              value: "/var/lib/cni/networks"
             # Name of the CNI config file to create.
             - name: CNI_CONF_NAME
               value: "10-webmesh.conflist"
@@ -1170,3 +1059,118 @@ spec:
         - name: host-local-net-dir
           hostPath:
             path: /var/lib/cni/networks
+---
+# Source: deploy/crds/cni.webmesh.io_peercontainers.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: peercontainers.cni.webmesh.io
+spec:
+  group: cni.webmesh.io
+  names:
+    kind: PeerContainer
+    listKind: PeerContainerList
+    plural: peercontainers
+    singular: peercontainer
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: PeerContainer is the Schema for the peercontainers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PeerContainerSpec defines the desired state of PeerContainer
+            properties:
+              containerID:
+                description: NodeID is the ID to use for the container.
+                type: string
+              disableIPv4:
+                description: DisableIPv4 is whether to disable IPv4 on the interface.
+                type: boolean
+              disableIPv6:
+                description: DisableIPv6 is whether to disable IPv6 on the interface.
+                type: boolean
+              ifName:
+                description: IfName is the name of the interface to peer with.
+                type: string
+              logLevel:
+                description: LogLevel is the log level for the webmesh interface.
+                type: string
+              mtu:
+                description: MTU is the MTU to set on the interface.
+                type: integer
+              netns:
+                description: Netns is the network namespace of the container to peer
+                  with.
+                type: string
+              nodeName:
+                description: NodeName is the name of the node the container is running
+                  on.
+                type: string
+            required:
+            - containerID
+            - disableIPv4
+            - disableIPv6
+            - ifName
+            - logLevel
+            - mtu
+            - netns
+            - nodeName
+            type: object
+          status:
+            description: PeerContainerStatus defines the observed state of PeerContainer
+            properties:
+              error:
+                description: Error is any error that occurred while peering the interface.
+                type: string
+              interfaceName:
+                description: InterfaceName is the name of the interface.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address of the interface.
+                type: string
+              ipv6Address:
+                description: IPv6Address is the IPv6 address of the interface.
+                type: string
+              macAddress:
+                description: MACAddress is the MAC address of the interface.
+                type: string
+              networkV4:
+                description: NetworkV4 is the IPv4 network of the interface.
+                type: string
+              networkV6:
+                description: NetworkV6 is the IPv6 network of the interface.
+                type: string
+              status:
+                description: Phase is the current status of the interface.
+                type: string
+            required:
+            - error
+            - interfaceName
+            - ipv4Address
+            - ipv6Address
+            - macAddress
+            - networkV4
+            - networkV6
+            - status
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

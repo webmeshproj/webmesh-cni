@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -40,6 +41,9 @@ const (
 	BinaryDestBinEnvVar = "CNI_BIN_DIR"
 	// BinaryDestConfEnvVar is the destination directory for the CNI configuration.
 	BinaryDestConfEnvVar = "CNI_CONF_DIR"
+	// CNINetDirEnvVar is the directory containing host-local IPAM allocations. We release these
+	// when we start for the first time.
+	CNINetDirEnvVar = "CNI_NET_DIR"
 	// NodeNameEnvVar is the name of the environment variable that contains the node name.
 	NodeNameEnvVar = "KUBERNETES_NODE_NAME"
 	// PodNamespaceEnvVar is the name of the environment variable that contains the pod namespace.
@@ -53,7 +57,7 @@ const (
 	// KubeconfigFilepathReplaceStr is the string that will be replaced in the CNI configuration with the kubeconfig filepath.
 	KubeconfigFilepathReplaceStr = "__KUBECONFIG_FILEPATH__"
 	// HostLocalNetDir is the directory containing host-local IPAM allocations. We release these when we start for the first time.
-	HostLocalNetDir = "/var/lib/cni/networks"
+	DefaultHostLocalNetDir = "/var/lib/cni/networks"
 	// DefaultDestBin is the default destination directory for the CNI binaries.
 	DefaultDestBin = "/opt/cni/bin"
 	// DefaultDestConfDir is the default destination directory for the CNI configuration.
@@ -69,6 +73,12 @@ const (
 	// KubeconfigContextName is the name of the context in the kubeconfig.
 	KubeconfigContextName = "webmesh-cni"
 )
+
+// ErrMissingEnvVar is returned when a required environment variable is missing.
+var ErrMissingEnvar = fmt.Errorf("missing environment variable")
+
+// ErrGetExecutable is returned when we can't determine the binary to install.
+var ErrInvalidExecutable = fmt.Errorf("error getting executable path")
 
 // InstallOptions are the options for the install component.
 type InstallOptions struct {
@@ -93,33 +103,40 @@ type InstallOptions struct {
 	Namespace string
 }
 
+// getExecutable is the function for retrieving the current executable.
+// This is overridden in tests.
+var getExecutable = os.Executable
+
 // LoadInstallOptionsFromEnv loads the install options from the environment.
 func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
 	var opts InstallOptions
 	var err error
-	opts.HostLocalNetDir = HostLocalNetDir
 	opts.BinaryName = PluginBinaryName
+	opts.HostLocalNetDir = os.Getenv(CNINetDirEnvVar)
+	if opts.HostLocalNetDir == "" {
+		opts.HostLocalNetDir = DefaultHostLocalNetDir
+	}
 	opts.NodeName = os.Getenv(NodeNameEnvVar)
 	if opts.NodeName == "" {
-		return nil, fmt.Errorf("environment variable %q is not set", NodeNameEnvVar)
+		return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, NodeNameEnvVar)
 	}
 	opts.Namespace = os.Getenv(PodNamespaceEnvVar)
 	if opts.Namespace == "" {
 		opts.Namespace, err = getInClusterNamespace()
 		if err != nil {
-			return nil, fmt.Errorf("env var %s not set and error getting in-cluster namespace: %v", PodNamespaceEnvVar, err)
+			return nil, fmt.Errorf("%s %w and error getting in-cluster namespace: %v", PodNamespaceEnvVar, ErrMissingEnvar, err)
 		}
 		if opts.Namespace == "" {
-			return nil, fmt.Errorf("environment variable %q is not set", PodNamespaceEnvVar)
+			return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, PodNamespaceEnvVar)
 		}
-	}
-	opts.SourceBinary, err = os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("error getting executable path: %v", err)
 	}
 	opts.NetConfTemplate = os.Getenv(NetConfEnvVar)
 	if opts.NetConfTemplate == "" {
-		return nil, fmt.Errorf("environment variable %q is not set", NetConfEnvVar)
+		return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, NetConfEnvVar)
+	}
+	opts.SourceBinary, err = getExecutable()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidExecutable, err)
 	}
 	opts.BinaryDestBin = os.Getenv(BinaryDestBinEnvVar)
 	if opts.BinaryDestBin == "" {
@@ -139,7 +156,7 @@ func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
 // RunInstall is an alias for running all install steps.
 func (i *InstallOptions) RunInstall() error {
 	// Clear any local host IPAM allocations that already exist.
-	log.Println("clearing host-local IPAM allocations from", HostLocalNetDir)
+	log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
 	err := i.ClearHostLocalIPAMAllocations()
 	if err != nil {
 		log.Println("error clearing host-local IPAM allocations:", err)
@@ -188,7 +205,7 @@ func (i *InstallOptions) RunInstall() error {
 
 // ClearHostLocalIPAMAllocations removes any host-local CNI plugins from the CNI configuration.
 func (i *InstallOptions) ClearHostLocalIPAMAllocations() error {
-	dir, err := os.ReadDir(HostLocalNetDir)
+	dir, err := os.ReadDir(i.HostLocalNetDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -197,10 +214,10 @@ func (i *InstallOptions) ClearHostLocalIPAMAllocations() error {
 	}
 	for _, file := range dir {
 		// Skip parent directory.
-		if file.Name() == filepath.Base(HostLocalNetDir) {
+		if file.Name() == filepath.Base(i.HostLocalNetDir) {
 			continue
 		}
-		err = os.RemoveAll(filepath.Join(HostLocalNetDir, file.Name()))
+		err = os.RemoveAll(filepath.Join(i.HostLocalNetDir, file.Name()))
 		if err != nil {
 			return fmt.Errorf("error removing host-local CNI plugin: %w", err)
 		}
@@ -378,21 +395,18 @@ func setSuidBit(file string) error {
 	return nil
 }
 
-const inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+// inClusterNamespacePath is the path to the namespace file in the pod.
+// Declared as a variable for testing.
+var inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 func getInClusterNamespace() (string, error) {
-	// Check whether the namespace file exists.
-	// If not, we are not running in cluster so can't guess the namespace.
-	if _, err := os.Stat(inClusterNamespacePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("not running in-cluster, please specify LeaderElectionNamespace")
-	} else if err != nil {
-		return "", fmt.Errorf("error checking namespace file: %w", err)
-	}
-
 	// Load the namespace file and return its content
 	namespace, err := os.ReadFile(inClusterNamespacePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("namespace file does not exist, not running in-cluster")
+		}
 		return "", fmt.Errorf("error reading namespace file: %w", err)
 	}
-	return string(namespace), nil
+	return string(bytes.TrimSpace(namespace)), nil
 }
