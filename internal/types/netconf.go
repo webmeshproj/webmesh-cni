@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -71,7 +72,8 @@ type Kubernetes struct {
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
 func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	var conf NetConf
-	if err := cnitypes.LoadArgs(string(cmd.StdinData), &conf); err != nil {
+	err := json.Unmarshal(cmd.StdinData, &conf)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load netconf from stdin data: %w", err)
 	}
 	if conf.Kubernetes.Kubeconfig == "" {
