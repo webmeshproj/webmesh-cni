@@ -82,6 +82,9 @@ func NewForConfig(cfg *rest.Config) (*Client, error) {
 	}
 	client, err := client.New(cfg, client.Options{
 		Scheme: scheme,
+		Cache: &client.CacheOptions{
+			DisableFor: storagev1.CustomObjects,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
