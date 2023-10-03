@@ -32,8 +32,6 @@ import (
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
-	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/client"
@@ -113,15 +111,12 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	}
 	log = conf.NewLogger()
 	result.CNIVersion = conf.CNIVersion
-	result.Routes = []*cnitypes.Route{} // The mesh node handles route configurations.
+	// The mesh node handles route configurations, but user provided ones
+	// might be useful in the future.
+	result.Routes = []*cnitypes.Route{}
+	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
 	log.Debug("New ADD request", "config", conf, "args", args)
-	containerNs, err := ns.GetNS(args.Netns)
-	if err != nil {
-		err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-		return
-	}
-	defer containerNs.Close()
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
@@ -134,10 +129,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	}
 	// Check if we've already created a PeerContainer for this container.
 	var container meshcniv1.PeerContainer
-	objectKey := client.ObjectKey{
-		Name:      args.ContainerID,
-		Namespace: conf.Kubernetes.Namespace,
-	}
+	objectKey := conf.ObjectKeyFromArgs(args)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
 	err = cli.Get(ctx, objectKey, &container)
@@ -147,30 +139,10 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	} else if err != nil {
 		// Start building a container type.
-		desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
-		desiredState := &meshcniv1.PeerContainer{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "PeerContainer",
-				APIVersion: meshcniv1.GroupVersion.String(),
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      args.ContainerID,
-				Namespace: conf.Kubernetes.Namespace,
-			},
-			Spec: meshcniv1.PeerContainerSpec{
-				NodeID:      meshtypes.TruncateID(args.ContainerID),
-				Netns:       args.Netns,
-				IfName:      desiredIfName,
-				NodeName:    conf.Kubernetes.NodeName,
-				MTU:         conf.Interface.MTU,
-				DisableIPv4: conf.Interface.DisableIPv4,
-				DisableIPv6: conf.Interface.DisableIPv6,
-				LogLevel:    conf.LogLevel,
-			},
-		}
+		desiredState := conf.ContainerFromArgs(args)
 		// Send the request to the controller.
 		log.Info("Creating PeerContainer", "container", desiredState)
-		err = cli.Patch(ctx, desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
+		err = cli.Patch(ctx, &desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
 		if err != nil {
 			log.Error("Failed to create PeerContainer", "error", err.Error())
 			return err
@@ -240,6 +212,12 @@ WaitForInterface:
 		})
 	}
 	// Move the wireguard interface to the container namespace.
+	containerNs, err := ns.GetNS(args.Netns)
+	if err != nil {
+		err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		return
+	}
+	defer containerNs.Close()
 	link, err := netlink.LinkByName(container.Status.InterfaceName)
 	if err != nil {
 		err = fmt.Errorf("failed to find %q: %v", container.Status.InterfaceName, err)
@@ -259,7 +237,8 @@ WaitForInterface:
 }
 
 // cmdCheck is the CNI CHECK command handler.
-// TODO: Use this to force a refresh of peers for a container.
+// TODO: Check if the PeerContainer exists and is ready perhaps?
+// Most implementations do a dummy check like this.
 func cmdCheck(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
@@ -297,8 +276,6 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 		return
 	}
 	err = cli.Ping(testConnectionTimeout)
-	// TODO: Check if the PeerContainer exists and is ready perhaps?
-	// Most implementations do a dummy check like this.
 	if err == nil {
 		fmt.Println("OK")
 	}
@@ -362,19 +339,10 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		}
 	}
 	// Delete the PeerContainer.
-	container := &meshcniv1.PeerContainer{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "PeerContainer",
-			APIVersion: meshcniv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      args.ContainerID,
-			Namespace: conf.Kubernetes.Namespace,
-		},
-	}
+	container := conf.ContainerFromArgs(args)
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
 	defer cancel()
-	err = cli.Delete(ctx, container)
+	err = cli.Delete(ctx, &container)
 	if err != nil && client.IgnoreNotFound(err) != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
 	}

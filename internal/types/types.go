@@ -23,6 +23,11 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	"github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
 const (
@@ -125,4 +130,37 @@ func (n *NetConf) NewLogger() *slog.Logger {
 		AddSource: true,
 		Level:     level,
 	}))
+}
+
+// ObjectKeyFromArgs creates a new object key for the given container ID.
+func (n *NetConf) ObjectKeyFromArgs(args *skel.CmdArgs) client.ObjectKey {
+	return client.ObjectKey{
+		Name:      args.ContainerID,
+		Namespace: n.Kubernetes.Namespace,
+	}
+}
+
+// ContainerFromArgs creates a skeleton container object for the given container arguments.
+func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer {
+	desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
+	return meshcniv1.PeerContainer{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PeerContainer",
+			APIVersion: meshcniv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      args.ContainerID,
+			Namespace: n.Kubernetes.Namespace,
+		},
+		Spec: meshcniv1.PeerContainerSpec{
+			NodeID:      meshtypes.TruncateID(args.ContainerID),
+			Netns:       args.Netns,
+			IfName:      desiredIfName,
+			NodeName:    n.Kubernetes.NodeName,
+			MTU:         n.Interface.MTU,
+			DisableIPv4: n.Interface.DisableIPv4,
+			DisableIPv6: n.Interface.DisableIPv6,
+			LogLevel:    n.LogLevel,
+		},
+	}
 }
