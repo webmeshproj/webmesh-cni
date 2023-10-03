@@ -18,9 +18,7 @@ package plugin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -39,60 +37,21 @@ import (
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/client"
+	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
-// NetConf is the configuration for the CNI plugin.
-type NetConf struct {
-	// NetConf is the typed configuration for the CNI plugin.
-	cnitypes.NetConf `json:",inline"`
-
-	// Kubernetes is the configuration for the Kubernetes API server and
-	// information about the node we are running on.
-	Kubernetes Kubernetes `json:"kubernetes"`
-	// Interface is the configuration for the interface.
-	Interface Interface `json:"interface"`
-	// LogLevel is the log level for the plugin and managed interfaces.
-	LogLevel string `json:"logLevel"`
-}
-
-// Interface is the configuration for a single interface.
-type Interface struct {
-	// MTU is the MTU to set on interfaces.
-	MTU int `json:"mtu"`
-	// DisableIPv4 is whether to disable IPv4 on the interface.
-	DisableIPv4 bool `json:"disableIPv4"`
-	// DisableIPv6 is whether to disable IPv6 on the interface.
-	DisableIPv6 bool `json:"disableIPv6"`
-}
-
-// Kubernetes is the configuration for the Kubernetes API server and
-// information about the node we are running on.
-type Kubernetes struct {
-	// Kubeconfig is the path to the kubeconfig file.
-	Kubeconfig string `json:"kubeconfig"`
-	// NodeName is the name of the node we are running on.
-	NodeName string `json:"nodeName"`
-	// K8sAPIRoot is the root URL of the Kubernetes API server.
-	K8sAPIRoot string `json:"k8sAPIRoot"`
-	// Namespace is the namespace to use for the plugin.
-	Namespace string `json:"namespace"`
-}
-
+// TODO: Make these configurable.
 const (
-	// TODO: Make these configurable.
-
 	// How long we wait to try to ping the API server before giving up.
 	testConnectionTimeout = time.Second * 2
 	// How long we wait to try to create the peer container instance.
 	createPeerContainerTimeout = time.Second * 2
 	// How long to wait for the controller to setup the container interface.
 	setupContainerInterfaceTimeout = time.Second * 10
-	// Default kubeconfig path if not provided.
-	defaultKubeconfigPath = "/opt/cni/bin/webmesh-kubeconfig"
 )
 
 // A global logger set when configuration is loaded.
@@ -147,11 +106,12 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := loadConfigAndLogger(args)
+	conf, err := types.LoadConfigFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
+	log = conf.NewLogger()
 	result.CNIVersion = conf.CNIVersion
 	result.Routes = []*cnitypes.Route{} // The mesh node handles route configurations.
 	result.DNS = conf.DNS
@@ -172,39 +132,53 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to ping API server: %w", err)
 		return
 	}
-	// Start building a container type.
-	desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
-	desiredState := &meshcniv1.PeerContainer{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "PeerContainer",
-			APIVersion: meshcniv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      args.ContainerID,
-			Namespace: conf.Kubernetes.Namespace,
-		},
-		Spec: meshcniv1.PeerContainerSpec{
-			NodeID:      meshtypes.TruncateID(args.ContainerID),
-			Netns:       args.Netns,
-			IfName:      desiredIfName,
-			NodeName:    conf.Kubernetes.NodeName,
-			MTU:         conf.Interface.MTU,
-			DisableIPv4: conf.Interface.DisableIPv4,
-			DisableIPv6: conf.Interface.DisableIPv6,
-			LogLevel:    conf.LogLevel,
-		},
+	// Check if we've already created a PeerContainer for this container.
+	var container meshcniv1.PeerContainer
+	objectKey := client.ObjectKey{
+		Name:      args.ContainerID,
+		Namespace: conf.Kubernetes.Namespace,
 	}
-	// Send the request to the controller.
-	log.Info("Creating PeerContainer", "container", desiredState)
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
-	err = cli.Patch(ctx, desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
-	if err != nil {
-		log.Error("Failed to create PeerContainer", "error", err.Error())
-		return err
+	err = cli.Get(ctx, objectKey, &container)
+	if err != nil && client.IgnoreNotFound(err) != nil {
+		log.Error("Failed to get PeerContainer", "error", err.Error())
+		err = fmt.Errorf("failed to get PeerContainer: %w", err)
+		return
+	} else if err != nil {
+		// Start building a container type.
+		desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
+		desiredState := &meshcniv1.PeerContainer{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "PeerContainer",
+				APIVersion: meshcniv1.GroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      args.ContainerID,
+				Namespace: conf.Kubernetes.Namespace,
+			},
+			Spec: meshcniv1.PeerContainerSpec{
+				NodeID:      meshtypes.TruncateID(args.ContainerID),
+				Netns:       args.Netns,
+				IfName:      desiredIfName,
+				NodeName:    conf.Kubernetes.NodeName,
+				MTU:         conf.Interface.MTU,
+				DisableIPv4: conf.Interface.DisableIPv4,
+				DisableIPv6: conf.Interface.DisableIPv6,
+				LogLevel:    conf.LogLevel,
+			},
+		}
+		// Send the request to the controller.
+		log.Info("Creating PeerContainer", "container", desiredState)
+		err = cli.Patch(ctx, desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
+		if err != nil {
+			log.Error("Failed to create PeerContainer", "error", err.Error())
+			return err
+		}
+	} else {
+		log.Debug("Found existing PeerContainer", "container", container)
 	}
 	// Wait for the PeerContainer to be ready.
-	var container meshcniv1.PeerContainer
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
 WaitForInterface:
@@ -215,10 +189,7 @@ WaitForInterface:
 			return
 		case <-time.After(time.Second):
 			// Try to fetch the container status
-			err = cli.Get(ctx, client.ObjectKey{
-				Name:      args.ContainerID,
-				Namespace: conf.Kubernetes.Namespace,
-			}, &container)
+			err = cli.Get(ctx, objectKey, &container)
 			if err != nil {
 				if client.IgnoreNotFound(err) != nil {
 					log.Error("Failed to get PeerContainer", "error", err.Error())
@@ -313,11 +284,12 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := loadConfigAndLogger(args)
+	conf, err := types.LoadConfigFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
+	log = conf.NewLogger()
 	log.Debug("New CHECK request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
@@ -358,11 +330,12 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := loadConfigAndLogger(args)
+	conf, err := types.LoadConfigFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
+	log = conf.NewLogger()
 	log.Debug("New DEL request", "config", conf, "args", args)
 	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
 	if err != nil {
@@ -407,38 +380,4 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	}
 	fmt.Println("OK")
 	return
-}
-
-func loadConfigAndLogger(args *skel.CmdArgs) (*NetConf, error) {
-	var conf NetConf
-	err := json.Unmarshal(args.StdinData, &conf)
-	if err != nil {
-		return nil, err
-	}
-	var writer io.Writer = os.Stderr
-	var level slog.Level
-	switch conf.LogLevel {
-	case "debug":
-		level = slog.LevelDebug
-	case "info":
-		level = slog.LevelInfo
-	case "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	case "silent":
-		writer = io.Discard
-	default:
-		level = slog.LevelInfo
-	}
-	log = slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     level,
-	}))
-	if conf.Kubernetes.Kubeconfig == "" {
-		// We were invoked without our configuration, but it's probably next to the executable.
-		log.Debug("No kubeconfig provided, using default path")
-		conf.Kubernetes.Kubeconfig = defaultKubeconfigPath
-	}
-	return &conf, nil
 }

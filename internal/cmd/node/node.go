@@ -42,8 +42,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
-	"github.com/webmeshproj/webmesh-cni/internal/cmd/install"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
+	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
 var (
@@ -77,8 +77,8 @@ func Main(version string) {
 		remoteEndpointDetection  bool
 		zapopts                  = zap.Options{Development: true}
 	)
-	flag.StringVar(&namespace, "namespace", os.Getenv(install.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
-	flag.StringVar(&nodeID, "node-id", os.Getenv(install.NodeNameEnvVar), "The node ID to use for the webmesh cluster.")
+	flag.StringVar(&namespace, "namespace", os.Getenv(types.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
+	flag.StringVar(&nodeID, "node-id", os.Getenv(types.NodeNameEnvVar), "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", os.Getenv("POD_CIDR"), "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", os.Getenv("CLUSTER_DOMAIN"), "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
