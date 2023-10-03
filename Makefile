@@ -116,7 +116,7 @@ bundle: manifests ## Bundle creates a distribution bundle manifest.
 	@echo "+ Appending WebMesh CNI assets to $(BUNDLE)"
 	@echo "---" >> $(BUNDLE)
 	@echo "# Source: $(RAW_REPO_URL)/$(BUNDLE)" >> $(BUNDLE)
-	@for i in `find deploy/ -type f -not -name bundle.yaml` ; do \
+	@for i in `find deploy/ -mindepth 2 -type f -not -name bundle.yaml` ; do \
 		echo "---" >> $(BUNDLE) ; \
 		echo "# Source: $$i" >> $(BUNDLE) ; \
 		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
