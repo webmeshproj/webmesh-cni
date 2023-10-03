@@ -30,35 +30,6 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
-const (
-	// NetConfEnvVar is the name of the environment variable that contains the CNI configuration.
-	NetConfEnvVar = "CNI_NETWORK_CONFIG"
-	// NetConfFileName is the name of the file that contains the CNI configuration.
-	NetConfFileNameEnvVar = "CNI_CONF_NAME"
-	// NodeNameEnvVar is the name of the environment variable that contains the node name.
-	NodeNameEnvVar = "KUBERNETES_NODE_NAME"
-	// BinaryDestBinEnvVar is the destination directory for the CNI binaries.
-	BinaryDestBinEnvVar = "CNI_BIN_DIR"
-	// BinaryDestConfEnvVar is the destination directory for the CNI configuration.
-	BinaryDestConfEnvVar = "CNI_CONF_DIR"
-	// PodNamespaceEnvVar is the name of the environment variable that contains the pod namespace.
-	PodNamespaceEnvVar = "KUBERNETES_POD_NAMESPACE"
-	// NodeNameReplaceStr is the string that will be replaced in the CNI configuration with the node name.
-	NodeNameReplaceStr = "__KUBERNETES_NODE_NAME__"
-	// PodNamespaceReplaceStr is the string that will be replaced in the CNI configuration with the pod namespace.
-	PodNamespaceReplaceStr = "__KUBERNETES_POD_NAMESPACE__"
-	// KubeAPIEndpointReplaceStr is the string that will be replaced in the CNI configuration with the Kubernetes API endpoint.
-	APIEndpointReplaceStr = "__KUBERNETES_API_ENDPOINT__"
-	// KubeconfigFilepathReplaceStr is the string that will be replaced in the CNI configuration with the kubeconfig filepath.
-	KubeconfigFilepathReplaceStr = "__KUBECONFIG_FILEPATH__"
-	// HostLocalNetDir is the directory containing host-local CNI plugins. We remove these plugins from the CNI configuration.
-	HostLocalNetDir = "/var/lib/cni/networks"
-	// PluginBinaryName is the name of the plugin binary.
-	PluginBinaryName = "webmesh"
-	// Default kubeconfig path if not provided.
-	DefaultKubeconfigPath = "/opt/cni/bin/webmesh-kubeconfig"
-)
-
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.

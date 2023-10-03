@@ -18,240 +18,39 @@ limitations under the License.
 package install
 
 import (
-	"fmt"
-	"io"
 	"log"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
-
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
 // Main ensures the CNI binaries and configuration are installed on the host system.
 func Main(version string) {
-	log.Println("installing webmesh-cni")
-	// Make sure all the required environment variables are set.
-	if err := checkEnv(); err != nil {
-		log.Println("error checking environment:", err)
-		os.Exit(1)
-	}
-	// Get the current executable path
-	exec, err := os.Executable()
+	log.Println("installing webmesh-cni, version:", version)
+	conf, err := types.LoadInstallOptionsFromEnv()
 	if err != nil {
-		log.Println("error getting executable path:", err)
+		log.Println("error loading install options from environment:", err)
 		os.Exit(1)
 	}
-	log.Println("using source executable path:", exec)
 	// Clear any local host IPAM allocations that already exist.
-	log.Println("clearing host-local IPAM allocations from", types.HostLocalNetDir)
-	if err := clearHostLocalNetDir(); err != nil {
+	if err := conf.ClearHostLocalIPAMAllocations(); err != nil {
 		log.Println("error clearing host-local IPAM allocations:", err)
 		os.Exit(1)
 	}
-	// Copy the binary to the destination directory.
-	destBin := os.Getenv(types.BinaryDestBinEnvVar)
-	pluginBin := filepath.Join(destBin, types.PluginBinaryName)
-	log.Println("installing plugin binary to -> ", pluginBin)
-	if err := installPluginBinary(exec, pluginBin); err != nil {
-		log.Printf("error installing binary to %s: %v", pluginBin, err)
-		os.Exit(1)
-	}
-	err = os.Chdir(destBin)
+	err = conf.InstallPlugin()
 	if err != nil {
-		log.Printf("error changing directory to %s: %v", destBin, err)
+		log.Println("error installing plugin:", err)
 		os.Exit(1)
 	}
-	for _, symlinkName := range []string{"loopback", "host-local"} {
-		log.Println("creating symlink for ->", filepath.Join(destBin, symlinkName))
-		err = os.Symlink(types.PluginBinaryName, symlinkName)
-		if err != nil {
-			log.Printf("error creating symlink for %s: %v", symlinkName, err)
-			os.Exit(1)
-		}
-	}
-	// Write a kubeconfig file to the destination directory.
-	kubeconfigPath := filepath.Join(destBin, "webmesh-kubeconfig")
-	cfg := ctrl.GetConfigOrDie()
-	// If our cert data is empty, convert it to the contents of the cert file.
-	if len(cfg.CertData) == 0 && cfg.CAFile != "" {
-		log.Println("reading certificate authority data from file -> ", cfg.CAFile)
-		caData, err := os.ReadFile(cfg.CAFile)
-		if err != nil {
-			log.Println("error reading certificate authority data:", err)
-			os.Exit(1)
-		}
-		cfg.CertData = caData
-	}
-	// If our bearer token is a file, convert it to the contents of the file.
-	if cfg.BearerTokenFile != "" {
-		log.Println("reading bearer token from file -> ", cfg.BearerTokenFile)
-		token, err := os.ReadFile(cfg.BearerTokenFile)
-		if err != nil {
-			log.Println("error reading bearer token:", err)
-			os.Exit(1)
-		}
-		cfg.BearerToken = string(token)
-	}
-	// If our client certificate is a file, convert it to the contents of the file.
-	var clientCertData []byte
-	if cfg.CertFile != "" {
-		log.Println("reading client certificate from file -> ", cfg.CertFile)
-		cert, err := os.ReadFile(cfg.CertFile)
-		if err != nil {
-			log.Println("error reading client certificate:", err)
-			os.Exit(1)
-		}
-		clientCertData = cert
-	}
-	// Same for any key
-	if cfg.KeyFile != "" {
-		log.Println("reading client key from file -> ", cfg.KeyFile)
-		key, err := os.ReadFile(cfg.KeyFile)
-		if err != nil {
-			log.Println("error reading client key:", err)
-			os.Exit(1)
-		}
-		cfg.KeyData = key
-	}
-	clientconfig := clientcmdapi.Config{
-		Kind:       "Config",
-		APIVersion: "v1",
-		Clusters: map[string]*clientcmdapi.Cluster{
-			"webmesh-cni": {
-				Server:                   cfg.Host,
-				TLSServerName:            cfg.ServerName,
-				InsecureSkipTLSVerify:    cfg.Insecure,
-				CertificateAuthorityData: cfg.CertData,
-			},
-		},
-		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"webmesh-cni": {
-				ClientCertificateData: clientCertData,
-				ClientKeyData:         cfg.KeyData,
-				Token:                 cfg.BearerToken,
-				Impersonate:           cfg.Impersonate.UserName,
-				ImpersonateGroups:     cfg.Impersonate.Groups,
-			},
-		},
-		Contexts: map[string]*clientcmdapi.Context{
-			"webmesh-cni": {
-				Cluster:  "webmesh-cni",
-				AuthInfo: "webmesh-cni",
-			},
-		},
-		CurrentContext: "webmesh-cni",
-	}
-	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
-	if err := clientcmd.WriteToFile(clientconfig, kubeconfigPath); err != nil {
+	err = conf.InstallKubeconfig()
+	if err != nil {
 		log.Println("error writing kubeconfig:", err)
 		os.Exit(1)
 	}
-	// Do necessary string replacements on the CNI configuration.
-	conf := os.Getenv(types.NetConfEnvVar)
-	conf = strings.Replace(conf, types.NodeNameReplaceStr, os.Getenv(types.NodeNameEnvVar), -1)
-	conf = strings.Replace(conf, types.PodNamespaceReplaceStr, os.Getenv(types.PodNamespaceEnvVar), -1)
-	conf = strings.Replace(conf, types.APIEndpointReplaceStr, cfg.Host, -1)
-	conf = strings.Replace(conf, types.KubeconfigFilepathReplaceStr, strings.TrimPrefix(kubeconfigPath, "/host"), -1)
-	// Write the CNI configuration to the destination directory.
-	confPath := filepath.Join(os.Getenv(types.BinaryDestConfEnvVar), os.Getenv(types.NetConfFileNameEnvVar))
-	log.Println("effective CNI configuration ->\n", conf)
-	log.Println("installing CNI configuration to -> ", confPath)
-	if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
-		log.Println("error writing CNI configuration:", err)
+	err = conf.InstallNetConf()
+	if err != nil {
+		log.Println("error writing netconf:", err)
 		os.Exit(1)
 	}
 	log.Println("webmesh-cni install complete!")
-}
-
-// clearHostLocalNetDir removes any host-local CNI plugins from the CNI configuration.
-func clearHostLocalNetDir() error {
-	dir, err := os.ReadDir(types.HostLocalNetDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("error reading host-local CNI directory: %w", err)
-	}
-	for _, file := range dir {
-		// Skip parent directory.
-		if file.Name() == filepath.Base(types.HostLocalNetDir) {
-			continue
-		}
-		err = os.RemoveAll(filepath.Join(types.HostLocalNetDir, file.Name()))
-		if err != nil {
-			return fmt.Errorf("error removing host-local CNI plugin: %w", err)
-		}
-	}
-	return nil
-}
-
-// installPluginBinary copies the binary to the destination directory.
-func installPluginBinary(src, dest string) error {
-	f, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("error opening binary: %w", err)
-	}
-	defer f.Close()
-	// Create the destination directory if it doesn't exist.
-	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
-		return fmt.Errorf("error creating destination directory: %w", err)
-	}
-	// Create the destination file.
-	out, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("error creating destination file: %w", err)
-	}
-	// Copy the binary to the destination file.
-	if _, err := io.Copy(out, f); err != nil {
-		return fmt.Errorf("error copying binary: %w", err)
-	}
-	err = out.Close()
-	if err != nil {
-		return fmt.Errorf("error closing destination file: %w", err)
-	}
-	// Make the destination file executable.
-	if err := os.Chmod(dest, 0755); err != nil {
-		return fmt.Errorf("error making destination file executable: %w", err)
-	}
-	return setSuidBit(dest)
-}
-
-// checkEnv ensures all the required environment variables are set.
-func checkEnv() error {
-	for _, envvar := range []string{
-		types.NetConfEnvVar,
-		types.NetConfFileNameEnvVar,
-		types.NodeNameEnvVar,
-		types.BinaryDestBinEnvVar,
-		types.BinaryDestConfEnvVar,
-		types.PodNamespaceEnvVar,
-	} {
-		if _, ok := os.LookupEnv(envvar); !ok {
-			return fmt.Errorf("environment variable %q is not set", envvar)
-		}
-	}
-	return nil
-}
-
-func setSuidBit(file string) error {
-	if runtime.GOOS == "windows" {
-		// chmod doesn't work on windows
-		log.Println("chmod doesn't work on windows, skipping setSuidBit()")
-		return nil
-	}
-	fi, err := os.Stat(file)
-	if err != nil {
-		return fmt.Errorf("failed to stat file: %s", err)
-	}
-	err = os.Chmod(file, fi.Mode()|os.FileMode(uint32(8388608)))
-	if err != nil {
-		return fmt.Errorf("failed to chmod file: %s", err)
-	}
-	return nil
 }
