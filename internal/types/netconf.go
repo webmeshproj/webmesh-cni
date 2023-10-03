@@ -33,10 +33,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
-	"github.com/webmeshproj/webmesh-cni/internal/client"
-	cniclient "github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
 // NetConf is the configuration for the CNI plugin.
@@ -111,11 +110,14 @@ func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 }
 
 // NewLogger creates a new logger for the plugin.
-func (n *NetConf) NewLogger() *slog.Logger {
+func (n *NetConf) NewLogger(args *skel.CmdArgs) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(n.LogWriter(), &slog.HandlerOptions{
 		AddSource: true,
 		Level:     n.SlogLevel(),
-	}))
+	})).
+		With("container", n.ObjectKeyFromArgs(args)).
+		With("args", args).
+		With("config", n)
 }
 
 // SlogLevel returns the slog.Level for the given log level string.
@@ -178,13 +180,16 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 }
 
 // NewClient creates a new client for the Kubernetes API server.
-func (n *NetConf) NewClient(pingTimeout time.Duration) (*cniclient.Client, error) {
+func (n *NetConf) NewClient(pingTimeout time.Duration) (*Client, error) {
+	if n == nil {
+		return nil, fmt.Errorf("netconf is nil")
+	}
 	restCfg, err := n.RestConfig()
 	if err != nil {
 		err = fmt.Errorf("failed to create REST config: %w", err)
 		return nil, err
 	}
-	cli, err := client.NewForConfig(restCfg)
+	cli, err := NewClientForConfig(restCfg, *n)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
 		return nil, err

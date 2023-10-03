@@ -32,9 +32,9 @@ import (
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
-	"github.com/webmeshproj/webmesh-cni/internal/client"
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
@@ -90,6 +90,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			cnierr.Print()
 			os.Exit(1)
 		}
+		log.Info("Returning CNI result", "result", result)
 		err = cnitypes.PrintResult(result, result.CNIVersion)
 		if err != nil {
 			log.Error("Failed to print CNI result", "error", err.Error())
@@ -107,41 +108,30 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
-	log = conf.NewLogger()
+	log = conf.NewLogger(args)
 	result.CNIVersion = conf.CNIVersion
 	// Use the host DNS servers?
 	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
-	log.Debug("New ADD request", "config", conf, "args", args)
+	log.Debug("Handling new ADD request")
 	cli, err := conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
 		return
 	}
 	// Check if we've already created a PeerContainer for this container.
-	var container meshcniv1.PeerContainer
-	objectKey := conf.ObjectKeyFromArgs(args)
+	log.Debug("Ensuring PeerContainer exists")
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
-	err = cli.Get(ctx, objectKey, &container)
-	if err != nil && client.IgnoreNotFound(err) != nil {
-		log.Error("Failed to get PeerContainer", "error", err.Error())
-		err = fmt.Errorf("failed to get PeerContainer: %w", err)
+	err = cli.CreatePeerContainerIfNotExists(ctx, args)
+	if err != nil {
+		log.Error("Failed to ensure PeerContainer", "error", err.Error())
+		err = fmt.Errorf("failed to ensure PeerContainer: %w", err)
 		return
-	} else if err != nil {
-		// Start building a container type.
-		desiredState := conf.ContainerFromArgs(args)
-		// Send the request to the controller.
-		log.Info("Creating PeerContainer", "container", desiredState)
-		err = cli.Patch(ctx, &desiredState, client.Apply, client.ForceOwnership, client.FieldOwner("webmesh-cni"))
-		if err != nil {
-			log.Error("Failed to create PeerContainer", "error", err.Error())
-			return err
-		}
-	} else {
-		log.Debug("Found existing PeerContainer", "container", container)
 	}
 	// Wait for the PeerContainer to be ready.
+	log.Debug("Waiting for PeerContainer to be ready")
+	var container *meshcniv1.PeerContainer
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
 WaitForInterface:
@@ -152,9 +142,9 @@ WaitForInterface:
 			return
 		case <-time.After(time.Second):
 			// Try to fetch the container status
-			err = cli.Get(ctx, objectKey, &container)
+			container, err = cli.GetPeerContainer(ctx, args)
 			if err != nil {
-				if client.IgnoreNotFound(err) != nil {
+				if !types.IsPeerContainerNotFound(err) {
 					log.Error("Failed to get PeerContainer", "error", err.Error())
 					err = fmt.Errorf("failed to get PeerContainer: %w", err)
 					return
@@ -176,8 +166,13 @@ WaitForInterface:
 		}
 	}
 	// Parse the IP addresses from the container status.
+	log.Debug("Building container interface result from status", "status", container.Status)
 	var ipv4net, ipv6net *net.IPNet
 	if container.Status.IPv4Address != "" && !conf.Interface.DisableIPv4 {
+		log.Debug("Adding IPv4 address to result",
+			"ipv4-addr", container.Status.IPv4Address,
+			"ipv4-net", container.Status.NetworkV4,
+		)
 		ipv4net, err = netlink.ParseIPNet(container.Status.IPv4Address)
 		if err != nil {
 			log.Error("Failed to parse IPv4 address", "error", err.Error())
@@ -201,6 +196,10 @@ WaitForInterface:
 		})
 	}
 	if container.Status.IPv6Address != "" && !conf.Interface.DisableIPv6 {
+		log.Debug("Adding IPv6 address to result",
+			"ipv6-addr", container.Status.IPv6Address,
+			"ipv6-net", container.Status.NetworkV6,
+		)
 		ipv6net, err = netlink.ParseIPNet(container.Status.IPv6Address)
 		if err != nil {
 			log.Error("Failed to parse IPv6 address", "error", err.Error())
@@ -224,6 +223,7 @@ WaitForInterface:
 		})
 	}
 	// Move the wireguard interface to the container namespace.
+	log.Debug("Moving wireguard interface to container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
 		err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
@@ -281,13 +281,14 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
-	log = conf.NewLogger()
-	log.Debug("New CHECK request", "config", conf, "args", args)
+	log = conf.NewLogger(args)
+	log.Debug("Handling new CHECK request")
 	_, err = conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
 		return
 	}
+	fmt.Println("OK")
 	return
 }
 
@@ -322,13 +323,8 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
 	}
-	log = conf.NewLogger()
-	log.Debug("New DEL request", "config", conf, "args", args)
-	cli, err := conf.NewClient(testConnectionTimeout)
-	if err != nil {
-		err = fmt.Errorf("failed to create client: %w", err)
-		return
-	}
+	log = conf.NewLogger(args)
+	log.Debug("Handling new DEL request")
 	// Remove the interface from the container namespace.
 	if args.Netns != "" {
 		var containerNs ns.NetNS
@@ -344,10 +340,15 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		}
 	}
 	// Delete the PeerContainer.
-	container := conf.ContainerFromArgs(args)
+	log.Debug("Deleting PeerContainer", "container", conf.ObjectKeyFromArgs(args))
+	cli, err := conf.NewClient(testConnectionTimeout)
+	if err != nil {
+		err = fmt.Errorf("failed to create client: %w", err)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
 	defer cancel()
-	err = cli.Delete(ctx, &container)
+	err = cli.DeletePeerContainer(ctx, args)
 	if err != nil && client.IgnoreNotFound(err) != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
 	}
