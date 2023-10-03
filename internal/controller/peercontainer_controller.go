@@ -250,12 +250,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			log.Error(err, "Failed to get peer", "container", container)
 			r.setFailedStatus(ctx, container, err)
+			delete(r.nodes, id)
 			return fmt.Errorf("failed to get peer for container: %w", err)
 		}
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
 			log.Error(err, "Failed to decode public key", "container", container)
 			r.setFailedStatus(ctx, container, err)
+			delete(r.nodes, id)
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
@@ -307,6 +309,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
 			r.setFailedStatus(ctx, container, err)
+			delete(r.nodes, id)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
