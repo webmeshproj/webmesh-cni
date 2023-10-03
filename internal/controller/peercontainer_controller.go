@@ -46,7 +46,8 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
-// PeerContainerReconciler reconciles a PeerContainer object
+// PeerContainerReconciler reconciles a PeerContainer object. Reconcile
+// attempts will fail until SetNetworkState is called.
 type PeerContainerReconciler struct {
 	client.Client
 	Scheme                  *runtime.Scheme
@@ -59,14 +60,32 @@ type PeerContainerReconciler struct {
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
 	meshDomain string
-	nodes      map[types.NamespacedName]meshnode.Node
+	nodes      map[types.NamespacedName]Node
 	mu         sync.Mutex
+}
+
+// Node wraps the meshnode.Node interface with just the methods we use internally.
+type Node interface {
+	// ID returns the node ID.
+	ID() meshtypes.NodeID
+	// Started returns true if the node is started.
+	Started() bool
+	// Ready returns a channel that is closed when the node is ready.
+	Ready() <-chan struct{}
+	// Network returns the meshnet.Network for this node.
+	Network() meshnet.Manager
+	// Connect connects the node to the mesh.
+	Connect(context.Context, meshnode.ConnectOptions) error
+	// Close closes the node.
+	Close(context.Context) error
 }
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
+// SetNetworkState sets the network configuration to the reconciler to make it
+// ready to use.
 func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapResults) {
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
@@ -109,13 +128,17 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, &container)
 }
 
+// NewNode is the function for creating a new mesh node. Declared
+// as a variable for testing purposes.
+var NewNode = meshnode.NewWithLogger
+
 // reconcilePeerContainer reconciles the given PeerContainer.
 func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.nodes == nil {
-		r.nodes = make(map[types.NamespacedName]meshnode.Node)
+		r.nodes = make(map[types.NamespacedName]Node)
 	}
 	// Check if we have registered the node yet
 	id := types.NamespacedName{Name: container.Name, Namespace: container.Namespace}
@@ -228,7 +251,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			}
 		}
 		log.Info("Updating status to created")
-		r.nodes[id] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
+		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          nodeID.String(),
 			ZoneAwarenessID: container.Spec.NodeName,
