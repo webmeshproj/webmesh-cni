@@ -81,8 +81,8 @@ RICHGO       ?= go run github.com/kyoh86/richgo@v0.3.12
 TEST_TIMEOUT ?= 300s
 TEST_ARGS    ?= -v -cover -covermode=atomic -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
 test: manifests generate setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(SETUP))" \
-	$(RICHGO) test $(TEST_ARGS) ./...
+	KUBEBUILDER_ASSETS="$(shell $(SETUP))" CRD_PATHS="$(CURDIR)/deploy/crds" \
+		$(RICHGO) test $(TEST_ARGS) ./...
 	go tool cover -func=cover.out
 
 LINT_TIMEOUT := 10m

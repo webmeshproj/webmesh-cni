@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -27,11 +28,19 @@ import (
 
 func TestInstallCNI(t *testing.T) {
 	// Setup temp directories
+	setSuidBit = func(string) error {
+		return nil
+	}
 	getInstallRestConfig = func() (*rest.Config, error) {
 		return &rest.Config{}, nil
 	}
 	i := NewTestInstallation(t, "TODO")
-	i.Options()
+	opts := i.Options()
+	err := opts.RunInstall()
+	if err != nil {
+		t.Fatal(err)
+	}
+	i.ValidateInstallation(t)
 }
 
 type TestInstallation struct {
@@ -94,7 +103,31 @@ func (i *TestInstallation) Options() *InstallOptions {
 }
 
 func (i *TestInstallation) ValidateInstallation(t *testing.T) {
-
+	t.Helper()
+	// Check that the binary was copied
+	installedBin := filepath.Join(i.BinaryDestDir, PluginBinaryName)
+	data, err := os.ReadFile(installedBin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, []byte("test")) {
+		t.Fatal("Expected binary to be copied, got", string(data))
+	}
+	// Check that a kubeconfig exists.
+	kubeconfigPath := filepath.Join(i.BinaryDestDir, PluginKubeconfigName)
+	_, err = os.Stat(kubeconfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Check that the config was written
+	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
+	data, err = os.ReadFile(confPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, []byte(i.ConfTemplate)) {
+		t.Fatal("Expected config to be written, got", string(data))
+	}
 }
 
 func TestLoadInstallOptions(t *testing.T) {

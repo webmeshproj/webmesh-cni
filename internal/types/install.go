@@ -153,11 +153,20 @@ func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
 	return &opts, nil
 }
 
+// getInstallRestConfig is the function for retrieving the REST config during installation.
+// This is overridden in tests.
+var getInstallRestConfig = ctrl.GetConfig
+
 // RunInstall is an alias for running all install steps.
 func (i *InstallOptions) RunInstall() error {
+	apicfg, err := getInstallRestConfig()
+	if err != nil {
+		log.Println("error getting kubeconfig:", err)
+		return err
+	}
 	// Clear any local host IPAM allocations that already exist.
 	log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
-	err := i.ClearHostLocalIPAMAllocations()
+	err = i.ClearHostLocalIPAMAllocations()
 	if err != nil {
 		log.Println("error clearing host-local IPAM allocations:", err)
 		return err
@@ -190,7 +199,6 @@ func (i *InstallOptions) RunInstall() error {
 		return err
 	}
 	log.Println("rendering CNI configuration")
-	apicfg := ctrl.GetConfigOrDie()
 	netConf := i.RenderNetConf(apicfg.Host)
 	log.Println("effective CNI configuration ->\n", netConf)
 	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
@@ -266,10 +274,6 @@ func (i *InstallOptions) InstallKubeconfig(kubeconfigPath string) error {
 	}
 	return nil
 }
-
-// getInstallRestConfig is the function for retrieving the REST config during installation.
-// This is overridden in tests.
-var getInstallRestConfig = ctrl.GetConfig
 
 // GetKubeconfig tries to build a kubeconfig from the current in cluster
 // configuration.
@@ -351,6 +355,8 @@ func KubeconfigFromRestConfig(cfg *rest.Config, namespace string) (clientcmdapi.
 	}, nil
 }
 
+var setSuidBit = setSuidBitToFile
+
 // installPluginBinary copies the binary to the destination directory.
 func installPluginBinary(src, dest string) error {
 	f, err := os.Open(src)
@@ -382,7 +388,7 @@ func installPluginBinary(src, dest string) error {
 	return setSuidBit(dest)
 }
 
-func setSuidBit(file string) error {
+func setSuidBitToFile(file string) error {
 	if runtime.GOOS == "windows" {
 		// chmod doesn't work on windows
 		log.Println("chmod doesn't work on windows, skipping setSuidBit()")

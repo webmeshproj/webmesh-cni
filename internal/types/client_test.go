@@ -307,7 +307,7 @@ func setupClientTest(t *testing.T) *rest.Config {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 	testenv := envtest.Environment{
 		CRDs:                     storagev1.GetCustomResourceDefintions(),
-		CRDDirectoryPaths:        []string{"../../deploy/crds"},
+		CRDDirectoryPaths:        []string{os.Getenv("CRD_PATHS")},
 		ErrorIfCRDPathMissing:    true,
 		ControlPlaneStartTimeout: time.Second * 20,
 		ControlPlaneStopTimeout:  time.Second * 10,
