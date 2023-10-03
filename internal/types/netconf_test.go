@@ -26,6 +26,8 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
+
+	v1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
 // TestNetConf tests the NetConf type.
@@ -355,37 +357,9 @@ func TestNetConf(t *testing.T) {
 				Netns:       "/proc/1234/ns/net",
 			}
 			container := conf.ContainerFromArgs(args)
+
 			// Make sure the container's spec matches the configuration.
-			if container.Name != args.ContainerID {
-				t.Errorf("expected container name to be %s, got %s", args.ContainerID, container.Name)
-			}
-			if container.Namespace != conf.Kubernetes.Namespace {
-				t.Errorf("expected container namespace to be %s, got %s", conf.Kubernetes.Namespace, container.Namespace)
-			}
-			if container.Spec.NodeID != meshtypes.TruncateID(args.ContainerID) {
-				t.Errorf("expected container node ID to be %s, got %s", args.ContainerID, container.Spec.NodeID)
-			}
-			if container.Spec.Netns != args.Netns {
-				t.Errorf("expected container netns to be %s, got %s", args.Netns, container.Spec.Netns)
-			}
-			if container.Spec.IfName != IfacePrefix+"bar0" {
-				t.Errorf("expected container ifname to be %s, got %s", "wmeshbar0", container.Spec.IfName)
-			}
-			if container.Spec.NodeName != conf.Kubernetes.NodeName {
-				t.Errorf("expected container node name to be %s, got %s", conf.Kubernetes.NodeName, container.Spec.NodeName)
-			}
-			if container.Spec.MTU != conf.Interface.MTU {
-				t.Errorf("expected container mtu to be %d, got %d", conf.Interface.MTU, container.Spec.MTU)
-			}
-			if container.Spec.DisableIPv4 != conf.Interface.DisableIPv4 {
-				t.Errorf("expected container disable ipv4 to be %t, got %t", conf.Interface.DisableIPv4, container.Spec.DisableIPv4)
-			}
-			if container.Spec.DisableIPv6 != conf.Interface.DisableIPv6 {
-				t.Errorf("expected container disable ipv6 to be %t, got %t", conf.Interface.DisableIPv6, container.Spec.DisableIPv6)
-			}
-			if container.Spec.LogLevel != conf.LogLevel {
-				t.Errorf("expected container log level to be %s, got %s", conf.LogLevel, container.Spec.LogLevel)
-			}
+			EnsureContainerEqualsTestConf(t, conf, &container, args)
 
 			// Set the container ID to a really long name and make sure the interface
 			// is truncated to 15 characters.
@@ -399,4 +373,37 @@ func TestNetConf(t *testing.T) {
 			}
 		})
 	})
+}
+
+func EnsureContainerEqualsTestConf(t *testing.T, conf *NetConf, container *v1.PeerContainer, args *skel.CmdArgs) {
+	if container.Name != args.ContainerID {
+		t.Errorf("expected container name to be %s, got %s", args.ContainerID, container.Name)
+	}
+	if container.Namespace != conf.Kubernetes.Namespace {
+		t.Errorf("expected container namespace to be %s, got %s", conf.Kubernetes.Namespace, container.Namespace)
+	}
+	if container.Spec.NodeID != meshtypes.TruncateID(args.ContainerID) {
+		t.Errorf("expected container node ID to be %s, got %s", args.ContainerID, container.Spec.NodeID)
+	}
+	if container.Spec.Netns != args.Netns {
+		t.Errorf("expected container netns to be %s, got %s", args.Netns, container.Spec.Netns)
+	}
+	if container.Spec.IfName != conf.GetIfName(args) {
+		t.Errorf("expected container ifname to be %s, got %s", conf.GetIfName(args), container.Spec.IfName)
+	}
+	if container.Spec.NodeName != conf.Kubernetes.NodeName {
+		t.Errorf("expected container node name to be %s, got %s", conf.Kubernetes.NodeName, container.Spec.NodeName)
+	}
+	if container.Spec.MTU != conf.Interface.MTU {
+		t.Errorf("expected container mtu to be %d, got %d", conf.Interface.MTU, container.Spec.MTU)
+	}
+	if container.Spec.DisableIPv4 != conf.Interface.DisableIPv4 {
+		t.Errorf("expected container disable ipv4 to be %t, got %t", conf.Interface.DisableIPv4, container.Spec.DisableIPv4)
+	}
+	if container.Spec.DisableIPv6 != conf.Interface.DisableIPv6 {
+		t.Errorf("expected container disable ipv6 to be %t, got %t", conf.Interface.DisableIPv6, container.Spec.DisableIPv6)
+	}
+	if container.Spec.LogLevel != conf.LogLevel {
+		t.Errorf("expected container log level to be %s, got %s", conf.LogLevel, container.Spec.LogLevel)
+	}
 }

@@ -217,7 +217,6 @@ func (n *NetConf) ObjectKeyFromArgs(args *skel.CmdArgs) client.ObjectKey {
 
 // ContainerFromArgs creates a skeleton container object for the given container arguments.
 func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer {
-	desiredIfName := IfacePrefix + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
 	return meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
@@ -230,7 +229,7 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 		Spec: meshcniv1.PeerContainerSpec{
 			NodeID:      meshtypes.TruncateID(args.ContainerID),
 			Netns:       args.Netns,
-			IfName:      desiredIfName,
+			IfName:      n.GetIfName(args),
 			NodeName:    n.Kubernetes.NodeName,
 			MTU:         n.Interface.MTU,
 			DisableIPv4: n.Interface.DisableIPv4,
@@ -238,6 +237,11 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			LogLevel:    n.LogLevel,
 		},
 	}
+}
+
+// GetIfName returns the interface name for the given container ID.
+func (n *NetConf) GetIfName(args *skel.CmdArgs) string {
+	return IfacePrefix + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
 }
 
 // NewClient creates a new client for the Kubernetes API server.
