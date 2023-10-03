@@ -167,6 +167,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if !container.Spec.DisableIPv4 {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
+			// TODO: We need a better mechansim (likely plugin side) as this relies
+			// on read consistency of the database.
 			plugin := meshipam.NewWithDB(r.Provider.MeshDB())
 			alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
 				NodeID: nodeID.String(),
