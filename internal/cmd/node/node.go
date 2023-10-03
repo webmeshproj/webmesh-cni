@@ -73,6 +73,7 @@ func Main(version string) {
 		reconcileTimeout         time.Duration
 		shutdownTimeout          time.Duration
 		cacheSyncTimeout         time.Duration
+		remoteEndpointDetection  bool
 		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&namespace, "namespace", os.Getenv(install.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
@@ -88,6 +89,7 @@ func Main(version string) {
 	flag.DurationVar(&reconcileTimeout, "reconcile-timeout", time.Second*10, "The duration to wait for the manager to reconcile a request.")
 	flag.DurationVar(&shutdownTimeout, "shutdown-timeout", time.Second*10, "The duration to wait for the manager to shutdown.")
 	flag.DurationVar(&cacheSyncTimeout, "cache-sync-timeout", time.Second*10, "The duration to wait for the manager to sync caches.")
+	flag.BoolVar(&remoteEndpointDetection, "remote-endpoint-detection", false, "Whether to enable remote endpoint detection.")
 	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
@@ -151,11 +153,12 @@ func Main(version string) {
 	// Register the peer container controller.
 	setupLog.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		Provider:         storageProvider,
-		NodeName:         nodeID,
-		ReconcileTimeout: reconcileTimeout,
+		Client:                  mgr.GetClient(),
+		Scheme:                  mgr.GetScheme(),
+		Provider:                storageProvider,
+		NodeName:                nodeID,
+		ReconcileTimeout:        reconcileTimeout,
+		RemoteEndpointDetection: remoteEndpointDetection,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")

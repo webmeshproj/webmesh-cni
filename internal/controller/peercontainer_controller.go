@@ -49,10 +49,11 @@ import (
 // PeerContainerReconciler reconciles a PeerContainer object
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme           *runtime.Scheme
-	Provider         *provider.Provider
-	NodeName         string
-	ReconcileTimeout time.Duration
+	Scheme                  *runtime.Scheme
+	Provider                *provider.Provider
+	NodeName                string
+	ReconcileTimeout        time.Duration
+	RemoteEndpointDetection bool
 
 	ready      atomic.Bool
 	networkV4  netip.Prefix
@@ -125,9 +126,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		log.Info("Mesh node for container not found, we must need to create it", "container", name)
 		// Detect the current endpoints on the machine.
 		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
-			DetectIPv6:           true, // TODO: Make configurable.
-			DetectPrivate:        true, // Required for finding endpoints on the local node.
-			AllowRemoteDetection: true, // TODO: Make configurable.
+			DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
+			DetectIPv6:           !container.Spec.DisableIPv6,
+			AllowRemoteDetection: r.RemoteEndpointDetection,
 			SkipInterfaces: func() []string {
 				var out []string
 				for _, n := range r.nodes {
