@@ -313,5 +313,13 @@ func TestNetConf(t *testing.T) {
 
 	t.Run("PeerContainers", func(t *testing.T) {
 		t.Parallel()
+
+		t.Run("ObjectKeys", func(t *testing.T) {
+			t.Parallel()
+		})
+
+		t.Run("ContainerObjects", func(t *testing.T) {
+			t.Parallel()
+		})
 	})
 }
