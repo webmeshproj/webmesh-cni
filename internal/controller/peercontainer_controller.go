@@ -250,12 +250,17 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			log.Error(err, "Failed to get peer", "container", container)
 			r.setFailedStatus(ctx, container, err)
-			delete(r.nodes, id)
 			return fmt.Errorf("failed to get peer for container: %w", err)
 		}
 		key, err := crypto.DecodePublicKey(peer.PublicKey)
 		if err != nil {
+			// This should never happen, but if it does, we need to delete the peer
+			// from the database.
 			log.Error(err, "Failed to decode public key", "container", container)
+			delErr := r.Provider.MeshDB().Peers().Delete(ctx, nodeID)
+			if delErr != nil {
+				log.Error(delErr, "Failed to delete peer", "container", container)
+			}
 			r.setFailedStatus(ctx, container, err)
 			delete(r.nodes, id)
 			return fmt.Errorf("failed to decode public key: %w", err)
@@ -309,6 +314,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
 			r.setFailedStatus(ctx, container, err)
+			// Try again on the next reconcile.
 			delete(r.nodes, id)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
