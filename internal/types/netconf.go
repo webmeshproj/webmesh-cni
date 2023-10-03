@@ -99,6 +99,15 @@ func (k *Kubernetes) Default() {
 	}
 }
 
+// LoadConfigFromFile loads the configuration from the given file.
+func LoadConfigFromFile(path string) (*NetConf, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	return LoadConfigFromArgs(&skel.CmdArgs{StdinData: data})
+}
+
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
 func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	var conf NetConf

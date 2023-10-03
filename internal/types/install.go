@@ -91,32 +91,32 @@ type InstallOptions struct {
 }
 
 // LoadInstallOptionsFromEnv loads the install options from the environment.
-func LoadInstallOptionsFromEnv() (InstallOptions, error) {
+func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
 	var opts InstallOptions
 	var err error
 	opts.HostLocalNetDir = HostLocalNetDir
 	opts.BinaryName = PluginBinaryName
 	opts.NodeName = os.Getenv(NodeNameEnvVar)
 	if opts.NodeName == "" {
-		return opts, fmt.Errorf("environment variable %q is not set", NodeNameEnvVar)
+		return nil, fmt.Errorf("environment variable %q is not set", NodeNameEnvVar)
 	}
 	opts.Namespace = os.Getenv(PodNamespaceEnvVar)
 	if opts.Namespace == "" {
 		opts.Namespace, err = getInClusterNamespace()
 		if err != nil {
-			return opts, fmt.Errorf("env var %s not set and error getting in-cluster namespace: %v", PodNamespaceEnvVar, err)
+			return nil, fmt.Errorf("env var %s not set and error getting in-cluster namespace: %v", PodNamespaceEnvVar, err)
 		}
 		if opts.Namespace == "" {
-			return opts, fmt.Errorf("environment variable %q is not set", PodNamespaceEnvVar)
+			return nil, fmt.Errorf("environment variable %q is not set", PodNamespaceEnvVar)
 		}
 	}
 	opts.SourceBinary, err = os.Executable()
 	if err != nil {
-		return opts, fmt.Errorf("error getting executable path: %v", err)
+		return nil, fmt.Errorf("error getting executable path: %v", err)
 	}
 	opts.NetConfTemplate = os.Getenv(NetConfEnvVar)
 	if opts.NetConfTemplate == "" {
-		return opts, fmt.Errorf("environment variable %q is not set", NetConfEnvVar)
+		return nil, fmt.Errorf("environment variable %q is not set", NetConfEnvVar)
 	}
 	opts.BinaryDestBin = os.Getenv(BinaryDestBinEnvVar)
 	if opts.BinaryDestBin == "" {
@@ -130,7 +130,7 @@ func LoadInstallOptionsFromEnv() (InstallOptions, error) {
 	if opts.ConfDestName == "" {
 		opts.ConfDestName = DefaultDestConfName
 	}
-	return opts, nil
+	return &opts, nil
 }
 
 // ClearHostLocalIPAMAllocations removes any host-local CNI plugins from the CNI configuration.

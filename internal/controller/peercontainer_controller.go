@@ -459,6 +459,10 @@ func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container
 func (r *PeerContainerReconciler) nextAvailableWireGuardPort() (uint16, error) {
 	const startPort uint16 = 51820
 	const endPort uint16 = 65535
+	// Fast path if there are no nodes.
+	if len(r.nodes) == 0 {
+		return startPort, nil
+	}
 Ports:
 	for i := startPort; i <= endPort; i++ {
 	Nodes:
