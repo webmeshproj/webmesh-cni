@@ -70,7 +70,7 @@ type Kubernetes struct {
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
 func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	netConf := &NetConf{}
-	if err := cnitypes.LoadArgs(cmd.Args, netConf); err != nil {
+	if err := cnitypes.LoadArgs(string(cmd.StdinData), netConf); err != nil {
 		return nil, err
 	}
 	if netConf.Kubernetes.Kubeconfig == "" {
