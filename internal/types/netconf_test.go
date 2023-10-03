@@ -52,8 +52,14 @@ func TestNetConf(t *testing.T) {
 
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
-		// Make sure an empty configuration produces the correct defaults.
-		conf := &NetConf{}
+		// Make sure a nil configuration produces the correct defaults.
+		var conf *NetConf
+		if conf.DeepEqual(testConf) {
+			t.Errorf("expected testConf to not be equal to nil conf")
+		}
+		if testConf.DeepEqual(conf) {
+			t.Errorf("expected nil conf to not be equal to testConf")
+		}
 		conf = conf.SetDefaults()
 		if conf.LogLevel != "info" {
 			t.Errorf("expected default log level to be info, got %s", conf.LogLevel)
@@ -63,6 +69,24 @@ func TestNetConf(t *testing.T) {
 		}
 		if conf.Interface.MTU != meshsys.DefaultMTU {
 			t.Errorf("expected default MTU to be %d, got %d", meshsys.DefaultMTU, conf.Interface.MTU)
+		}
+		if conf.DeepEqual(testConf) {
+			t.Errorf("expected testConf to not be equal to conf")
+		}
+		// Make sure the same goes for an empty one
+		conf = &NetConf{}
+		conf = conf.SetDefaults()
+		if conf.LogLevel != "info" {
+			t.Errorf("expected default log level to be info, got %s", conf.LogLevel)
+		}
+		if conf.Kubernetes.Kubeconfig != DefaultKubeconfigPath {
+			t.Errorf("expected default kubeconfig to be %s, got %s", DefaultKubeconfigPath, conf.Kubernetes.Kubeconfig)
+		}
+		if conf.Interface.MTU != meshsys.DefaultMTU {
+			t.Errorf("expected default MTU to be %d, got %d", meshsys.DefaultMTU, conf.Interface.MTU)
+		}
+		if conf.DeepEqual(testConf) {
+			t.Errorf("expected testConf to not be equal to conf")
 		}
 		// Make sure defaults dont override existing values.
 		conf = &NetConf{

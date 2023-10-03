@@ -55,6 +55,9 @@ type NetConf struct {
 // SetDefaults sets the default values for the configuration.
 // It returns the configuration for convenience.
 func (n *NetConf) SetDefaults() *NetConf {
+	if n == nil {
+		n = &NetConf{}
+	}
 	n.Kubernetes.Default()
 	n.Interface.Default()
 	if n.LogLevel == "" {
