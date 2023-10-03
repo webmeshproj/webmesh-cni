@@ -355,6 +355,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			container.Status.Error = ""
 			updateStatus = true
 		}
+		log.V(1).Info("Setting new status", "status", container.Status)
 		if updateStatus {
 			if err := r.Status().Update(ctx, container); err != nil {
 				return fmt.Errorf("failed to update status: %w", err)
