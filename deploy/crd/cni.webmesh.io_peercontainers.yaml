@@ -35,7 +35,7 @@ spec:
             description: PeerContainerSpec defines the desired state of PeerContainer
             properties:
               containerID:
-                description: ContainerID is the ID of the container to peer with.
+                description: NodeID is the ID to use for the container.
                 type: string
               disableIPv4:
                 description: DisableIPv4 is whether to disable IPv4 on the interface.

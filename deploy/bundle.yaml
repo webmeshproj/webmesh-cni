@@ -820,7 +820,7 @@ spec:
             description: PeerContainerSpec defines the desired state of PeerContainer
             properties:
               containerID:
-                description: ContainerID is the ID of the container to peer with.
+                description: NodeID is the ID to use for the container.
                 type: string
               disableIPv4:
                 description: DisableIPv4 is whether to disable IPv4 on the interface.
@@ -1162,3 +1162,10 @@ spec:
         - name: host-local-net-dir
           hostPath:
             path: /var/lib/cni/networks
+---
+# Source: deploy/kindconfig.yaml
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
+  disableDefaultCNI: true
+  kubeProxyMode: "ipvs" # The goal is 'none'
