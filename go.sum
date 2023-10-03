@@ -605,6 +605,8 @@ github.com/webmeshproj/storage-provider-k8s v0.0.0-20231002210539-8e2b9683e8c4 h
 github.com/webmeshproj/storage-provider-k8s v0.0.0-20231002210539-8e2b9683e8c4/go.mod h1:OFcFokf26F4VGsx5wmW6KyIFDe++++guEQVqAHQyYkM=
 github.com/webmeshproj/storage-provider-k8s v0.0.0-20231003002543-7003b35bce16 h1:XFQt1tkqcXQksHevFoovSmHQ+yMI7wBCH6h8X7fb0+w=
 github.com/webmeshproj/storage-provider-k8s v0.0.0-20231003002543-7003b35bce16/go.mod h1:4hzmL6WVxHF3hEwcBVoTJ/ZtMNDYqw7py5aFZp0/6cY=
+github.com/webmeshproj/storage-provider-k8s v0.0.0-20231003003042-3ea0a543e635 h1:Im6r4Ofr27OpeLq0lj4ecPl84jV3ZaJe13d/2D6UCHI=
+github.com/webmeshproj/storage-provider-k8s v0.0.0-20231003003042-3ea0a543e635/go.mod h1:4hzmL6WVxHF3hEwcBVoTJ/ZtMNDYqw7py5aFZp0/6cY=
 github.com/webmeshproj/webmesh v0.10.4-0.20231002224453-38b292666f58 h1:5pODcLg26FRer97UoyDrwmNpe+27L7jpc+f6OJPF9Ag=
 github.com/webmeshproj/webmesh v0.10.4-0.20231002224453-38b292666f58/go.mod h1:FNklP9vzzgpAn0KLMBnrac4gC4uvrzR1M97f+hpvajY=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 h1:EKhdznlJHPMoKr0XTrX+IlJs1LH3lyx2nfr1dOlZ79k=
