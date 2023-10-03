@@ -7,7 +7,7 @@ require (
 	github.com/containernetworking/plugins v1.3.0
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
-	github.com/webmeshproj/storage-provider-k8s v0.0.0-20231002210539-8e2b9683e8c4
+	github.com/webmeshproj/storage-provider-k8s v0.0.0-20231003002543-7003b35bce16
 	github.com/webmeshproj/webmesh v0.10.4-0.20231002224453-38b292666f58
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2

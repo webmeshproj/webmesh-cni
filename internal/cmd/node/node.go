@@ -66,6 +66,7 @@ func Main(version string) {
 		clusterDomain            string
 		podCIDR                  string
 		nodeID                   string
+		grpcListenPort           int
 		leaderElectLeaseDuration time.Duration
 		leaderElectRenewDeadline time.Duration
 		leaderElectRetryPeriod   time.Duration
@@ -80,6 +81,7 @@ func Main(version string) {
 	flag.StringVar(&clusterDomain, "cluster-domain", os.Getenv("CLUSTER_DOMAIN"), "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.IntVar(&grpcListenPort, "grpc-listen-port", 8443, "The port to listen on for gRPC connections. This is not actually used yet.")
 	flag.DurationVar(&leaderElectLeaseDuration, "leader-elect-lease-duration", time.Second*15, "The duration that non-leader candidates will wait to force acquire leadership.")
 	flag.DurationVar(&leaderElectRenewDeadline, "leader-elect-renew-deadline", time.Second*10, "The duration that the acting leader will retry refreshing leadership before giving up.")
 	flag.DurationVar(&leaderElectRetryPeriod, "leader-elect-retry-period", time.Second*2, "The duration the LeaderElector clients should wait between tries of actions.")
@@ -133,9 +135,11 @@ func Main(version string) {
 	storageOpts := storageprovider.Options{
 		NodeID:                      nodeID,
 		Namespace:                   namespace,
+		ListenPort:                  grpcListenPort,
 		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
 		LeaderElectionRenewDeadline: leaderElectRenewDeadline,
 		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
+		ShutdownTimeout:             shutdownTimeout,
 	}
 	setupLog.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageOpts)
