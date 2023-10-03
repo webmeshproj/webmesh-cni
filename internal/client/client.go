@@ -27,8 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -61,21 +59,6 @@ func NewOrDie() *Client {
 		panic(err)
 	}
 	return client
-}
-
-// NewFromKubeconfig creates a new client from the given kubeconfig.
-func NewFromKubeconfig(kubeconfig string) (*Client, error) {
-	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
-		conf, err := clientcmd.LoadFromFile(kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load kubeconfig from file: %w", err)
-		}
-		return conf, nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
-	}
-	return NewForConfig(cfg)
 }
 
 // NewForConfig creates a new client from the given configuration.

@@ -52,9 +52,6 @@ const (
 	setupContainerInterfaceTimeout = time.Second * 10
 )
 
-// A global logger set when configuration is loaded.
-var log = slog.Default()
-
 func init() {
 	// This ensures that main runs only on the main thread (thread group leader).
 	// Since namespace ops (unshare, setns) are done for a single thread, we must
@@ -71,6 +68,7 @@ func Main(version string) {
 func cmdAdd(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
+	log := slog.Default()
 	result := &cniv1.Result{}
 	defer func() {
 		if e := recover(); e != nil {
@@ -117,14 +115,9 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
 	log.Debug("New ADD request", "config", conf, "args", args)
-	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
+	cli, err := conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
-		return
-	}
-	err = cli.Ping(testConnectionTimeout)
-	if err != nil {
-		err = fmt.Errorf("failed to ping API server: %w", err)
 		return
 	}
 	// Check if we've already created a PeerContainer for this container.
@@ -242,6 +235,7 @@ WaitForInterface:
 func cmdCheck(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
+	log := slog.Default()
 	defer func() {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Webmesh CNI panicked during CHECK: %s\nStack trace:\n%s", e, string(debug.Stack()))
@@ -270,14 +264,10 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 	}
 	log = conf.NewLogger()
 	log.Debug("New CHECK request", "config", conf, "args", args)
-	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
+	_, err = conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
 		return
-	}
-	err = cli.Ping(testConnectionTimeout)
-	if err == nil {
-		fmt.Println("OK")
 	}
 	return
 }
@@ -286,6 +276,7 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 func cmdDel(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
+	log := slog.Default()
 	defer func() {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Webmesh CNI panicked during DEL: %s\nStack trace:\n%s", e, string(debug.Stack()))
@@ -314,14 +305,9 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	}
 	log = conf.NewLogger()
 	log.Debug("New DEL request", "config", conf, "args", args)
-	cli, err := client.NewFromKubeconfig(conf.Kubernetes.Kubeconfig)
+	cli, err := conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
-		return
-	}
-	err = cli.Ping(testConnectionTimeout)
-	if err != nil {
-		err = fmt.Errorf("failed to ping API server: %w", err)
 		return
 	}
 	// Remove the interface from the container namespace.

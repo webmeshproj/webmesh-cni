@@ -22,15 +22,21 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/client"
+	cniclient "github.com/webmeshproj/webmesh-cni/internal/client"
 )
 
 // NetConf is the configuration for the CNI plugin.
@@ -47,12 +53,15 @@ type NetConf struct {
 	LogLevel string `json:"logLevel"`
 }
 
-func (n *NetConf) Default() {
+// SetDefaults sets the default values for the configuration.
+// It returns the configuration for convenience.
+func (n *NetConf) SetDefaults() *NetConf {
 	n.Kubernetes.Default()
 	n.Interface.Default()
 	if n.LogLevel == "" {
 		n.LogLevel = "info"
 	}
+	return n
 }
 
 // Interface is the configuration for a single interface.
@@ -98,32 +107,41 @@ func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load netconf from stdin data: %w", err)
 	}
-	conf.Default()
-	return &conf, nil
+	return conf.SetDefaults(), nil
 }
 
 // NewLogger creates a new logger for the plugin.
 func (n *NetConf) NewLogger() *slog.Logger {
-	var writer io.Writer = os.Stderr
-	var level slog.Level
-	switch n.LogLevel {
-	case "debug":
-		level = slog.LevelDebug
-	case "info":
-		level = slog.LevelInfo
-	case "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	case "silent":
-		writer = io.Discard
-	default:
-		level = slog.LevelInfo
-	}
-	return slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{
+	return slog.New(slog.NewJSONHandler(n.LogWriter(), &slog.HandlerOptions{
 		AddSource: true,
-		Level:     level,
+		Level:     n.SlogLevel(),
 	}))
+}
+
+// SlogLevel returns the slog.Level for the given log level string.
+func (n *NetConf) SlogLevel() slog.Level {
+	switch strings.ToLower(n.LogLevel) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// LogWriter reteurns the io.Writer for the plugin logger.
+func (n *NetConf) LogWriter() io.Writer {
+	var writer io.Writer = os.Stderr
+	switch strings.ToLower(n.LogLevel) {
+	case "silent", "off":
+		writer = io.Discard
+	}
+	return writer
 }
 
 // ObjectKeyFromArgs creates a new object key for the given container ID.
@@ -157,4 +175,31 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			LogLevel:    n.LogLevel,
 		},
 	}
+}
+
+// NewClient creates a new client for the Kubernetes API server.
+func (n *NetConf) NewClient(pingTimeout time.Duration) (*cniclient.Client, error) {
+	restCfg, err := n.RestConfig()
+	if err != nil {
+		err = fmt.Errorf("failed to create REST config: %w", err)
+		return nil, err
+	}
+	cli, err := client.NewForConfig(restCfg)
+	if err != nil {
+		err = fmt.Errorf("failed to create client: %w", err)
+		return nil, err
+	}
+	return cli, cli.Ping(pingTimeout)
+}
+
+// RestConfig returns the rest config for the Kubernetes API server.
+func (n *NetConf) RestConfig() (*rest.Config, error) {
+	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+		conf, err := clientcmd.LoadFromFile(n.Kubernetes.Kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig from file: %w", err)
+		}
+		return conf, nil
+	})
+	return cfg, err
 }
