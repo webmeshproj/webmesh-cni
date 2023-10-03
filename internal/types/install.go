@@ -35,12 +35,12 @@ const (
 	NetConfEnvVar = "CNI_NETWORK_CONFIG"
 	// NetConfFileName is the name of the file that contains the CNI configuration.
 	NetConfFileNameEnvVar = "CNI_CONF_NAME"
-	// NodeNameEnvVar is the name of the environment variable that contains the node name.
-	NodeNameEnvVar = "KUBERNETES_NODE_NAME"
 	// BinaryDestBinEnvVar is the destination directory for the CNI binaries.
 	BinaryDestBinEnvVar = "CNI_BIN_DIR"
 	// BinaryDestConfEnvVar is the destination directory for the CNI configuration.
 	BinaryDestConfEnvVar = "CNI_CONF_DIR"
+	// NodeNameEnvVar is the name of the environment variable that contains the node name.
+	NodeNameEnvVar = "KUBERNETES_NODE_NAME"
 	// PodNamespaceEnvVar is the name of the environment variable that contains the pod namespace.
 	PodNamespaceEnvVar = "KUBERNETES_POD_NAMESPACE"
 	// NodeNameReplaceStr is the string that will be replaced in the CNI configuration with the node name.
@@ -287,8 +287,9 @@ func (i *InstallOptions) GetKubeconfig() (clientcmdapi.Config, error) {
 		},
 		Contexts: map[string]*clientcmdapi.Context{
 			"webmesh-cni": {
-				Cluster:  "webmesh-cni",
-				AuthInfo: "webmesh-cni",
+				Cluster:   "webmesh-cni",
+				AuthInfo:  "webmesh-cni",
+				Namespace: i.Namespace,
 			},
 		},
 		CurrentContext: "webmesh-cni",
