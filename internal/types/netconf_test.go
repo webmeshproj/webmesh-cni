@@ -25,6 +25,7 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
+	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 )
 
 // TestNetConf tests the NetConf type.
@@ -316,10 +317,86 @@ func TestNetConf(t *testing.T) {
 
 		t.Run("ObjectKeys", func(t *testing.T) {
 			t.Parallel()
+			// Object keys should be the container ID and configured namespace.
+			conf := &NetConf{
+				Kubernetes: Kubernetes{
+					Namespace: "foo",
+				},
+			}
+			args := &skel.CmdArgs{
+				ContainerID: "bar",
+			}
+			key := conf.ObjectKeyFromArgs(args)
+			if key.Name != args.ContainerID {
+				t.Errorf("expected object key name to be %s, got %s", args.ContainerID, key.Name)
+			}
+			if key.Namespace != conf.Kubernetes.Namespace {
+				t.Errorf("expected object key namespace to be %s, got %s", conf.Kubernetes.Namespace, key.Namespace)
+			}
 		})
 
 		t.Run("ContainerObjects", func(t *testing.T) {
 			t.Parallel()
+			// A new container's spec should match the given args and configuration.
+			conf := &NetConf{
+				Interface: Interface{
+					MTU:         1234,
+					DisableIPv4: true,
+					DisableIPv6: true,
+				},
+				Kubernetes: Kubernetes{
+					NodeName:  "k8s-node",
+					Namespace: "default",
+				},
+				LogLevel: "debug",
+			}
+			args := &skel.CmdArgs{
+				ContainerID: "bar",
+				Netns:       "/proc/1234/ns/net",
+			}
+			container := conf.ContainerFromArgs(args)
+			// Make sure the container's spec matches the configuration.
+			if container.Name != args.ContainerID {
+				t.Errorf("expected container name to be %s, got %s", args.ContainerID, container.Name)
+			}
+			if container.Namespace != conf.Kubernetes.Namespace {
+				t.Errorf("expected container namespace to be %s, got %s", conf.Kubernetes.Namespace, container.Namespace)
+			}
+			if container.Spec.NodeID != meshtypes.TruncateID(args.ContainerID) {
+				t.Errorf("expected container node ID to be %s, got %s", args.ContainerID, container.Spec.NodeID)
+			}
+			if container.Spec.Netns != args.Netns {
+				t.Errorf("expected container netns to be %s, got %s", args.Netns, container.Spec.Netns)
+			}
+			if container.Spec.IfName != IfacePrefix+"bar0" {
+				t.Errorf("expected container ifname to be %s, got %s", "wmeshbar0", container.Spec.IfName)
+			}
+			if container.Spec.NodeName != conf.Kubernetes.NodeName {
+				t.Errorf("expected container node name to be %s, got %s", conf.Kubernetes.NodeName, container.Spec.NodeName)
+			}
+			if container.Spec.MTU != conf.Interface.MTU {
+				t.Errorf("expected container mtu to be %d, got %d", conf.Interface.MTU, container.Spec.MTU)
+			}
+			if container.Spec.DisableIPv4 != conf.Interface.DisableIPv4 {
+				t.Errorf("expected container disable ipv4 to be %t, got %t", conf.Interface.DisableIPv4, container.Spec.DisableIPv4)
+			}
+			if container.Spec.DisableIPv6 != conf.Interface.DisableIPv6 {
+				t.Errorf("expected container disable ipv6 to be %t, got %t", conf.Interface.DisableIPv6, container.Spec.DisableIPv6)
+			}
+			if container.Spec.LogLevel != conf.LogLevel {
+				t.Errorf("expected container log level to be %s, got %s", conf.LogLevel, container.Spec.LogLevel)
+			}
+
+			// Set the container ID to a really long name and make sure the interface
+			// is truncated to 15 characters.
+			args.ContainerID = "reallylongcontainerid"
+			container = conf.ContainerFromArgs(args)
+			if len(container.Spec.IfName) != 15 {
+				t.Errorf("expected container ifname to be truncated to 15 characters, got %s", container.Spec.IfName)
+			}
+			if container.Spec.IfName != IfacePrefix+"reallylon0" {
+				t.Errorf("expected container ifname to be %s, got %s", "wmeshreallylongc0", container.Spec.IfName)
+			}
 		})
 	})
 }

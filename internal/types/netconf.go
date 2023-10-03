@@ -38,6 +38,9 @@ import (
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
+// IfacePrefix is the prefix for interface names.
+const IfacePrefix = "wmesh"
+
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
@@ -214,7 +217,7 @@ func (n *NetConf) ObjectKeyFromArgs(args *skel.CmdArgs) client.ObjectKey {
 
 // ContainerFromArgs creates a skeleton container object for the given container arguments.
 func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer {
-	desiredIfName := "wmesh" + args.ContainerID[:min(8, len(args.ContainerID))] + "0"
+	desiredIfName := IfacePrefix + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
 	return meshcniv1.PeerContainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PeerContainer",
