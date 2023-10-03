@@ -25,6 +25,7 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -46,6 +47,14 @@ type NetConf struct {
 	LogLevel string `json:"logLevel"`
 }
 
+func (n *NetConf) Default() {
+	n.Kubernetes.Default()
+	n.Interface.Default()
+	if n.LogLevel == "" {
+		n.LogLevel = "info"
+	}
+}
+
 // Interface is the configuration for a single interface.
 type Interface struct {
 	// MTU is the MTU to set on interfaces.
@@ -54,6 +63,12 @@ type Interface struct {
 	DisableIPv4 bool `json:"disableIPv4"`
 	// DisableIPv6 is whether to disable IPv6 on the interface.
 	DisableIPv6 bool `json:"disableIPv6"`
+}
+
+func (i *Interface) Default() {
+	if i.MTU <= 0 {
+		i.MTU = meshsys.DefaultMTU
+	}
 }
 
 // Kubernetes is the configuration for the Kubernetes API server and
@@ -69,6 +84,13 @@ type Kubernetes struct {
 	Namespace string `json:"namespace"`
 }
 
+// Default sets the default values for the Kubernetes configuration.
+func (k *Kubernetes) Default() {
+	if k.Kubeconfig == "" {
+		k.Kubeconfig = DefaultKubeconfigPath
+	}
+}
+
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
 func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	var conf NetConf
@@ -76,9 +98,7 @@ func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load netconf from stdin data: %w", err)
 	}
-	if conf.Kubernetes.Kubeconfig == "" {
-		conf.Kubernetes.Kubeconfig = DefaultKubeconfigPath
-	}
+	conf.Default()
 	return &conf, nil
 }
 
