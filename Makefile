@@ -12,6 +12,7 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+LOCALBIN := $(CURDIR)/bin
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -71,13 +72,26 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+SETUP := go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use $(K8S_VERSION) --bin-dir $(LOCALBIN) -p path
+setup-envtest: ## Setup envtest. This is automatically run by the test target.
+	$(SETUP) 1> /dev/null
+
+RICHGO       ?= go run github.com/kyoh86/richgo@v0.3.12
+TEST_TIMEOUT ?= 300s
+TEST_ARGS    ?= -v -cover -covermode=atomic -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
+test: manifests generate setup-envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(SETUP))" $(RICHGO) test $(TEST_ARGS) ./...
+	go tool cover -func=cover.out
 
 LINT_TIMEOUT := 10m
 lint: ## Run linters.
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run --timeout=$(LINT_TIMEOUT)
+
+CI_TARGETS := fmt vet lint test
+ifeq ($(CI),true)
+	CI_TARGETS := vet test
+endif
+ci-test: $(CI_TARGETS) ## Run all CI tests.
 
 ##@ Build
 

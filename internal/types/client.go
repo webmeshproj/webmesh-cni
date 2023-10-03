@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -52,21 +51,17 @@ func IsPeerContainerNotFound(err error) bool {
 // Client is the client for the CNI plugin.
 type Client struct {
 	client.Client
-	conf NetConf
+	conf *NetConf
 }
 
-// NewClientOrDie creates a new client from the given kubeconfig or panics.
-func NewClientOrDie(conf NetConf) *Client {
-	cfg := ctrl.GetConfigOrDie()
-	client, err := NewClientForConfig(cfg, conf)
-	if err != nil {
-		panic(err)
-	}
-	return client
+// ClientConfig is the configuration for the CNI client.
+type ClientConfig struct {
+	NetConf    *NetConf
+	RestConfig *rest.Config
 }
 
 // NewClientForConfig creates a new client from the given configuration.
-func NewClientForConfig(cfg *rest.Config, conf NetConf) (*Client, error) {
+func NewClientForConfig(conf ClientConfig) (*Client, error) {
 	scheme := runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(scheme)
 	if err != nil {
@@ -84,7 +79,7 @@ func NewClientForConfig(cfg *rest.Config, conf NetConf) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := client.New(cfg, client.Options{
+	client, err := client.New(conf.RestConfig, client.Options{
 		Scheme: scheme,
 		Cache: &client.CacheOptions{
 			DisableFor: storagev1.CustomObjects,
@@ -95,7 +90,7 @@ func NewClientForConfig(cfg *rest.Config, conf NetConf) (*Client, error) {
 	}
 	return &Client{
 		Client: client,
-		conf:   conf,
+		conf:   conf.NetConf,
 	}, nil
 }
 

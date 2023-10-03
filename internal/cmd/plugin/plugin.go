@@ -103,7 +103,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := types.LoadConfigFromArgs(args)
+	conf, err := types.LoadNetConfFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
@@ -276,7 +276,7 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := types.LoadConfigFromArgs(args)
+	conf, err := types.LoadNetConfFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return
@@ -318,7 +318,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 			os.Exit(1)
 		}
 	}()
-	conf, err := types.LoadConfigFromArgs(args)
+	conf, err := types.LoadNetConfFromArgs(args)
 	if err != nil {
 		err = fmt.Errorf("failed to load config: %w", err)
 		return

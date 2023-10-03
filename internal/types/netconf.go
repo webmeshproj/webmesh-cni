@@ -43,11 +43,11 @@ type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.
 	cnitypes.NetConf `json:",inline"`
 
+	// Interface is the configuration for container interfaces.
+	Interface Interface `json:"interface"`
 	// Kubernetes is the configuration for the Kubernetes API server and
 	// information about the node we are running on.
 	Kubernetes Kubernetes `json:"kubernetes"`
-	// Interface is the configuration for the interface.
-	Interface Interface `json:"interface"`
 	// LogLevel is the log level for the plugin and managed interfaces.
 	LogLevel string `json:"logLevel"`
 }
@@ -63,6 +63,19 @@ func (n *NetConf) SetDefaults() *NetConf {
 	return n
 }
 
+// DeepEqual returns whether the configuration is equal to the given configuration.
+func (n *NetConf) DeepEqual(other *NetConf) bool {
+	if n == nil && other == nil {
+		return true
+	}
+	if n == nil || other == nil {
+		return false
+	}
+	return n.Kubernetes.DeepEqual(&other.Kubernetes) &&
+		n.Interface.DeepEqual(&other.Interface) &&
+		n.LogLevel == other.LogLevel
+}
+
 // Interface is the configuration for a single interface.
 type Interface struct {
 	// MTU is the MTU to set on interfaces.
@@ -73,10 +86,24 @@ type Interface struct {
 	DisableIPv6 bool `json:"disableIPv6"`
 }
 
+// Default sets the default values for the interface configuration.
 func (i *Interface) Default() {
 	if i.MTU <= 0 {
 		i.MTU = meshsys.DefaultMTU
 	}
+}
+
+// DeepEqual returns whether the interface is equal to the given interface.
+func (i *Interface) DeepEqual(other *Interface) bool {
+	if i == nil && other == nil {
+		return true
+	}
+	if i == nil || other == nil {
+		return false
+	}
+	return i.MTU == other.MTU &&
+		i.DisableIPv4 == other.DisableIPv4 &&
+		i.DisableIPv6 == other.DisableIPv6
 }
 
 // Kubernetes is the configuration for the Kubernetes API server and
@@ -99,21 +126,40 @@ func (k *Kubernetes) Default() {
 	}
 }
 
-// LoadConfigFromFile loads the configuration from the given file.
-func LoadConfigFromFile(path string) (*NetConf, error) {
+// DeepEqual returns whether the Kubernetes configuration is equal to the given configuration.
+func (k *Kubernetes) DeepEqual(other *Kubernetes) bool {
+	if k == nil && other == nil {
+		return true
+	}
+	if k == nil || other == nil {
+		return false
+	}
+	return k.Kubeconfig == other.Kubeconfig &&
+		k.NodeName == other.NodeName &&
+		k.K8sAPIRoot == other.K8sAPIRoot &&
+		k.Namespace == other.Namespace
+}
+
+// LoadNetConfFromFile loads the configuration from the given file.
+func LoadNetConfFromFile(path string) (*NetConf, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-	return LoadConfigFromArgs(&skel.CmdArgs{StdinData: data})
+	return DecodeNetConf(data)
 }
 
 // LoadConfigFromArgs loads the configuration from the given CNI arguments.
-func LoadConfigFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
+func LoadNetConfFromArgs(cmd *skel.CmdArgs) (*NetConf, error) {
+	return DecodeNetConf(cmd.StdinData)
+}
+
+// DecodeNetConf loads the configuration from the given JSON data.
+func DecodeNetConf(data []byte) (*NetConf, error) {
 	var conf NetConf
-	err := json.Unmarshal(cmd.StdinData, &conf)
+	err := json.Unmarshal(data, &conf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load netconf from stdin data: %w", err)
+		return nil, fmt.Errorf("failed to load netconf from data: %w", err)
 	}
 	return conf.SetDefaults(), nil
 }
@@ -198,7 +244,10 @@ func (n *NetConf) NewClient(pingTimeout time.Duration) (*Client, error) {
 		err = fmt.Errorf("failed to create REST config: %w", err)
 		return nil, err
 	}
-	cli, err := NewClientForConfig(restCfg, *n)
+	cli, err := NewClientForConfig(ClientConfig{
+		RestConfig: restCfg,
+		NetConf:    n,
+	})
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
 		return nil, err
