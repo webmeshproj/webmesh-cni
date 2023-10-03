@@ -32,8 +32,8 @@ const (
 
 // PeerContainerSpec defines the desired state of PeerContainer
 type PeerContainerSpec struct {
-	// ContainerID is the ID of the container to peer with.
-	ContainerID string `json:"containerID"`
+	// NodeID is the ID to use for the container.
+	NodeID string `json:"containerID"`
 	// Netns is the network namespace of the container to peer with.
 	Netns string `json:"netns"`
 	// IfName is the name of the interface to peer with.

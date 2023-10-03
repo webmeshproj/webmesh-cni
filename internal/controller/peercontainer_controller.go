@@ -118,7 +118,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	}
 	// Check if we have registered the node yet
 	name := types.NamespacedName{Name: container.Spec.NodeName}
-	nodeID := meshtypes.NodeID(container.Spec.ContainerID)
+	nodeID := meshtypes.NodeID(container.Spec.NodeID)
 	node, ok := r.nodes[name]
 	if !ok {
 		// We need to create the node.
@@ -188,7 +188,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		)
 		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
 			MeshNode: &v1.MeshNode{
-				Id:                 container.Spec.ContainerID,
+				Id:                 nodeID.String(),
 				PublicKey:          encoded,
 				PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 				WireguardEndpoints: wgeps,
@@ -227,7 +227,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 		log.Info("Updating status to created")
 		r.nodes[name] = meshnode.NewWithLogger(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
-			NodeID:          container.Spec.ContainerID,
+			NodeID:          nodeID.String(),
 			ZoneAwarenessID: container.Spec.NodeName,
 			DisableIPv4:     container.Spec.DisableIPv4,
 			DisableIPv6:     container.Spec.DisableIPv6,
@@ -243,7 +243,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 	// If the node is not started, start it.
 	if !node.Started() {
 		log.Info("Starting mesh node for container", "container", container)
-		peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(container.Spec.ContainerID))
+		peer, err := r.Provider.MeshDB().Peers().Get(ctx, nodeID)
 		if err != nil {
 			log.Error(err, "Failed to get peer", "container", container)
 			r.setFailedStatus(ctx, container, err)

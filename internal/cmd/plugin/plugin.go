@@ -34,6 +34,7 @@ import (
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -183,7 +184,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			Namespace: conf.Kubernetes.Namespace,
 		},
 		Spec: meshcniv1.PeerContainerSpec{
-			ContainerID: args.ContainerID,
+			NodeID:      meshtypes.TruncateID(args.ContainerID),
 			Netns:       args.Netns,
 			IfName:      desiredIfName,
 			NodeName:    conf.Kubernetes.NodeName,
