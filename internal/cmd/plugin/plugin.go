@@ -109,9 +109,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	}
 	log = conf.NewLogger()
 	result.CNIVersion = conf.CNIVersion
-	// The mesh node handles route configurations, but user provided ones
-	// might be useful in the future.
-	result.Routes = []*cnitypes.Route{}
+	// Use the host DNS servers?
 	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
 	log.Debug("New ADD request", "config", conf, "args", args)
@@ -178,30 +176,51 @@ WaitForInterface:
 		}
 	}
 	// Parse the IP addresses from the container status.
-	if container.Status.IPv4Address != "" {
-		var ipnet *net.IPNet
-		ipnet, err = netlink.ParseIPNet(container.Status.IPv4Address)
+	var ipv4net, ipv6net *net.IPNet
+	if container.Status.IPv4Address != "" && !conf.Interface.DisableIPv4 {
+		ipv4net, err = netlink.ParseIPNet(container.Status.IPv4Address)
 		if err != nil {
 			log.Error("Failed to parse IPv4 address", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv4 address: %w", err)
 			return
 		}
 		result.IPs = append(result.IPs, &cniv1.IPConfig{
-			Address: *ipnet,
-			Gateway: ipnet.IP, // Use system's default gateway or self?
+			Address: *ipv4net,
+			Gateway: ipv4net.IP, // Use system's default gateway or self?
+		})
+		var rtnet *net.IPNet
+		rtnet, err = netlink.ParseIPNet(container.Status.NetworkV4)
+		if err != nil {
+			log.Error("Failed to parse IPv4 network", "error", err.Error())
+			err = fmt.Errorf("failed to parse IPv4 network: %w", err)
+			return
+		}
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: *rtnet,
+			GW:  ipv4net.IP,
 		})
 	}
-	if container.Status.IPv6Address != "" {
-		var ipnet *net.IPNet
-		ipnet, err = netlink.ParseIPNet(container.Status.IPv6Address)
+	if container.Status.IPv6Address != "" && !conf.Interface.DisableIPv6 {
+		ipv6net, err = netlink.ParseIPNet(container.Status.IPv6Address)
 		if err != nil {
 			log.Error("Failed to parse IPv6 address", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv6 address: %w", err)
 			return
 		}
 		result.IPs = append(result.IPs, &cniv1.IPConfig{
-			Address: *ipnet,
-			Gateway: ipnet.IP, // Use system's default gateway or self?
+			Address: *ipv6net,
+			Gateway: ipv6net.IP, // Use system's default gateway or self?
+		})
+		var rtnet *net.IPNet
+		rtnet, err = netlink.ParseIPNet(container.Status.NetworkV6)
+		if err != nil {
+			log.Error("Failed to parse IPv6 network", "error", err.Error())
+			err = fmt.Errorf("failed to parse IPv6 network: %w", err)
+			return
+		}
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: *rtnet,
+			GW:  ipv6net.IP,
 		})
 	}
 	// Move the wireguard interface to the container namespace.
@@ -230,8 +249,8 @@ WaitForInterface:
 }
 
 // cmdCheck is the CNI CHECK command handler.
-// TODO: Check if the PeerContainer exists and is ready perhaps?
 // Most implementations do a dummy check like this.
+// TODO: This should be used to check if there are new routes to track.
 func cmdCheck(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.

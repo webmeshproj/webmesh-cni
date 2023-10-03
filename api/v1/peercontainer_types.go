@@ -62,6 +62,10 @@ type PeerContainerStatus struct {
 	IPv4Address string `json:"ipv4Address"`
 	// IPv6Address is the IPv6 address of the interface.
 	IPv6Address string `json:"ipv6Address"`
+	// NetworkV4 is the IPv4 network of the interface.
+	NetworkV4 string `json:"networkV4"`
+	// NetworkV6 is the IPv6 network of the interface.
+	NetworkV6 string `json:"networkV6"`
 	// Error is any error that occurred while peering the interface.
 	Error string `json:"error"`
 }

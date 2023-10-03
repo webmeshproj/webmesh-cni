@@ -88,6 +88,12 @@ spec:
               macAddress:
                 description: MACAddress is the MAC address of the interface.
                 type: string
+              networkV4:
+                description: NetworkV4 is the IPv4 network of the interface.
+                type: string
+              networkV6:
+                description: NetworkV6 is the IPv6 network of the interface.
+                type: string
               status:
                 description: Phase is the current status of the interface.
                 type: string
@@ -97,6 +103,8 @@ spec:
             - ipv4Address
             - ipv6Address
             - macAddress
+            - networkV4
+            - networkV6
             - status
             type: object
         type: object
