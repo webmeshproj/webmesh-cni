@@ -133,9 +133,58 @@ func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
 	return &opts, nil
 }
 
+// RunInstall is an alias for running all install steps.
+func (i *InstallOptions) RunInstall() error {
+	// Clear any local host IPAM allocations that already exist.
+	log.Println("clearing host-local IPAM allocations from", HostLocalNetDir)
+	err := i.ClearHostLocalIPAMAllocations()
+	if err != nil {
+		log.Println("error clearing host-local IPAM allocations:", err)
+		return err
+	}
+	pluginBin := filepath.Join(i.BinaryDestBin, PluginBinaryName)
+	log.Println("installing plugin binary to -> ", pluginBin)
+	err = i.InstallPlugin(pluginBin)
+	if err != nil {
+		log.Println("error installing plugin:", err)
+		return err
+	}
+	err = os.Chdir(i.BinaryDestBin)
+	if err != nil {
+		log.Printf("error changing directory to %s: %v", i.BinaryDestBin, err)
+		return err
+	}
+	for _, symlinkName := range []string{"loopback", "host-local"} {
+		log.Println("creating symlink for ->", filepath.Join(i.BinaryDestBin, symlinkName))
+		err = os.Symlink(PluginBinaryName, symlinkName)
+		if err != nil {
+			log.Printf("error creating symlink for %s: %v", symlinkName, err)
+			return err
+		}
+	}
+	kubeconfigPath := filepath.Join(i.BinaryDestBin, PluginKubeconfigName)
+	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
+	err = i.InstallKubeconfig(kubeconfigPath)
+	if err != nil {
+		log.Println("error writing kubeconfig:", err)
+		return err
+	}
+	log.Println("rendering CNI configuration")
+	apicfg := ctrl.GetConfigOrDie()
+	netConf := i.RenderNetConf(apicfg.Host)
+	log.Println("effective CNI configuration ->\n", netConf)
+	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
+	log.Println("installing CNI configuration to destination -> ", confPath)
+	err = i.InstallNetConf(confPath, netConf)
+	if err != nil {
+		log.Println("error writing netconf:", err)
+		return err
+	}
+	return nil
+}
+
 // ClearHostLocalIPAMAllocations removes any host-local CNI plugins from the CNI configuration.
 func (i *InstallOptions) ClearHostLocalIPAMAllocations() error {
-	log.Println("clearing host-local IPAM allocations from", HostLocalNetDir)
 	dir, err := os.ReadDir(HostLocalNetDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -157,59 +206,40 @@ func (i *InstallOptions) ClearHostLocalIPAMAllocations() error {
 }
 
 // InstallPlugin installs the plugin.
-func (i *InstallOptions) InstallPlugin() error {
-	pluginBin := filepath.Join(i.BinaryDestBin, PluginBinaryName)
-	log.Println("installing plugin binary to -> ", pluginBin)
-	if err := installPluginBinary(i.SourceBinary, pluginBin); err != nil {
-		log.Printf("error installing binary to %s: %v", pluginBin, err)
+func (i *InstallOptions) InstallPlugin(dest string) error {
+	if err := installPluginBinary(i.SourceBinary, dest); err != nil {
+		log.Printf("error installing binary to %s: %v", dest, err)
 		return err
-	}
-	err := os.Chdir(i.BinaryDestBin)
-	if err != nil {
-		log.Printf("error changing directory to %s: %v", i.BinaryDestBin, err)
-		return err
-	}
-	for _, symlinkName := range []string{"loopback", "host-local"} {
-		log.Println("creating symlink for ->", filepath.Join(i.BinaryDestBin, symlinkName))
-		err = os.Symlink(PluginBinaryName, symlinkName)
-		if err != nil {
-			log.Printf("error creating symlink for %s: %v", symlinkName, err)
-			return err
-		}
 	}
 	return nil
 }
 
 // InstallNetConf installs the CNI configuration.
-func (i *InstallOptions) InstallNetConf() error {
-	cfg, err := ctrl.GetConfig()
-	if err != nil {
-		return fmt.Errorf("error getting config: %w", err)
-	}
-	kubeconfigPath := strings.TrimPrefix(filepath.Join(i.BinaryDestBin, PluginKubeconfigName), "/host")
-	conf := i.NetConfTemplate
-	conf = strings.Replace(conf, NodeNameReplaceStr, i.NodeName, -1)
-	conf = strings.Replace(conf, PodNamespaceReplaceStr, i.Namespace, -1)
-	conf = strings.Replace(conf, APIEndpointReplaceStr, cfg.Host, -1)
-	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
-	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
-	log.Println("effective CNI configuration ->\n", conf)
-	log.Println("installing CNI configuration to -> ", confPath)
-	if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
+func (i *InstallOptions) InstallNetConf(path string, config string) error {
+	if err := os.WriteFile(path, []byte(config), 0644); err != nil {
 		log.Println("error writing CNI configuration:", err)
 		return err
 	}
 	return nil
 }
 
+// RenderNetConf renders the CNI configuration.
+func (i *InstallOptions) RenderNetConf(apiEndpoint string) string {
+	kubeconfigPath := strings.TrimPrefix(filepath.Join(i.BinaryDestBin, PluginKubeconfigName), "/host")
+	conf := i.NetConfTemplate
+	conf = strings.Replace(conf, NodeNameReplaceStr, i.NodeName, -1)
+	conf = strings.Replace(conf, PodNamespaceReplaceStr, i.Namespace, -1)
+	conf = strings.Replace(conf, APIEndpointReplaceStr, apiEndpoint, -1)
+	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
+	return conf
+}
+
 // InstallKubeconfig writes the kubeconfig file for the plugin.
-func (i *InstallOptions) InstallKubeconfig() error {
-	kubeconfigPath := filepath.Join(i.BinaryDestBin, PluginKubeconfigName)
+func (i *InstallOptions) InstallKubeconfig(kubeconfigPath string) error {
 	kubeconfig, err := i.GetKubeconfig()
 	if err != nil {
 		return fmt.Errorf("error getting kubeconfig: %w", err)
 	}
-	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
 	if err := clientcmd.WriteToFile(kubeconfig, kubeconfigPath); err != nil {
 		log.Println("error writing kubeconfig:", err)
 		return err

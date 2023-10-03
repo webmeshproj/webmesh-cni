@@ -32,24 +32,9 @@ func Main(version string) {
 		log.Println("error loading install options from environment:", err)
 		os.Exit(1)
 	}
-	// Clear any local host IPAM allocations that already exist.
-	if err := conf.ClearHostLocalIPAMAllocations(); err != nil {
-		log.Println("error clearing host-local IPAM allocations:", err)
-		os.Exit(1)
-	}
-	err = conf.InstallPlugin()
+	err = conf.RunInstall()
 	if err != nil {
-		log.Println("error installing plugin:", err)
-		os.Exit(1)
-	}
-	err = conf.InstallKubeconfig()
-	if err != nil {
-		log.Println("error writing kubeconfig:", err)
-		os.Exit(1)
-	}
-	err = conf.InstallNetConf()
-	if err != nil {
-		log.Println("error writing netconf:", err)
+		log.Println("error running install:", err)
 		os.Exit(1)
 	}
 	log.Println("webmesh-cni install complete!")
