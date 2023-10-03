@@ -267,11 +267,15 @@ func (i *InstallOptions) InstallKubeconfig(kubeconfigPath string) error {
 	return nil
 }
 
+// getInstallRestConfig is the function for retrieving the REST config during installation.
+// This is overridden in tests.
+var getInstallRestConfig = ctrl.GetConfig
+
 // GetKubeconfig tries to build a kubeconfig from the current in cluster
 // configuration.
 func (i *InstallOptions) GetKubeconfig() (clientcmdapi.Config, error) {
 	// If our cert data is empty, convert it to the contents of the cert file.
-	cfg, err := ctrl.GetConfig()
+	cfg, err := getInstallRestConfig()
 	if err != nil {
 		return clientcmdapi.Config{}, fmt.Errorf("error getting config: %w", err)
 	}

@@ -19,8 +19,83 @@ package types
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
+
+	"k8s.io/client-go/rest"
 )
+
+func TestInstallCNI(t *testing.T) {
+	// Setup temp directories
+	getInstallRestConfig = func() (*rest.Config, error) {
+		return &rest.Config{}, nil
+	}
+	i := NewTestInstallation(t, "TODO")
+	i.Options()
+}
+
+type TestInstallation struct {
+	SourceDir        string
+	SourceBinaryName string
+	BinaryDestDir    string
+	ConfDestDir      string
+	ConfDestName     string
+	ConfTemplate     string
+	HostLocalNetDir  string
+}
+
+func NewTestInstallation(t *testing.T, confTemplate string) *TestInstallation {
+	t.Helper()
+	var i TestInstallation
+	var err error
+	i.ConfTemplate = confTemplate
+	i.SourceDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Write a fake source binary
+	err = os.WriteFile(i.SourceDir+"/source-bin", []byte("test"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i.SourceBinaryName = "source-bin"
+	t.Cleanup(func() { os.RemoveAll(i.SourceDir) })
+	i.BinaryDestDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(i.BinaryDestDir) })
+	i.ConfDestDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i.ConfDestName = "test-conf"
+	t.Cleanup(func() { os.RemoveAll(i.ConfDestDir) })
+	i.HostLocalNetDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(i.HostLocalNetDir) })
+	return &i
+}
+
+func (i *TestInstallation) Options() *InstallOptions {
+	return &InstallOptions{
+		SourceBinary:    filepath.Join(i.SourceDir, i.SourceBinaryName),
+		BinaryDestBin:   i.BinaryDestDir,
+		BinaryName:      i.SourceBinaryName,
+		ConfDestDir:     i.ConfDestDir,
+		ConfDestName:    i.ConfDestName,
+		HostLocalNetDir: i.HostLocalNetDir,
+		NetConfTemplate: i.ConfTemplate,
+		NodeName:        "test-node",
+		Namespace:       "test-namespace",
+	}
+}
+
+func (i *TestInstallation) ValidateInstallation(t *testing.T) {
+
+}
 
 func TestLoadInstallOptions(t *testing.T) {
 	// We haven't set any environment variables so a first call should fail.
