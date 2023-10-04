@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-REPO    ?= github.com/webmesh/webmesh-cni
+REPO    ?= ghcr.io/webmeshproj/webmesh-cni
 VERSION ?= latest
 IMG     ?= $(REPO):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -51,18 +51,8 @@ help: ## Display this help.
 CONTROLLER_TOOLS_VERSION ?= v0.13.0
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
-# Role name to be used in the ClusterRole and ClusterRoleBinding objects.
-ROLE_NAME ?= webmesh-cni-role
-
-.PHONY: manifests
-manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) crd webhook paths="./..." output:crd:artifacts:config=deploy/crds
-	$(CONTROLLER_GEN) rbac:roleName=$(ROLE_NAME) webhook paths="./..." output:rbac:artifacts:config=deploy/rbac
-
-.PHONY: generate
-HEADER_FILE := api/v1/boilerplate.go.txt
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="$(HEADER_FILE)" paths="./..."
+	go generate ./...
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -72,15 +62,20 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+## Location to install dependencies to
+LOCALBIN ?= $(CURDIR)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 K8S_VERSION := 1.28
 SETUP := go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use $(K8S_VERSION) --bin-dir $(LOCALBIN) -p path
-setup-envtest: ## Setup envtest. This is automatically run by the test target.
+setup-envtest: $(LOCALBIN) ## Setup envtest. This is automatically run by the test target.
 	$(SETUP) 1> /dev/null
 
 RICHGO       ?= go run github.com/kyoh86/richgo@v0.3.12
 TEST_TIMEOUT ?= 300s
 TEST_ARGS    ?= -v -cover -covermode=atomic -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
-test: manifests generate setup-envtest ## Run tests.
+test: generate setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(SETUP))" CRD_PATHS="$(CURDIR)/deploy/crds" \
 		$(RICHGO) test $(TEST_ARGS) ./...
 	go tool cover -func=cover.out
@@ -101,11 +96,11 @@ PARALLEL   ?= $(shell nproc)
 GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
 BUILD_ARGS ?= --clean --parallelism=$(PARALLEL)
 
-build: generate ## Build cni binaries for the current architecture.
+build: ## Build cni binaries for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
 
 .PHONY: dist
-dist: generate ## Build cni binaries for all supported architectures.
+dist: ## Build cni binaries for all supported architectures.
 	$(GORELEASER) build $(BUILD_ARGS)
 
 snapshot: ## Same as dist, but without running the release hooks.
@@ -120,7 +115,7 @@ docker: build ## Build docker image for the current architecture.
 RAW_REPO_URL ?= https://github.com/webmeshproj/webmesh-cni/raw/main
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
 BUNDLE ?= deploy/bundle.yaml
-bundle: manifests ## Bundle creates a distribution bundle manifest.
+bundle: generate ## Bundle creates a distribution bundle manifest.
 	rm -f $(BUNDLE)
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "---" >> $(BUNDLE)
@@ -137,30 +132,18 @@ bundle: manifests ## Bundle creates a distribution bundle manifest.
 		echo "# Source: $$i" >> $(BUNDLE) ; \
 		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
 	done
-
-##@ Build Dependencies
-
-## Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/bin
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
-
-## Tool Binaries
-KUBECTL ?= kubectl
-ENVTEST ?= $(LOCALBIN)/setup-envtest
-
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	@echo "+ Setting bundle image to $(IMG)"
+	@sed -i 's^$(REPO):latest^$(IMG)^g' $(BUNDLE)
 
 ##@ Local Development
 
-K3D  ?= k3d
-KIND ?= kind
+K3D     ?= k3d
+KIND    ?= kind
+KUBECTL ?= kubectl
 
 CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
+KIND_CONFIG   ?= deploy/kindconfig.yaml
 
 test-k3d: ## Create a test cluster using k3d.
 	$(K3D) cluster create $(CLUSTER_NAME) \
@@ -183,7 +166,6 @@ install-k3d: bundle ## Install the WebMesh CNI into the test cluster.
 remove-k3d: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
 
-KIND_CONFIG ?= deploy/kindconfig.yaml
 test-kind: ## Create a test cluster using kind.
 	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
 
@@ -197,4 +179,4 @@ remove-kind: ## Remove the test cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
 clean: ## Remove all local binaries and release assets.
-	rm -rf $(LOCALBIN) dist
+	rm -rf $(LOCALBIN) dist cover.out

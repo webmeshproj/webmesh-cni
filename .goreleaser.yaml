@@ -3,7 +3,8 @@ project_name: webmesh-cni
 before:
   hooks:
     - go mod tidy
-    - make generate
+    - go generate ./...
+    - make bundle VERSION={{ .Version }} 
 
 builds:
   - id: webmesh-cni
@@ -35,13 +36,89 @@ checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  name_template: "latest"
+
+archives:
+  - id: webmesh-cni
+    format: tar.gz
+    builds:
+      - webmesh-cni
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+nfpms:
+  - id: webmesh-cni
+    maintainer: Avi Zimmerman <avi.zimmerman@gmail.com>
+    description: Webmesh CNI is a CNI plugin for Webmesh
+    homepage: https://webmeshproj.github.io
+    license: Apache 2.0
+    builds:
+      - webmesh-cni
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    recommends:
+      - wireguard-tools
+    archlinux:
+      packager: Avi Zimmerman <avi.zimmerman@gmail.com>
+      pkgbase: webmesh-cni
+    overrides:
+      rpm:
+        dependencies:
+          - elrepo-release
+          - epel-release
+          - kmod-wireguard
+
+signs:
+  - cmd: cosign
+    id: binaries
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--oidc-issuer=https://token.actions.githubusercontent.com"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${signature}.cert"
+      - "${artifact}"
+    artifacts: checksum
+  - cmd: cosign
+    id: bundle
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--oidc-issuer=https://token.actions.githubusercontent.com"
+      - "--output-signature=bundle.yaml.sig"
+      - "--output-certificate=bundle.yaml.sig.cert"
+      - "deploy/bundle.yaml"
+    artifacts: source
 
 changelog:
   sort: asc
   filters:
     exclude:
       - '^examples:'
+
+release:
+  github:
+    owner: webmeshproj
+    name: webmesh
+  ids:
+    - webmesh
+  extra_files:
+    - glob: deploy/bundle.yaml
+    - glob: dist/*.sig
+    - glob: dist/*.sig.cert
+
 
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj

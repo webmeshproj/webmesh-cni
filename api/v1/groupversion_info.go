@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest object:headerFile='boilerplate.go.txt' paths='./...'"
+//go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest crd webhook paths='./...' output:crd:artifacts:config=../../deploy/crds"
+
 // Package v1 contains API Schema definitions for the  v1 API group
 // +kubebuilder:object:generate=true
 // +groupName=cni.webmesh.io

@@ -72,6 +72,8 @@ var NewNode = meshnode.NewWithLogger
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
+//go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest rbac:roleName=webmesh-cni-role webhook paths='./...' output:rbac:artifacts:config=../../deploy/rbac"
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).

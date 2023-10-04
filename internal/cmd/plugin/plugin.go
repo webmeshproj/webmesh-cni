@@ -88,7 +88,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI ADD was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
 				Code:    100,
-				Msg:     "failed to run ADD command",
+				Msg:     "error setting up interface",
 				Details: err.Error(),
 			}
 			cnierr.Print()
@@ -198,7 +198,7 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI CHECK was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
 				Code:    100,
-				Msg:     "failed to run CHECK command",
+				Msg:     "error checking interface",
 				Details: err.Error(),
 			}
 			cnierr.Print()
@@ -239,7 +239,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 			log.Error("Final result of CNI DEL was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
 				Code:    100,
-				Msg:     "failed to run DEL command",
+				Msg:     "error deleting interface",
 				Details: err.Error(),
 			}
 			cnierr.Print()
