@@ -81,6 +81,20 @@ type PeerContainerStatus struct {
 	Error string `json:"error"`
 }
 
+// IsEmpty returns true if the status is empty.
+func (p PeerContainerStatus) IsEmpty() bool {
+	return p.InterfaceStatus == "" && p.Error == "" && !p.HasNetworkInfo()
+}
+
+// HasNetworkInfo returns true if the status has network information.
+func (p PeerContainerStatus) HasNetworkInfo() bool {
+	return p.MACAddress != "" &&
+		p.IPv4Address != "" &&
+		p.IPv6Address != "" &&
+		p.NetworkV4 != "" &&
+		p.NetworkV6 != ""
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

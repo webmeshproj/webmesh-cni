@@ -117,20 +117,8 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 	if container.Status.InterfaceName != container.Spec.IfName {
 		t.Error("Interface name not set correctly, got:", container.Status.InterfaceName, "expected:", container.Spec.IfName)
 	}
-	if container.Status.IPv4Address == "" {
-		t.Error("IPv4 address not set")
-	}
-	if container.Status.IPv6Address == "" {
-		t.Error("IPv6 address not set")
-	}
-	if container.Status.MACAddress == "" {
-		t.Error("MAC address not set")
-	}
-	if container.Status.NetworkV4 == "" {
-		t.Error("NetworkV4 not set")
-	}
-	if container.Status.NetworkV6 == "" {
-		t.Error("NetworkV6 not set")
+	if !container.Status.HasNetworkInfo() {
+		t.Error("Network info not set")
 	}
 }
 

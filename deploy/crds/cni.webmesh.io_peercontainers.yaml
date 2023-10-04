@@ -95,7 +95,7 @@ spec:
                 description: NetworkV6 is the IPv6 network of the interface.
                 type: string
               status:
-                description: Phase is the current status of the interface.
+                description: InterfaceStatus is the current status of the interface.
                 type: string
             required:
             - error
