@@ -256,8 +256,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			"container", container,
 			"interfaceName", node.Network().WireGuard().Name(),
 			"macAddress", hwaddr.String(),
-			"ipv4Address", node.Network().WireGuard().AddressV4().String(),
-			"ipv6Address", node.Network().WireGuard().AddressV6().String(),
+			"ipv4Address", validOrNone(node.Network().WireGuard().AddressV4()),
+			"ipv4Address", validOrNone(node.Network().WireGuard().AddressV6()),
 			"networkV4", node.Network().NetworkV4().String(),
 			"networkV6", node.Network().NetworkV6().String(),
 		)
@@ -315,8 +315,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		"publicKey", encoded,
 		"wireguardPort", wireguardPort,
 		"wireguardEndpoints", wgeps,
-		"ipv4addr", node.Network().WireGuard().AddressV4().String(),
-		"ipv6addr", node.Network().WireGuard().AddressV6().String(),
+		"ipv4addr", validOrNone(node.Network().WireGuard().AddressV4()),
+		"ipv6addr", validOrNone(node.Network().WireGuard().AddressV6()),
 	)
 	err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
@@ -325,8 +325,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 			WireguardEndpoints: wgeps,
 			ZoneAwarenessID:    container.Spec.NodeName,
-			PrivateIPv4:        node.Network().WireGuard().AddressV4().String(),
-			PrivateIPv6:        node.Network().WireGuard().AddressV6().String(),
+			PrivateIPv4:        validOrEmpty(node.Network().WireGuard().AddressV4()),
+			PrivateIPv6:        validOrEmpty(node.Network().WireGuard().AddressV6()),
 		},
 	})
 	if err != nil {
@@ -411,12 +411,14 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		container.Status.MACAddress = hwaddr.String()
 		updateStatus = true
 	}
-	if container.Status.IPv4Address != node.Network().WireGuard().AddressV4().String() {
-		container.Status.IPv4Address = node.Network().WireGuard().AddressV4().String()
+	addrV4 := validOrEmpty(node.Network().WireGuard().AddressV4())
+	if container.Status.IPv4Address != addrV4 {
+		container.Status.IPv4Address = addrV4
 		updateStatus = true
 	}
-	if container.Status.IPv6Address != node.Network().WireGuard().AddressV6().String() {
-		container.Status.IPv6Address = node.Network().WireGuard().AddressV6().String()
+	addrV6 := validOrEmpty(node.Network().WireGuard().AddressV6())
+	if container.Status.IPv6Address != addrV6 {
+		container.Status.IPv6Address = addrV6
 		updateStatus = true
 	}
 	if container.Status.NetworkV4 != node.Network().NetworkV4().String() {
@@ -463,4 +465,18 @@ func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, con
 		return fmt.Errorf("failed to update status: %w", err)
 	}
 	return nil
+}
+
+func validOrEmpty(prefix netip.Prefix) string {
+	if prefix.IsValid() {
+		return prefix.String()
+	}
+	return ""
+}
+
+func validOrNone(prefix netip.Prefix) string {
+	if prefix.IsValid() {
+		return prefix.String()
+	}
+	return "none"
 }

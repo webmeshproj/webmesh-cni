@@ -156,7 +156,9 @@ $(ENVTEST): $(LOCALBIN)
 
 ##@ Local Development
 
-K3D ?= k3d
+K3D  ?= k3d
+KIND ?= kind
+
 CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
 
@@ -172,8 +174,11 @@ test-k3d: ## Create a test cluster with the WebMesh CNI installed.
 		--volume '/lib/modules:/lib/modules@server:*' \
 		--volume '/dev/net/tun:/dev/net/tun@server:*' \
 		--volume '$(CURDIR)/$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
-	kubens $(CNI_NAMESPACE)
 
+KIND_CONFIG ?= deploy/kindconfig.yaml
+test-kind:
+	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
+	
 load-k3d: docker ## Load the docker image into the test cluster.
 	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
 
@@ -183,10 +188,12 @@ test-k3d-calico: ## Create a test cluster with Calico installed. This is used fo
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
 		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*'
-	kubens $(CNI_NAMESPACE)
 
 remove-k3d: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
+
+remove-kind:
+	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
 clean: ## Remove all local binaries and release assets.
 	rm -rf $(LOCALBIN) dist
