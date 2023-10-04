@@ -26,6 +26,7 @@ import (
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -44,8 +45,64 @@ func TestReconciler(t *testing.T) {
 	NewNode = meshnode.NewTestNodeWithLogger
 
 	t.Run("ReconcileValidNodes", func(t *testing.T) {
-		_, _ = newTestManager(t)
+		_ = newTestReconcilers(t, 3)
 	})
+}
+
+func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
+	t.Helper()
+	mgr, provider := newTestManager(t)
+	var out []*PeerContainerReconciler
+	for i := 0; i < count; i++ {
+		r := &PeerContainerReconciler{
+			Client:           mgr.GetClient(),
+			Scheme:           mgr.GetScheme(),
+			Provider:         provider,
+			NodeName:         uuid.NewString(),
+			ReconcileTimeout: time.Second * 10,
+		}
+		err := r.SetupWithManager(mgr)
+		if err != nil {
+			t.Fatal("Failed to setup reconciler", err)
+		}
+		out = append(out, r)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		err := mgr.Start(ctx)
+		if err != nil {
+			t.Log("Failed to start manager", err)
+		}
+	}()
+	err := provider.StartUnmanaged(context.Background())
+	if err != nil {
+		t.Fatal("Failed to start storage provider", err)
+	}
+	t.Cleanup(func() {
+		_ = provider.Close()
+	})
+	err = provider.Bootstrap(ctx)
+	if err != nil {
+		t.Fatal("Failed to bootstrap storage provider", err)
+	}
+	networkState, err := meshstorage.Bootstrap(ctx, provider.MeshDB(), meshstorage.BootstrapOptions{
+		MeshDomain:           "cluster.local",
+		IPv4Network:          "10.42.0.0/16",
+		Admin:                meshstorage.DefaultMeshAdmin,
+		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
+		DisableRBAC:          true,
+	})
+	if err != nil {
+		t.Fatal("Failed to bootstrap network state", err)
+	}
+	for _, r := range out {
+		r.meshDomain = networkState.MeshDomain
+		r.networkV4 = networkState.NetworkV4
+		r.networkV6 = networkState.NetworkV6
+		r.ready.Store(true)
+	}
+	return out
 }
 
 func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
@@ -90,26 +147,11 @@ func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
 		LeaderElectionRetryPeriod:   time.Second * 2,
 		ShutdownTimeout:             shutdownTimeout,
 	}
-	storageProvider, err := storageprovider.NewWithManager(mgr, storageOpts)
+	provider, err := storageprovider.NewWithManager(mgr, storageOpts)
 	if err != nil {
 		t.Fatal("Failed to create storage provider", err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	t.Log("Starting manager and storage provider")
-	go func() {
-		if err := mgr.Start(ctx); err != nil {
-			t.Log("Failed to start manager:", err)
-		}
-	}()
-	err = storageProvider.StartUnmanaged(ctx)
-	if err != nil {
-		t.Fatal("Failed to start storage provider", err)
-	}
-	t.Cleanup(func() {
-		_ = storageProvider.Close()
-	})
-	return mgr, storageProvider
+	return mgr, provider
 }
 
 func newTestEnv(t *testing.T) *rest.Config {

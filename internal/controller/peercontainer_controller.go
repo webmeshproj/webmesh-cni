@@ -72,6 +72,13 @@ var NewNode = meshnode.NewWithLogger
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&cniv1.PeerContainer{}).
+		Complete(r)
+}
+
 // SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
 func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapResults) {
 	r.meshDomain = results.MeshDomain
@@ -537,11 +544,4 @@ Ports:
 		return i, nil
 	}
 	return 0, fmt.Errorf("no available ports")
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&cniv1.PeerContainer{}).
-		Complete(r)
 }
