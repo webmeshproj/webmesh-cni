@@ -65,6 +65,9 @@ type PeerContainerReconciler struct {
 	mu         sync.Mutex
 }
 
+// NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
+var NewNode = meshnode.NewWithLogger
+
 // Node wraps the meshnode.Node interface with just the methods we use internally.
 type Node interface {
 	// ID returns the node ID.
@@ -85,8 +88,7 @@ type Node interface {
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
 
-// SetNetworkState sets the network configuration to the reconciler to make it
-// ready to use.
+// SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
 func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapResults) {
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
@@ -94,8 +96,7 @@ func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapR
 	r.ready.Store(true)
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
+// Reconcile reconciles a PeerContainer.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	if !r.ready.Load() {
@@ -133,10 +134,6 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, req, &container)
 }
 
-// NewNode is the function for creating a new mesh node. Declared
-// as a variable for testing purposes.
-var NewNode = meshnode.NewWithLogger
-
 // reconcilePeerContainer reconciles the given PeerContainer.
 func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
@@ -145,6 +142,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	if r.nodes == nil {
 		r.nodes = make(map[types.NamespacedName]Node)
 	}
+
 	// Make sure the finalizer is present first.
 	if !controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
 		updated := controllerutil.AddFinalizer(container, cniv1.PeerContainerFinalizer)
@@ -156,6 +154,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			return nil
 		}
 	}
+
 	// Check if we have registered the node yet
 	id := req.NamespacedName
 	nodeID := meshtypes.NodeID(container.Spec.NodeID)
@@ -283,6 +282,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		}
 		return nil
 	}
+
 	// If the node is not started, start it.
 	if !node.Started() {
 		log.Info("Starting mesh node for container", "container", container)
@@ -366,18 +366,17 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		}
 		return nil
 	}
+
 	log.Info("Waiting for mesh node to start", "container", container)
 	select {
 	case <-node.Ready():
-		// Update the status to running and sets its IP address.
-		var updateStatus bool
 		ifname := node.Network().WireGuard().Name()
 		netv4 := node.Network().NetworkV4().String()
 		netv6 := node.Network().NetworkV6().String()
 		addrv4 := node.Network().WireGuard().AddressV4().String()
 		addrv6 := node.Network().WireGuard().AddressV6().String()
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
-		log.Info("Updating status to running",
+		log.Info("Updating container to running",
 			"container", container,
 			"interfaceName", ifname,
 			"macAddress", hwaddr.String(),
@@ -386,44 +385,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			"networkV4", netv4,
 			"networkV6", netv6,
 		)
-		if container.Status.Phase != cniv1.InterfacePhaseRunning {
-			// Update the status to running and sets its IP address.
-			container.Status.Phase = cniv1.InterfacePhaseRunning
-			updateStatus = true
-		}
-		if container.Status.MACAddress != hwaddr.String() {
-			container.Status.MACAddress = hwaddr.String()
-			updateStatus = true
-		}
-		if container.Status.IPv4Address != addrv4 {
-			container.Status.IPv4Address = addrv4
-			updateStatus = true
-		}
-		if container.Status.IPv6Address != addrv6 {
-			container.Status.IPv6Address = addrv6
-			updateStatus = true
-		}
-		if container.Status.NetworkV4 != netv4 {
-			container.Status.NetworkV4 = netv4
-			updateStatus = true
-		}
-		if container.Status.NetworkV6 != netv6 {
-			container.Status.NetworkV6 = netv6
-			updateStatus = true
-		}
-		if container.Status.InterfaceName != ifname {
-			container.Status.InterfaceName = ifname
-			updateStatus = true
-		}
-		if container.Status.Error != "" {
-			container.Status.Error = ""
-			updateStatus = true
-		}
-		log.Info("Updating container status to running", "status", container.Status)
-		if updateStatus {
-			if err := r.updateContainerStatus(ctx, container); err != nil {
-				return fmt.Errorf("failed to update status: %w", err)
-			}
+		err := r.ensureInterfaceReadyStatus(ctx, container, node)
+		if err != nil {
+			log.Error(err, "Failed to update container status", "container", container)
+			return fmt.Errorf("failed to update container status: %w", err)
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
@@ -494,6 +459,51 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 				return fmt.Errorf("failed to remove finalizer: %w", err)
 			}
 		}
+	}
+	return nil
+}
+
+func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context, container *cniv1.PeerContainer, node Node) error {
+	log := log.FromContext(ctx)
+	// Update the status to running and sets its IP address.
+	var updateStatus bool
+	if container.Status.Phase != cniv1.InterfacePhaseRunning {
+		// Update the status to running and sets its IP address.
+		container.Status.Phase = cniv1.InterfacePhaseRunning
+		updateStatus = true
+	}
+	hwaddr, _ := node.Network().WireGuard().HardwareAddr()
+	if container.Status.MACAddress != hwaddr.String() {
+		container.Status.MACAddress = hwaddr.String()
+		updateStatus = true
+	}
+	if container.Status.IPv4Address != node.Network().WireGuard().AddressV4().String() {
+		container.Status.IPv4Address = node.Network().WireGuard().AddressV4().String()
+		updateStatus = true
+	}
+	if container.Status.IPv6Address != node.Network().WireGuard().AddressV6().String() {
+		container.Status.IPv6Address = node.Network().WireGuard().AddressV6().String()
+		updateStatus = true
+	}
+	if container.Status.NetworkV4 != node.Network().NetworkV4().String() {
+		container.Status.NetworkV4 = node.Network().NetworkV4().String()
+		updateStatus = true
+	}
+	if container.Status.NetworkV6 != node.Network().NetworkV6().String() {
+		container.Status.NetworkV6 = node.Network().NetworkV6().String()
+		updateStatus = true
+	}
+	if container.Status.InterfaceName != node.Network().WireGuard().Name() {
+		container.Status.InterfaceName = node.Network().WireGuard().Name()
+		updateStatus = true
+	}
+	if container.Status.Error != "" {
+		container.Status.Error = ""
+		updateStatus = true
+	}
+	log.Info("Updating container status to running", "status", container.Status)
+	if updateStatus {
+		return r.updateContainerStatus(ctx, container)
 	}
 	return nil
 }
