@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -140,68 +139,20 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	log.Debug("Waiting for PeerContainer to be ready")
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
-	status, err := cli.WaitForRunning(ctx, args)
+	peerContainer, err := cli.WaitForRunning(ctx, args)
 	if err != nil {
 		log.Error("Failed to wait for PeerContainer to be ready", "error", err.Error())
 		err = fmt.Errorf("failed to wait for PeerContainer to be ready: %w", err)
 		return
 	}
+	ifname := peerContainer.Status.InterfaceName
 	// Parse the IP addresses from the container status.
-	log.Debug("Building container interface result from status", "status", status)
-	var ipv4net, ipv6net *net.IPNet
-	if status.IPv4Address != "" && !conf.Interface.DisableIPv4 {
-		log.Debug("Adding IPv4 address to result",
-			"ipv4-addr", status.IPv4Address,
-			"ipv4-net", status.NetworkV4,
-		)
-		ipv4net, err = netlink.ParseIPNet(status.IPv4Address)
-		if err != nil {
-			log.Error("Failed to parse IPv4 address", "error", err.Error())
-			err = fmt.Errorf("failed to parse IPv4 address: %w", err)
-			return
-		}
-		result.IPs = append(result.IPs, &cniv1.IPConfig{
-			Address: *ipv4net,
-			Gateway: ipv4net.IP, // Use system's default gateway or self?
-		})
-		var rtnet *net.IPNet
-		rtnet, err = netlink.ParseIPNet(status.NetworkV4)
-		if err != nil {
-			log.Error("Failed to parse IPv4 network", "error", err.Error())
-			err = fmt.Errorf("failed to parse IPv4 network: %w", err)
-			return
-		}
-		result.Routes = append(result.Routes, &cnitypes.Route{
-			Dst: *rtnet,
-			GW:  ipv4net.IP,
-		})
-	}
-	if status.IPv6Address != "" && !conf.Interface.DisableIPv6 {
-		log.Debug("Adding IPv6 address to result",
-			"ipv6-addr", status.IPv6Address,
-			"ipv6-net", status.NetworkV6,
-		)
-		ipv6net, err = netlink.ParseIPNet(status.IPv6Address)
-		if err != nil {
-			log.Error("Failed to parse IPv6 address", "error", err.Error())
-			err = fmt.Errorf("failed to parse IPv6 address: %w", err)
-			return
-		}
-		result.IPs = append(result.IPs, &cniv1.IPConfig{
-			Address: *ipv6net,
-			Gateway: ipv6net.IP, // Use system's default gateway or self?
-		})
-		var rtnet *net.IPNet
-		rtnet, err = netlink.ParseIPNet(status.NetworkV6)
-		if err != nil {
-			log.Error("Failed to parse IPv6 network", "error", err.Error())
-			err = fmt.Errorf("failed to parse IPv6 network: %w", err)
-			return
-		}
-		result.Routes = append(result.Routes, &cnitypes.Route{
-			Dst: *rtnet,
-			GW:  ipv6net.IP,
-		})
+	log.Debug("Building container interface result from status", "status", peerContainer.Status)
+	err = peerContainer.AppendToResults(result)
+	if err != nil {
+		log.Error("Failed to build container interface result from status", "error", err.Error())
+		err = fmt.Errorf("failed to build container interface result from status: %w", err)
+		return
 	}
 	// Move the wireguard interface to the container namespace.
 	log.Debug("Moving wireguard interface to container namespace")
@@ -211,12 +162,12 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 	defer containerNs.Close()
-	link, err := netlink.LinkByName(status.InterfaceName)
+	link, err := netlink.LinkByName(ifname)
 	if err != nil {
-		err = fmt.Errorf("failed to find %q: %v", status.InterfaceName, err)
+		err = fmt.Errorf("failed to find %q: %v", ifname, err)
 		return
 	}
-	contDev, err := moveLinkIn(link, containerNs, status.InterfaceName)
+	contDev, err := moveLinkIn(link, containerNs, ifname)
 	if err != nil {
 		err = fmt.Errorf("move link to container namespace: %v", err)
 		return

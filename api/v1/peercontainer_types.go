@@ -17,6 +17,11 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
+
+	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cniv1 "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -93,6 +98,47 @@ func (p PeerContainerStatus) HasNetworkInfo() bool {
 		p.IPv6Address != "" &&
 		p.NetworkV4 != "" &&
 		p.NetworkV6 != ""
+}
+
+// AppendToResults appends the network information to the results.
+func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
+	if p.Status.IPv4Address != "" && !p.Spec.DisableIPv4 {
+		ipv4net, err := netlink.ParseIPNet(p.Status.IPv4Address)
+		if err != nil {
+			return fmt.Errorf("failed to parse IPv4 address: %w", err)
+		}
+		result.IPs = append(result.IPs, &cniv1.IPConfig{
+			Address: *ipv4net,
+			Gateway: ipv4net.IP, // Use system's default gateway or self?
+		})
+		rtnet, err := netlink.ParseIPNet(p.Status.NetworkV4)
+		if err != nil {
+			return fmt.Errorf("failed to parse IPv4 network: %w", err)
+		}
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: *rtnet,
+			GW:  ipv4net.IP,
+		})
+	}
+	if p.Status.IPv6Address != "" && !p.Spec.DisableIPv6 {
+		ipv6net, err := netlink.ParseIPNet(p.Status.IPv6Address)
+		if err != nil {
+			return fmt.Errorf("failed to parse IPv6 address: %w", err)
+		}
+		result.IPs = append(result.IPs, &cniv1.IPConfig{
+			Address: *ipv6net,
+			Gateway: ipv6net.IP, // Use system's default gateway or self?
+		})
+		rtnet, err := netlink.ParseIPNet(p.Status.NetworkV6)
+		if err != nil {
+			return fmt.Errorf("failed to parse IPv6 network: %w", err)
+		}
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: *rtnet,
+			GW:  ipv6net.IP,
+		})
+	}
+	return nil
 }
 
 //+kubebuilder:object:root=true

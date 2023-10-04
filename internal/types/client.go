@@ -158,13 +158,13 @@ func (c *Client) DeletePeerContainer(ctx context.Context, args *skel.CmdArgs) er
 }
 
 // WaitForRunning is a helper function that waits for the container to be running.
-func (c *Client) WaitForRunning(ctx context.Context, args *skel.CmdArgs) (*meshcniv1.PeerContainerStatus, error) {
+func (c *Client) WaitForRunning(ctx context.Context, args *skel.CmdArgs) (*meshcniv1.PeerContainer, error) {
 	return c.WaitForStatus(ctx, args, meshcniv1.InterfaceStatusRunning)
 }
 
 // WaitForStatus is a helper function that waits for the given status to be true on the container
 // for the given args. The status is returned if it is true before the timeout.
-func (c *Client) WaitForStatus(ctx context.Context, args *skel.CmdArgs, status meshcniv1.InterfaceStatus) (*meshcniv1.PeerContainerStatus, error) {
+func (c *Client) WaitForStatus(ctx context.Context, args *skel.CmdArgs, status meshcniv1.InterfaceStatus) (*meshcniv1.PeerContainer, error) {
 	// Do a quick check to see if the container is already in the desired state.
 	container, err := c.GetPeerContainer(ctx, args)
 	if err != nil {
@@ -172,7 +172,7 @@ func (c *Client) WaitForStatus(ctx context.Context, args *skel.CmdArgs, status m
 			return nil, err
 		}
 	} else if err == nil && container.Status.InterfaceStatus == status {
-		return &container.Status, nil
+		return container, nil
 	}
 	for {
 		select {
@@ -183,7 +183,7 @@ func (c *Client) WaitForStatus(ctx context.Context, args *skel.CmdArgs, status m
 			if err != nil && !IsPeerContainerNotFound(err) {
 				return nil, err
 			} else if err == nil && container.Status.InterfaceStatus == status {
-				return &container.Status, nil
+				return container, nil
 			}
 		}
 	}

@@ -414,14 +414,14 @@ func TestClient(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
 				// Wait for Running should time out as the status is not set.
-				status, err := cniclient.WaitForRunning(ctx, args)
+				container, err = cniclient.WaitForRunning(ctx, args)
 				if err != nil {
 					t.Fatal("Failed to wait for running", err)
 				}
-				if status.IPv4Address != "test-ipv4" {
+				if container.Status.IPv4Address != "test-ipv4" {
 					t.Fatal("Expected IPv4 address to be set")
 				}
-				if status.IPv6Address != "test-ipv6" {
+				if container.Status.IPv6Address != "test-ipv6" {
 					t.Fatal("Expected IPv6 address to be set")
 				}
 				// Do a raw test of the equivalent to better test real eventuality.
@@ -450,14 +450,14 @@ func TestClient(t *testing.T) {
 					ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 					defer cancel()
 					// Wait for Running should time out as the status is not set.
-					status, err := cniclient.WaitForRunning(ctx, args)
+					got, err := cniclient.WaitForRunning(ctx, args)
 					if err != nil {
 						t.Fatal("Failed to wait for running", err)
 					}
-					if status.IPv4Address != "test-ipv4" {
+					if got.Status.IPv4Address != "test-ipv4" {
 						t.Fatal("Expected IPv4 address to be set")
 					}
-					if status.IPv6Address != "test-ipv6" {
+					if got.Status.IPv6Address != "test-ipv6" {
 						t.Fatal("Expected IPv6 address to be set")
 					}
 				})
