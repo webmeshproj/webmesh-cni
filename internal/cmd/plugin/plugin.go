@@ -79,8 +79,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Webmesh CNI panicked during ADD: %s\nStack trace:\n%s", e, string(debug.Stack()))
 			if err != nil {
-				// If we're recovering and there was also an error, then we need to
-				// present both.
+				// If we're recovering and there was also an error, then we need to present both.
 				msg = fmt.Sprintf("%s: error=%s", msg, err)
 			}
 			err = fmt.Errorf(msg)
@@ -135,7 +134,6 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 	// Wait for the PeerContainer to be ready.
-	// TODO: Put into client.
 	log.Debug("Waiting for PeerContainer to be ready")
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
@@ -180,9 +178,8 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	return
 }
 
-// cmdCheck is the CNI CHECK command handler.
-// Most implementations do a dummy check like this.
-// TODO: This should be used to check if there are new routes to track.
+// cmdCheck is the CNI CHECK command handler. Most implementations do a dummy check like this.
+// TODO: This could be used to check if there are new routes to track.
 func cmdCheck(args *skel.CmdArgs) (err error) {
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
@@ -233,8 +230,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		if e := recover(); e != nil {
 			msg := fmt.Sprintf("Webmesh CNI panicked during DEL: %s\nStack trace:\n%s", e, string(debug.Stack()))
 			if err != nil {
-				// If we're recovering and there was also an error, then we need to
-				// present both.
+				// If we're recovering and there was also an error, then we need to present both.
 				msg = fmt.Sprintf("%s: error=%s", msg, err)
 			}
 			err = fmt.Errorf(msg)
@@ -283,6 +279,8 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	err = cli.DeletePeerContainer(ctx, args)
 	if err != nil && client.IgnoreNotFound(err) != nil {
 		log.Error("Failed to delete PeerContainer", "error", err.Error())
+		err = fmt.Errorf("failed to delete PeerContainer: %w", err)
+		return
 	}
 	fmt.Println("OK")
 	return
