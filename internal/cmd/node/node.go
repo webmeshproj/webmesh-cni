@@ -184,7 +184,8 @@ func Main(build version.BuildInfo) {
 	}
 
 	// TODO: Register a cleanup function to remove the node and all containers
-	// when the manager is shutting down.
+	// when the node itself is shutting down. Otherwise hopefully a restart
+	// will bring things back to the correct state.
 
 	donec := make(chan struct{})
 	go func() {
