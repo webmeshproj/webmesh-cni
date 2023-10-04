@@ -44,6 +44,7 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 	"github.com/webmeshproj/webmesh-cni/internal/types"
+	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 var (
@@ -58,7 +59,7 @@ func init() {
 }
 
 // Main runs the webmesh-cni daemon.
-func Main(version string) {
+func Main(build version.BuildInfo) {
 	// Parse flags and setup logging.
 	var (
 		namespace                string
@@ -111,7 +112,7 @@ func Main(version string) {
 		os.Exit(1)
 	}
 
-	setupLog.Info("Starting webmesh-cni node", "version", version)
+	setupLog.Info("Starting webmesh-cni node", "version", build)
 
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()

@@ -22,11 +22,12 @@ import (
 	"os"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
+	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 // Main ensures the CNI binaries and configuration are installed on the host system.
-func Main(version string) {
-	log.Println("installing webmesh-cni, version:", version)
+func Main(version version.BuildInfo) {
+	log.Printf("installing webmesh-cni, version: %+v", version)
 	conf, err := types.LoadInstallOptionsFromEnv()
 	if err != nil {
 		log.Println("error loading install options from environment:", err)

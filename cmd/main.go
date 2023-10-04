@@ -29,15 +29,16 @@ import (
 
 func main() {
 	// We run the entrypoint based on how we were invoked.
+	version := version.GetBuildInfo()
 	switch filepath.Base(os.Args[0]) {
 	case "webmesh":
-		plugin.Main(version.Version)
+		plugin.Main(version)
 	case "webmesh-cni-node", "webmesh-node":
-		node.Main(version.Version)
+		node.Main(version)
 	case "webmesh-cni-install":
-		install.Main(version.Version)
+		install.Main(version)
 	default:
 		// We were invoked as a passthrough plugin.
-		plugin.Main(version.Version)
+		plugin.Main(version)
 	}
 }

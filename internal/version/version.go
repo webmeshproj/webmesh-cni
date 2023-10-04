@@ -23,3 +23,19 @@ var (
 	Commit    = "unknown"
 	BuildDate = "unknown"
 )
+
+// BuildInfo contains the build-time version information.
+type BuildInfo struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	BuildDate string `json:"buildDate"`
+}
+
+// GetBuildInfo returns the build-time version information.
+func GetBuildInfo() BuildInfo {
+	return BuildInfo{
+		Version:   Version,
+		Commit:    Commit,
+		BuildDate: BuildDate,
+	}
+}

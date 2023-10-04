@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
+	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
@@ -59,8 +60,8 @@ func init() {
 }
 
 // Main is the entrypoint for the webmesh-cni plugin.
-func Main(version string) {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version)
+func Main(version version.BuildInfo) {
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version.Version)
 }
 
 // cmdAdd is the CNI ADD command handler.
