@@ -151,45 +151,32 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	if !ok {
 		// We need to create the node.
 		log.Info("Mesh node for container not found, we must need to create it", "container", id)
-		// Detect the current endpoints on the machine.
-		eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
-			DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
-			DetectIPv6:           !container.Spec.DisableIPv6,
-			AllowRemoteDetection: r.RemoteEndpointDetection,
-			SkipInterfaces: func() []string {
-				var out []string
-				for _, n := range r.nodes {
-					if n.Started() {
-						out = append(out, n.Network().WireGuard().Name())
-					}
-				}
-				return out
-			}(),
-		})
-		if err != nil {
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to detect endpoints: %w", err)
-		}
-		// Get the next available wireguard port.
-		wireguardPort, err := r.nextAvailableWireGuardPort()
-		if err != nil {
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to get next available wireguard port: %w", err)
-		}
-		var wgeps []string
-		for _, ep := range eps.AddrPorts(wireguardPort) {
-			wgeps = append(wgeps, ep.String())
-		}
 		key, err := crypto.GenerateKey()
 		if err != nil {
 			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to generate key: %w", err)
 		}
-		encoded, err := key.PublicKey().Encode()
-		if err != nil {
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to encode public key: %w", err)
+		// Create the mesh node.
+		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
+			Key:             key,
+			NodeID:          nodeID.String(),
+			ZoneAwarenessID: container.Spec.NodeName,
+			DisableIPv4:     container.Spec.DisableIPv4,
+			DisableIPv6:     container.Spec.DisableIPv6,
+		})
+		// Update the status to created.
+		log.Info("Updating container status to created")
+		container.Status.InterfaceStatus = cniv1.InterfaceStatusCreated
+		if err := r.updateContainerStatus(ctx, container); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
 		}
+		return nil
+	}
+
+	// If the node is not started, start it.
+	if !node.Started() {
+		log.Info("Starting mesh node for container", "container", container)
+		// Get the next available IPv4 address if requested.
 		var ipv4addr string
 		if !container.Spec.DisableIPv4 {
 			// If the container does not have an IPv4 address and we are not disabling
@@ -207,113 +194,16 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			}
 			ipv4addr = alloc.GetIp()
 		}
-		// Try to register this node as a peer directly via the API.
-		log.Info("Registering peer",
-			"nodeID", nodeID,
-			"publicKey", encoded,
-			"wireguardPort", wireguardPort,
-			"wireguardEndpoints", wgeps,
-			"ipv4addr", ipv4addr,
-			"ipv6addr", netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String(),
-		)
-		err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
-			MeshNode: &v1.MeshNode{
-				Id:                 nodeID.String(),
-				PublicKey:          encoded,
-				PrimaryEndpoint:    eps.FirstPublicAddr().String(),
-				WireguardEndpoints: wgeps,
-				ZoneAwarenessID:    container.Spec.NodeName,
-				PrivateIPv4:        ipv4addr,
-				PrivateIPv6:        netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String(),
-			},
-		})
-		if err != nil {
-			log.Error(err, "Failed to register peer", "container", container)
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to register peer: %w", err)
-		}
-		// Create edges for all other nodes in the same zone.
-		log.Info("Determining current local peers")
-		peers, err := r.Provider.MeshDB().Peers().List(
-			ctx,
-			meshstorage.FilterAgainstNode(nodeID),
-			meshstorage.FilterByZoneID(container.Spec.NodeName),
-		)
-		if err != nil {
-			log.Error(err, "Failed to list peers", "container", container)
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to list peers: %w", err)
-		}
-		for _, peer := range peers {
-			log.Info("Adding edge to peer", "peer", peer)
-			if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
-				Source: nodeID.String(),
-				Target: peer.NodeID().String(),
-			}}); err != nil {
-				r.setFailedStatus(ctx, container, err)
-				return fmt.Errorf("failed to create edge: %w", err)
-			}
-		}
-		// Create the mesh node.
-		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
-			Key:             key,
-			NodeID:          nodeID.String(),
-			ZoneAwarenessID: container.Spec.NodeName,
-			DisableIPv4:     container.Spec.DisableIPv4,
-			DisableIPv6:     container.Spec.DisableIPv6,
-		})
-		// Update the status to created.
-		log.Info("Updating container status to created")
-		container.Status.InterfaceStatus = cniv1.InterfaceStatusCreated
-		container.Status.IPv4Address = ipv4addr
-		if err := r.updateContainerStatus(ctx, container); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
-		}
-		return nil
-	}
-
-	// If the node is not started, start it.
-	if !node.Started() {
-		log.Info("Starting mesh node for container", "container", container)
-		peer, err := r.Provider.MeshDB().Peers().Get(ctx, nodeID)
-		if err != nil {
-			log.Error(err, "Failed to get peer", "container", container)
-			r.setFailedStatus(ctx, container, err)
-			return fmt.Errorf("failed to get peer for container: %w", err)
-		}
-		key, err := crypto.DecodePublicKey(peer.PublicKey)
-		if err != nil {
-			// This should never happen, but if it does, we need to delete the peer
-			// from the database.
-			log.Error(err, "Failed to decode public key", "container", container)
-			delErr := r.Provider.MeshDB().Peers().Delete(ctx, nodeID)
-			if delErr != nil {
-				log.Error(delErr, "Failed to delete peer", "container", container)
-			}
-			r.setFailedStatus(ctx, container, err)
-			// Create a new node on the next reconcile.
-			delete(r.nodes, id)
-			return fmt.Errorf("failed to decode public key: %w", err)
-		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
-			// Build the current network topology and return to the peer. They'll use
-			// the storage provider to subscribe to changes.
-			log.Info("Returning current network topology to peer", "container", container)
-			peers, err := meshnet.WireGuardPeersFor(ctx, r.Provider.MeshDB(), nodeID)
-			if err != nil {
-				log.Error(err, "Failed to get peers for join response", "container", container)
-				return nil, fmt.Errorf("failed to get peers: %w", err)
-			}
 			return &v1.JoinResponse{
 				MeshDomain:  r.meshDomain,
 				NetworkIPv4: r.networkV4.String(),
 				NetworkIPv6: r.networkV6.String(),
-				AddressIPv6: netutil.AssignToPrefix(r.networkV6, key).String(),
-				AddressIPv4: container.Status.IPv4Address,
-				Peers:       peers,
+				AddressIPv6: netutil.AssignToPrefix(r.networkV6, node.Key().PublicKey()).String(),
+				AddressIPv4: ipv4addr,
 			}, nil
 		})
-		err = node.Connect(ctx, meshnode.ConnectOptions{
+		err := node.Connect(ctx, meshnode.ConnectOptions{
 			StorageProvider:  r.Provider,
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
@@ -321,7 +211,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				Modprobe:              true,
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
-				ListenPort:            int(peer.WireGuardPort()),
+				ListenPort:            0, // Let the system decide
 				MTU:                   container.Spec.MTU,
 				RecordMetrics:         false, // Maybe by configuration?
 				RecordMetricsInterval: 0,
@@ -357,7 +247,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		return nil
 	}
 
-	log.Info("Waiting for mesh node to start", "container", container)
+	log.Info("Waiting for mesh node to be ready", "container", container)
+
 	select {
 	case <-node.Ready():
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
@@ -383,9 +274,66 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		return ctx.Err()
 	}
 
-	// Anything else from here on out is non-fatal from an interface perspective.
-	// So we don't touch the status and just log errors.
+	// Register the node to the storage provider.
 
+	wireguardPort, err := node.Network().WireGuard().ListenPort()
+	if err != nil {
+		r.setFailedStatus(ctx, container, err)
+		return fmt.Errorf("failed to get wireguard port: %w", err)
+	}
+	encoded, err := node.Key().PublicKey().Encode()
+	if err != nil {
+		r.setFailedStatus(ctx, container, err)
+		return fmt.Errorf("failed to encode public key: %w", err)
+	}
+	// Detect the current endpoints on the machine.
+	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
+		DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
+		DetectIPv6:           !container.Spec.DisableIPv6,
+		AllowRemoteDetection: r.RemoteEndpointDetection,
+		SkipInterfaces: func() []string {
+			var out []string
+			for _, n := range r.nodes {
+				if n.Started() {
+					out = append(out, n.Network().WireGuard().Name())
+				}
+			}
+			return out
+		}(),
+	})
+	if err != nil {
+		r.setFailedStatus(ctx, container, err)
+		return fmt.Errorf("failed to detect endpoints: %w", err)
+	}
+	var wgeps []string
+	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {
+		wgeps = append(wgeps, ep.String())
+	}
+	// Try to register this node as a peer directly via the API.
+	log.Info("Registering peer",
+		"nodeID", nodeID,
+		"publicKey", encoded,
+		"wireguardPort", wireguardPort,
+		"wireguardEndpoints", wgeps,
+		"ipv4addr", node.Network().WireGuard().AddressV4().String(),
+		"ipv6addr", node.Network().WireGuard().AddressV6().String(),
+	)
+	err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
+		MeshNode: &v1.MeshNode{
+			Id:                 nodeID.String(),
+			PublicKey:          encoded,
+			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
+			WireguardEndpoints: wgeps,
+			ZoneAwarenessID:    container.Spec.NodeName,
+			PrivateIPv4:        node.Network().WireGuard().AddressV4().String(),
+			PrivateIPv6:        node.Network().WireGuard().AddressV6().String(),
+		},
+	})
+	if err != nil {
+		log.Error(err, "Failed to register peer", "container", container)
+		r.setFailedStatus(ctx, container, err)
+		return fmt.Errorf("failed to register peer: %w", err)
+	}
 	// Make sure all MeshEdges are up to date for this node.
 	log.Info("Forcing sync of peers and topology")
 	peers, err := r.Provider.MeshDB().Peers().List(
@@ -409,7 +357,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	// Force a sync of the node.
 	err = node.Network().Peers().Sync(ctx)
 	if err != nil {
-		log.Error(err, "Failed to sync peers", "container", container)
+		log.Error(err, "Failed to sysnc peers", "container", container)
 		// We don't return an error because the peer will eventually sync on its own.
 	}
 	return nil
@@ -515,31 +463,4 @@ func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, con
 		return fmt.Errorf("failed to update status: %w", err)
 	}
 	return nil
-}
-
-func (r *PeerContainerReconciler) nextAvailableWireGuardPort() (uint16, error) {
-	const startPort uint16 = 51820
-	const endPort uint16 = 65535
-	// Fast path if there are no nodes.
-	if len(r.nodes) == 0 {
-		return startPort, nil
-	}
-Ports:
-	for i := startPort; i <= endPort; i++ {
-	Nodes:
-		for _, node := range r.nodes {
-			if !node.Started() {
-				continue Nodes
-			}
-			lport, err := node.Network().WireGuard().ListenPort()
-			if err != nil {
-				return 0, fmt.Errorf("get listen port from %s: %w", node.ID(), err)
-			}
-			if uint16(lport) == i {
-				continue Ports
-			}
-		}
-		return i, nil
-	}
-	return 0, fmt.Errorf("no available ports")
 }
