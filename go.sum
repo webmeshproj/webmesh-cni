@@ -370,8 +370,6 @@ github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1/go.mod h1:pD8Rv
 github.com/minio/sha256-simd v0.1.1-0.20190913151208-6de447530771/go.mod h1:B5e1o+1/KgNmWrSQK08Y6Z1Vb5pwIktudl0J58iy0KM=
 github.com/minio/sha256-simd v1.0.1 h1:6kaan5IFmwTNynnKKpDHe6FWHohJOHhCPchzK49dzMM=
 github.com/minio/sha256-simd v1.0.1/go.mod h1:Pz6AKMiUdngCLpeTL/RJY1M9rUuPMYujV5xJjtbRSN8=
-github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
-github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
@@ -601,12 +599,10 @@ github.com/warpfork/go-wish v0.0.0-20220906213052-39a1cc7a02d0 h1:GDDkbFiaK8jsSD
 github.com/warpfork/go-wish v0.0.0-20220906213052-39a1cc7a02d0/go.mod h1:x6AKhvSSexNrVSrViXSHUEbICjmGXhtgABaHIySUSGw=
 github.com/webmeshproj/api v0.7.0 h1:l7DPa7MJFwcMBnALqPlCjk91OX8DyY9jWlaXhetZ+Tk=
 github.com/webmeshproj/api v0.7.0/go.mod h1:Ia4HoAMgOsclInabO+p7SvaRnMmE00DTLz9SS14zcwU=
-github.com/webmeshproj/storage-provider-k8s v0.0.1 h1:xn+b5CdEE//FRJZRR4qw/19GKfqTIbu5jGz56pVe6co=
-github.com/webmeshproj/storage-provider-k8s v0.0.1/go.mod h1:LDaAQjuyx5h0s5KnU6uHEfT9amSqtofpfGeleHxruZc=
-github.com/webmeshproj/webmesh v0.10.5 h1:pt04ZCV/tnUTUkP1qw9CehIOAlSH37EQ5U/LpRygfQ0=
-github.com/webmeshproj/webmesh v0.10.5/go.mod h1:FNklP9vzzgpAn0KLMBnrac4gC4uvrzR1M97f+hpvajY=
-github.com/webmeshproj/webmesh v0.10.6-0.20231004170614-2ba73b735b35 h1:GffumzBkkRt3sNY3IuWDrmJpXOAxM7SAklAZOeqhf5A=
-github.com/webmeshproj/webmesh v0.10.6-0.20231004170614-2ba73b735b35/go.mod h1:FNklP9vzzgpAn0KLMBnrac4gC4uvrzR1M97f+hpvajY=
+github.com/webmeshproj/storage-provider-k8s v0.0.2-0.20231004221713-02169c3965da h1:iBmX/f58sTlptKagTccxsjodgpZdjznD3qkS5nGUFG8=
+github.com/webmeshproj/storage-provider-k8s v0.0.2-0.20231004221713-02169c3965da/go.mod h1:ZivbYfDwCjvvpt8Pf2cXdthoHGr1jHICepgEwbrQZ5Q=
+github.com/webmeshproj/webmesh v0.10.6-0.20231004220644-db2099bb668d h1:yQ2sw2o5nkERDHWmuE3H6/Slxj/qIjIfn9mkWt3CZJY=
+github.com/webmeshproj/webmesh v0.10.6-0.20231004220644-db2099bb668d/go.mod h1:FNklP9vzzgpAn0KLMBnrac4gC4uvrzR1M97f+hpvajY=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 h1:EKhdznlJHPMoKr0XTrX+IlJs1LH3lyx2nfr1dOlZ79k=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1/go.mod h1:8UvriyWtv5Q5EOgjHaSseUEdkQfvwFv1I/In/O2M9gc=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

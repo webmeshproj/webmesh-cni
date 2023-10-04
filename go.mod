@@ -8,8 +8,8 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
-	github.com/webmeshproj/storage-provider-k8s v0.0.1
-	github.com/webmeshproj/webmesh v0.10.6-0.20231004170614-2ba73b735b35
+	github.com/webmeshproj/storage-provider-k8s v0.0.2-0.20231004221713-02169c3965da
+	github.com/webmeshproj/webmesh v0.10.6-0.20231004220644-db2099bb668d
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
@@ -112,7 +112,6 @@ require (
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
