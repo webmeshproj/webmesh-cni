@@ -39,7 +39,7 @@ type MockNode struct {
 	mu          sync.Mutex
 }
 
-// NewMockNode returns a new mock node.
+// NewMockNode returns a new mock node. It matches the NewNodeWithLogger signature.
 func NewMockNode(log *slog.Logger, opts meshnode.Config) Node {
 	return &MockNode{
 		nodeID: meshtypes.NodeID(opts.NodeID),

@@ -302,6 +302,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				log.Error(delErr, "Failed to delete peer", "container", container)
 			}
 			r.setFailedStatus(ctx, container, err)
+			// Create a new node on the next reconcile.
 			delete(r.nodes, id)
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
@@ -354,7 +355,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if err != nil {
 			log.Error(err, "Failed to connect meshnode", "container", container)
 			r.setFailedStatus(ctx, container, err)
-			// Try again on the next reconcile.
+			// Create a new node on the next reconcile.
 			delete(r.nodes, id)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
@@ -370,20 +371,15 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	log.Info("Waiting for mesh node to start", "container", container)
 	select {
 	case <-node.Ready():
-		ifname := node.Network().WireGuard().Name()
-		netv4 := node.Network().NetworkV4().String()
-		netv6 := node.Network().NetworkV6().String()
-		addrv4 := node.Network().WireGuard().AddressV4().String()
-		addrv6 := node.Network().WireGuard().AddressV6().String()
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
-		log.Info("Updating container to running",
+		log.Info("Node is running",
 			"container", container,
-			"interfaceName", ifname,
+			"interfaceName", node.Network().WireGuard().Name(),
 			"macAddress", hwaddr.String(),
-			"ipv4Address", addrv4,
-			"ipv6Address", addrv6,
-			"networkV4", netv4,
-			"networkV6", netv6,
+			"ipv4Address", node.Network().WireGuard().AddressV4().String(),
+			"ipv6Address", node.Network().WireGuard().AddressV6().String(),
+			"networkV4", node.Network().NetworkV4().String(),
+			"networkV6", node.Network().NetworkV6().String(),
 		)
 		err := r.ensureInterfaceReadyStatus(ctx, container, node)
 		if err != nil {
@@ -394,6 +390,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		// Update the status to failed.
 		log.Error(ctx.Err(), "Timed out waiting for mesh node to start", "container", container)
 		r.setFailedStatus(ctx, container, ctx.Err())
+		// Don't delete the node, maybe it'll be ready on the next reconcile.
 		return ctx.Err()
 	}
 
@@ -501,8 +498,8 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		container.Status.Error = ""
 		updateStatus = true
 	}
-	log.Info("Updating container status to running", "status", container.Status)
 	if updateStatus {
+		log.Info("Updating container status to running", "status", container.Status)
 		return r.updateContainerStatus(ctx, container)
 	}
 	return nil
