@@ -24,10 +24,15 @@ import (
 type InterfacePhase string
 
 const (
-	InterfaceStatusCreated  InterfacePhase = "Created"
-	InterfaceStatusStarting InterfacePhase = "Starting"
-	InterfaceStatusRunning  InterfacePhase = "Running"
-	InterfaceStatusFailed   InterfacePhase = "Failed"
+	InterfacePhaseCreated  InterfacePhase = "Created"
+	InterfacePhaseStarting InterfacePhase = "Starting"
+	InterfacePhaseRunning  InterfacePhase = "Running"
+	InterfacePhaseFailed   InterfacePhase = "Failed"
+)
+
+const (
+	// FieldOwner is the field owner for CNI objects.
+	FieldOwner = "webmesh-cni"
 )
 
 // PeerContainerSpec defines the desired state of PeerContainer

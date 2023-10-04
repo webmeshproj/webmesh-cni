@@ -250,7 +250,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 				return fmt.Errorf("failed to create edge: %w", err)
 			}
 		}
-		log.Info("Updating status to created")
+		// Create the mesh node.
 		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          nodeID.String(),
@@ -259,9 +259,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			DisableIPv6:     container.Spec.DisableIPv6,
 		})
 		// Update the status to created.
-		container.Status.Phase = cniv1.InterfaceStatusCreated
+		log.Info("Updating container status to created")
+		container.Status.Phase = cniv1.InterfacePhaseCreated
 		container.Status.IPv4Address = ipv4addr
-		if err := r.Status().Update(ctx, container); err != nil {
+		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 		return nil
@@ -342,9 +343,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
-		log.Info("Updating status to starting")
-		container.Status.Phase = cniv1.InterfaceStatusStarting
-		if err := r.Status().Update(ctx, container); err != nil {
+		log.Info("Updating container status to starting")
+		container.Status.Phase = cniv1.InterfacePhaseStarting
+		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 		return nil
@@ -369,9 +370,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			"networkV4", netv4,
 			"networkV6", netv6,
 		)
-		if container.Status.Phase != cniv1.InterfaceStatusRunning {
+		if container.Status.Phase != cniv1.InterfacePhaseRunning {
 			// Update the status to running and sets its IP address.
-			container.Status.Phase = cniv1.InterfaceStatusRunning
+			container.Status.Phase = cniv1.InterfacePhaseRunning
 			updateStatus = true
 		}
 		if container.Status.MACAddress != hwaddr.String() {
@@ -402,9 +403,9 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 			container.Status.Error = ""
 			updateStatus = true
 		}
-		log.V(1).Info("Setting new status", "status", container.Status)
+		log.Info("Updating container status to running", "status", container.Status)
 		if updateStatus {
-			if err := r.Status().Update(ctx, container); err != nil {
+			if err := r.updateContainerStatus(ctx, container); err != nil {
 				return fmt.Errorf("failed to update status: %w", err)
 			}
 		}
@@ -471,10 +472,25 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 	return nil
 }
 
+func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, container *cniv1.PeerContainer) error {
+	container.SetManagedFields(nil)
+	err := r.Status().Patch(ctx,
+		container,
+		client.Apply,
+		client.ForceOwnership,
+		client.FieldOwner(cniv1.FieldOwner),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
+	}
+	return nil
+}
+
 func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
-	container.Status.Phase = cniv1.InterfaceStatusFailed
+	container.Status.Phase = cniv1.InterfacePhaseFailed
 	container.Status.Error = reason.Error()
-	if err := r.Status().Update(ctx, container); err != nil {
+	err := r.updateContainerStatus(ctx, container)
+	if err != nil {
 		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
 	}
 }

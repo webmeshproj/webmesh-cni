@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -140,14 +142,14 @@ func TestClient(t *testing.T) {
 				Namespace: "default",
 			},
 		}
-		client, err := NewClientForConfig(ClientConfig{
+		cniclient, err := NewClientForConfig(ClientConfig{
 			NetConf:    netConf,
 			RestConfig: cfg,
 		})
 		if err != nil {
 			t.Fatal("Failed to create client", err)
 		}
-		if err := client.Ping(time.Second); err != nil {
+		if err := cniclient.Ping(time.Second); err != nil {
 			t.Fatal("Failed to ping API server", err)
 		}
 
@@ -157,7 +159,7 @@ func TestClient(t *testing.T) {
 				Netns:       "/proc/1/ns/net",
 			}
 			expectedContainer := netConf.ContainerFromArgs(args)
-			err := client.CreatePeerContainer(context.Background(), args)
+			err := cniclient.CreatePeerContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to create peer container", err)
 			}
@@ -165,7 +167,7 @@ func TestClient(t *testing.T) {
 			// match the expected container.
 			var container *meshcniv1.PeerContainer
 			ok := testutil.Eventually[error](func() error {
-				container, err = client.GetPeerContainer(context.Background(), args)
+				container, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldNotError(time.Second*10, time.Second)
 			if !ok {
@@ -184,7 +186,7 @@ func TestClient(t *testing.T) {
 			}
 			// Make the container ID invalid and try to get it again.
 			args.ContainerID = "invalid/container/id"
-			err = client.CreatePeerContainer(context.Background(), args)
+			err = cniclient.CreatePeerContainer(context.Background(), args)
 			if err == nil {
 				t.Fatal("Expected error for invalid container ID")
 			}
@@ -195,13 +197,13 @@ func TestClient(t *testing.T) {
 				ContainerID: "get-container-a",
 				Netns:       "/proc/1/ns/net",
 			}
-			err := client.CreatePeerContainer(context.Background(), args)
+			err := cniclient.CreatePeerContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to create peer container", err)
 			}
 			// We should eventually be able to get the container back.
 			ok := testutil.Eventually[error](func() error {
-				_, err = client.GetPeerContainer(context.Background(), args)
+				_, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldNotError(time.Second*10, time.Second)
 			if !ok {
@@ -209,7 +211,7 @@ func TestClient(t *testing.T) {
 			}
 			// Try to get a non-existent container.
 			args.ContainerID = "non-existent-container"
-			_, err = client.GetPeerContainer(context.Background(), args)
+			_, err = cniclient.GetPeerContainer(context.Background(), args)
 			if err == nil {
 				t.Fatal("Expected error for non-existent container")
 			}
@@ -224,26 +226,26 @@ func TestClient(t *testing.T) {
 				ContainerID: "delete-container-a",
 				Netns:       "/proc/1/ns/net",
 			}
-			err := client.CreatePeerContainer(context.Background(), args)
+			err := cniclient.CreatePeerContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to create peer container", err)
 			}
 			// We should eventually be able to get the container back.
 			ok := testutil.Eventually[error](func() error {
-				_, err = client.GetPeerContainer(context.Background(), args)
+				_, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldNotError(time.Second*10, time.Second)
 			if !ok {
 				t.Fatal("Failed to get peer container", err)
 			}
 			// Delete the container.
-			err = client.DeletePeerContainer(context.Background(), args)
+			err = cniclient.DeletePeerContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to delete peer container", err)
 			}
 			// The container should eventually be gone
 			ok = testutil.Eventually[error](func() error {
-				_, err = client.GetPeerContainer(context.Background(), args)
+				_, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldError(time.Second*10, time.Second)
 			if !ok {
@@ -255,40 +257,40 @@ func TestClient(t *testing.T) {
 			}
 			// Deleting non-existent containers should not fail.
 			args.ContainerID = "non-existent-container"
-			err = client.DeletePeerContainer(context.Background(), args)
+			err = cniclient.DeletePeerContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to delete peer container", err)
 			}
 		})
 
-		t.Run("CreateIfNotExists", func(t *testing.T) {
+		t.Run("EnsurePeerContainer", func(t *testing.T) {
 			// This test behaves more or less like the CreatePeerContainer test, but
 			// should only create the container once.
 			args := &skel.CmdArgs{
 				ContainerID: "create-not-exists-container-a",
 				Netns:       "/proc/1/ns/net",
 			}
-			err := client.CreatePeerContainerIfNotExists(context.Background(), args)
+			err := cniclient.EnsureContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to create peer container", err)
 			}
 			var container1 *meshcniv1.PeerContainer
 			// We should eventually be able to get the container back.
 			ok := testutil.Eventually[error](func() error {
-				container1, err = client.GetPeerContainer(context.Background(), args)
+				container1, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldNotError(time.Second*10, time.Second)
 			if !ok {
 				t.Fatal("Failed to get peer container", err)
 			}
 			// Furhter calls should not mutate the container.
-			err = client.CreatePeerContainerIfNotExists(context.Background(), args)
+			err = cniclient.EnsureContainer(context.Background(), args)
 			if err != nil {
 				t.Fatal("Failed to create peer container", err)
 			}
 			var container2 *meshcniv1.PeerContainer
 			ok = testutil.Eventually[error](func() error {
-				container2, err = client.GetPeerContainer(context.Background(), args)
+				container2, err = cniclient.GetPeerContainer(context.Background(), args)
 				return err
 			}).ShouldNotError(time.Second*10, time.Second)
 			if !ok {
@@ -297,6 +299,169 @@ func TestClient(t *testing.T) {
 			if container1.GetResourceVersion() != container2.GetResourceVersion() {
 				t.Fatal("Expected container to not be mutated")
 			}
+		})
+
+		t.Run("WaitForStatus", func(t *testing.T) {
+			t.Run("Timeout", func(t *testing.T) {
+				args := &skel.CmdArgs{
+					ContainerID: "timeout-container",
+					Netns:       "/proc/1/ns/net",
+				}
+				err = cniclient.CreatePeerContainer(context.Background(), args)
+				if err != nil {
+					t.Fatal("Failed to create peer container", err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				// Wait for Running should time out as the status is not set.
+				_, err = cniclient.WaitForRunning(ctx, args)
+				if err == nil {
+					t.Fatal("Expected error for timeout")
+				} else if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal("Expected context error, got:", err)
+				}
+				// Try again with a higher timeout in a best-effort to get full coverage on the select.
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second*2)
+				defer cancel()
+				// Wait for Running should time out as the status is not set.
+				_, err = cniclient.WaitForRunning(ctx, args)
+				if err == nil {
+					t.Fatal("Expected error for timeout")
+				} else if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal("Expected context error, got:", err)
+				}
+			})
+
+			t.Run("StatusNotReached", func(t *testing.T) {
+				args := &skel.CmdArgs{
+					ContainerID: "unreached-status-container",
+					Netns:       "/proc/1/ns/net",
+				}
+				raw, err := NewRawClientForConfig(cfg)
+				if err != nil {
+					t.Fatal("Failed to create raw client", err)
+				}
+				err = cniclient.CreatePeerContainer(context.Background(), args)
+				if err != nil {
+					t.Fatal("Failed to create peer container", err)
+				}
+				// Wait for the container to exist and then patch its status
+				var container *meshcniv1.PeerContainer
+				ok := testutil.Eventually[error](func() error {
+					container, err = cniclient.GetPeerContainer(context.Background(), args)
+					return err
+				}).ShouldNotError(time.Second*10, time.Second)
+				if !ok {
+					t.Fatal("Failed to get peer container", err)
+				}
+				container.Status.Phase = meshcniv1.InterfacePhaseFailed
+				container.SetManagedFields(nil)
+				err = raw.Status().Patch(context.Background(), container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
+				if err != nil {
+					t.Fatal("Failed to patch peer container", err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				// Wait for Running should time out as the status is not set.
+				_, err = cniclient.WaitForRunning(ctx, args)
+				if err == nil {
+					t.Fatal("Expected error for timeout")
+				} else if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal("Expected context error, got:", err)
+				}
+				// Try again with a higher timeout in a best-effort to get full coverage on the select.
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second*2)
+				defer cancel()
+				// Wait for Running should time out as the status is not set.
+				_, err = cniclient.WaitForRunning(ctx, args)
+				if err == nil {
+					t.Fatal("Expected error for timeout")
+				} else if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal("Expected context error, got:", err)
+				}
+			})
+
+			t.Run("StatusReached", func(t *testing.T) {
+				args := &skel.CmdArgs{
+					ContainerID: "reached-status-container",
+					Netns:       "/proc/1/ns/net",
+				}
+				raw, err := NewRawClientForConfig(cfg)
+				if err != nil {
+					t.Fatal("Failed to create raw client", err)
+				}
+				err = cniclient.CreatePeerContainer(context.Background(), args)
+				if err != nil {
+					t.Fatal("Failed to create peer container", err)
+				}
+				// Wait for the container to exist and then patch its status
+				var container *meshcniv1.PeerContainer
+				ok := testutil.Eventually[error](func() error {
+					container, err = cniclient.GetPeerContainer(context.Background(), args)
+					return err
+				}).ShouldNotError(time.Second*10, time.Second)
+				if !ok {
+					t.Fatal("Failed to get peer container", err)
+				}
+				container.Status.Phase = meshcniv1.InterfacePhaseRunning
+				container.Status.IPv4Address = "test-ipv4"
+				container.Status.IPv6Address = "test-ipv6"
+				container.SetManagedFields(nil)
+				err = raw.Status().Patch(context.Background(), container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
+				if err != nil {
+					t.Fatal("Failed to patch peer container", err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				// Wait for Running should time out as the status is not set.
+				status, err := cniclient.WaitForRunning(ctx, args)
+				if err != nil {
+					t.Fatal("Failed to wait for running", err)
+				}
+				if status.IPv4Address != "test-ipv4" {
+					t.Fatal("Expected IPv4 address to be set")
+				}
+				if status.IPv6Address != "test-ipv6" {
+					t.Fatal("Expected IPv6 address to be set")
+				}
+				// Do a raw test of the equivalent to better test real eventuality.
+				t.Run("Raw", func(t *testing.T) {
+					args := &skel.CmdArgs{
+						ContainerID: "reached-status-container-raw",
+						Netns:       "/proc/1/ns/net",
+					}
+					raw, err := NewRawClientForConfig(cfg)
+					if err != nil {
+						t.Fatal("Failed to create raw client", err)
+					}
+					container := cniclient.conf.ContainerFromArgs(args)
+					err = raw.Patch(context.Background(), &container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
+					if err != nil {
+						t.Fatal("Failed to patch peer container", err)
+					}
+					container.Status.Phase = meshcniv1.InterfacePhaseRunning
+					container.Status.IPv4Address = "test-ipv4"
+					container.Status.IPv6Address = "test-ipv6"
+					container.SetManagedFields(nil)
+					err = raw.Status().Patch(context.Background(), &container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
+					if err != nil {
+						t.Fatal("Failed to patch peer container status", err)
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+					defer cancel()
+					// Wait for Running should time out as the status is not set.
+					status, err := cniclient.WaitForRunning(ctx, args)
+					if err != nil {
+						t.Fatal("Failed to wait for running", err)
+					}
+					if status.IPv4Address != "test-ipv4" {
+						t.Fatal("Expected IPv4 address to be set")
+					}
+					if status.IPv6Address != "test-ipv6" {
+						t.Fatal("Expected IPv6 address to be set")
+					}
+				})
+			})
 		})
 	})
 }

@@ -25,17 +25,13 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
-)
-
-const (
-	// CNIFieldOwner is the field owner for CNI objects.
-	CNIFieldOwner = "webmesh-cni"
 )
 
 var (
@@ -60,38 +56,40 @@ type ClientConfig struct {
 	RestConfig *rest.Config
 }
 
+// SchemeBuilders is a list of scheme builders to use for webmesh-cni clients.
+var SchemeBuilders = []func(*runtime.Scheme) error{
+	clientgoscheme.AddToScheme,
+	apiextensions.AddToScheme,
+	storagev1.AddToScheme,
+	meshcniv1.AddToScheme,
+}
+
 // NewClientForConfig creates a new client from the given configuration.
 func NewClientForConfig(conf ClientConfig) (*Client, error) {
-	scheme := runtime.NewScheme()
-	err := clientgoscheme.AddToScheme(scheme)
+	client, err := NewRawClientForConfig(conf.RestConfig)
 	if err != nil {
 		return nil, err
-	}
-	err = apiextensions.AddToScheme(scheme)
-	if err != nil {
-		return nil, err
-	}
-	err = storagev1.AddToScheme(scheme)
-	if err != nil {
-		return nil, err
-	}
-	err = meshcniv1.AddToScheme(scheme)
-	if err != nil {
-		return nil, err
-	}
-	client, err := client.New(conf.RestConfig, client.Options{
-		Scheme: scheme,
-		Cache: &client.CacheOptions{
-			DisableFor: storagev1.CustomObjects,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	return &Client{
 		Client: client,
 		conf:   conf.NetConf,
 	}, nil
+}
+
+// NewRawClientForConfig creates a new raw client from the given configuration.
+func NewRawClientForConfig(conf *rest.Config) (client.Client, error) {
+	scheme := runtime.NewScheme()
+	for _, add := range SchemeBuilders {
+		if err := add(scheme); err != nil {
+			return nil, fmt.Errorf("failed to add scheme: %w", err)
+		}
+	}
+	return client.New(conf, client.Options{
+		Scheme: scheme,
+		Cache: &client.CacheOptions{
+			DisableFor: append(storagev1.CustomObjects, &meshcniv1.PeerContainer{}),
+		},
+	})
 }
 
 // Ping will make sure the client can contact the API server using
@@ -109,9 +107,9 @@ func (c *Client) Ping(timeout time.Duration) error {
 	return nil
 }
 
-// CreatePeerContainerIfNotExists attempts to retrieve the peer container for the given args.
+// EnsureContainer attempts to retrieve the peer container for the given args.
 // If it does not exist, it will create it.
-func (c *Client) CreatePeerContainerIfNotExists(ctx context.Context, args *skel.CmdArgs) error {
+func (c *Client) EnsureContainer(ctx context.Context, args *skel.CmdArgs) error {
 	_, err := c.GetPeerContainer(ctx, args)
 	if err != nil {
 		if IsPeerContainerNotFound(err) {
@@ -132,13 +130,17 @@ func (c *Client) GetPeerContainer(ctx context.Context, args *skel.CmdArgs) (*mes
 		}
 		return nil, fmt.Errorf("failed to get peer container: %w", err)
 	}
+	container.TypeMeta = metav1.TypeMeta{
+		Kind:       "PeerContainer",
+		APIVersion: meshcniv1.GroupVersion.String(),
+	}
 	return &container, nil
 }
 
 // CreatePeerContainer attempts to create the peer container for the given args.
 func (c *Client) CreatePeerContainer(ctx context.Context, args *skel.CmdArgs) error {
 	container := c.conf.ContainerFromArgs(args)
-	err := c.Patch(ctx, &container, client.Apply, client.ForceOwnership, client.FieldOwner(CNIFieldOwner))
+	err := c.Patch(ctx, &container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
 	if err != nil {
 		return fmt.Errorf("failed to apply peer container: %w", err)
 	}
@@ -153,4 +155,36 @@ func (c *Client) DeletePeerContainer(ctx context.Context, args *skel.CmdArgs) er
 		return fmt.Errorf("failed to delete peer container: %w", err)
 	}
 	return nil
+}
+
+// WaitForRunning is a helper function that waits for the container to be running.
+func (c *Client) WaitForRunning(ctx context.Context, args *skel.CmdArgs) (*meshcniv1.PeerContainerStatus, error) {
+	return c.WaitForStatus(ctx, args, meshcniv1.InterfacePhaseRunning)
+}
+
+// WaitForStatus is a helper function that waits for the given status to be true on the container
+// for the given args. The status is returned if it is true before the timeout.
+func (c *Client) WaitForStatus(ctx context.Context, args *skel.CmdArgs, status meshcniv1.InterfacePhase) (*meshcniv1.PeerContainerStatus, error) {
+	// Do a quick check to see if the container is already in the desired state.
+	container, err := c.GetPeerContainer(ctx, args)
+	if err != nil {
+		if !IsPeerContainerNotFound(err) {
+			return nil, err
+		}
+	} else if err == nil && container.Status.Phase == status {
+		return &container.Status, nil
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+			container, err := c.GetPeerContainer(ctx, args)
+			if err != nil && !IsPeerContainerNotFound(err) {
+				return nil, err
+			} else if err == nil && container.Status.Phase == status {
+				return &container.Status, nil
+			}
+		}
+	}
 }

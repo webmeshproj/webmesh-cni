@@ -34,7 +34,6 @@ import (
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
@@ -123,57 +122,32 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	log.Debug("Ensuring PeerContainer exists")
 	ctx, cancel := context.WithTimeout(context.Background(), createPeerContainerTimeout)
 	defer cancel()
-	err = cli.CreatePeerContainerIfNotExists(ctx, args)
+	err = cli.EnsureContainer(ctx, args)
 	if err != nil {
 		log.Error("Failed to ensure PeerContainer", "error", err.Error())
 		err = fmt.Errorf("failed to ensure PeerContainer: %w", err)
 		return
 	}
 	// Wait for the PeerContainer to be ready.
+	// TODO: Put into client.
 	log.Debug("Waiting for PeerContainer to be ready")
-	var container *meshcniv1.PeerContainer
 	ctx, cancel = context.WithTimeout(context.Background(), setupContainerInterfaceTimeout)
 	defer cancel()
-WaitForInterface:
-	for {
-		select {
-		case <-ctx.Done():
-			err = fmt.Errorf("timed out waiting for container interface to be ready")
-			return
-		case <-time.After(time.Second):
-			// Try to fetch the container status
-			container, err = cli.GetPeerContainer(ctx, args)
-			if err != nil {
-				if !types.IsPeerContainerNotFound(err) {
-					log.Error("Failed to get PeerContainer", "error", err.Error())
-					err = fmt.Errorf("failed to get PeerContainer: %w", err)
-					return
-				}
-				err = nil
-				continue
-			}
-			switch container.Status.Phase {
-			case meshcniv1.InterfaceStatusCreated:
-				log.Debug("Waiting for container interface to be ready", "phase", container.Status.Phase)
-			case meshcniv1.InterfaceStatusStarting:
-				log.Debug("Waiting for container interface to be ready", "phase", container.Status.Phase)
-			case meshcniv1.InterfaceStatusRunning:
-				log.Info("Container interface is ready", "phase", container.Status.Phase)
-				break WaitForInterface
-			case meshcniv1.InterfaceStatusFailed:
-				log.Error("Container interface failed to start", "phase", container.Status.Phase, "error", container.Status.Error)
-			}
-		}
+	status, err := cli.WaitForRunning(ctx, args)
+	if err != nil {
+		log.Error("Failed to wait for PeerContainer to be ready", "error", err.Error())
+		err = fmt.Errorf("failed to wait for PeerContainer to be ready: %w", err)
+		return
 	}
 	// Parse the IP addresses from the container status.
-	log.Debug("Building container interface result from status", "status", container.Status)
+	log.Debug("Building container interface result from status", "status", status)
 	var ipv4net, ipv6net *net.IPNet
-	if container.Status.IPv4Address != "" && !conf.Interface.DisableIPv4 {
+	if status.IPv4Address != "" && !conf.Interface.DisableIPv4 {
 		log.Debug("Adding IPv4 address to result",
-			"ipv4-addr", container.Status.IPv4Address,
-			"ipv4-net", container.Status.NetworkV4,
+			"ipv4-addr", status.IPv4Address,
+			"ipv4-net", status.NetworkV4,
 		)
-		ipv4net, err = netlink.ParseIPNet(container.Status.IPv4Address)
+		ipv4net, err = netlink.ParseIPNet(status.IPv4Address)
 		if err != nil {
 			log.Error("Failed to parse IPv4 address", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv4 address: %w", err)
@@ -184,7 +158,7 @@ WaitForInterface:
 			Gateway: ipv4net.IP, // Use system's default gateway or self?
 		})
 		var rtnet *net.IPNet
-		rtnet, err = netlink.ParseIPNet(container.Status.NetworkV4)
+		rtnet, err = netlink.ParseIPNet(status.NetworkV4)
 		if err != nil {
 			log.Error("Failed to parse IPv4 network", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv4 network: %w", err)
@@ -195,12 +169,12 @@ WaitForInterface:
 			GW:  ipv4net.IP,
 		})
 	}
-	if container.Status.IPv6Address != "" && !conf.Interface.DisableIPv6 {
+	if status.IPv6Address != "" && !conf.Interface.DisableIPv6 {
 		log.Debug("Adding IPv6 address to result",
-			"ipv6-addr", container.Status.IPv6Address,
-			"ipv6-net", container.Status.NetworkV6,
+			"ipv6-addr", status.IPv6Address,
+			"ipv6-net", status.NetworkV6,
 		)
-		ipv6net, err = netlink.ParseIPNet(container.Status.IPv6Address)
+		ipv6net, err = netlink.ParseIPNet(status.IPv6Address)
 		if err != nil {
 			log.Error("Failed to parse IPv6 address", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv6 address: %w", err)
@@ -211,7 +185,7 @@ WaitForInterface:
 			Gateway: ipv6net.IP, // Use system's default gateway or self?
 		})
 		var rtnet *net.IPNet
-		rtnet, err = netlink.ParseIPNet(container.Status.NetworkV6)
+		rtnet, err = netlink.ParseIPNet(status.NetworkV6)
 		if err != nil {
 			log.Error("Failed to parse IPv6 network", "error", err.Error())
 			err = fmt.Errorf("failed to parse IPv6 network: %w", err)
@@ -230,12 +204,12 @@ WaitForInterface:
 		return
 	}
 	defer containerNs.Close()
-	link, err := netlink.LinkByName(container.Status.InterfaceName)
+	link, err := netlink.LinkByName(status.InterfaceName)
 	if err != nil {
-		err = fmt.Errorf("failed to find %q: %v", container.Status.InterfaceName, err)
+		err = fmt.Errorf("failed to find %q: %v", status.InterfaceName, err)
 		return
 	}
-	contDev, err := moveLinkIn(link, containerNs, container.Status.InterfaceName)
+	contDev, err := moveLinkIn(link, containerNs, status.InterfaceName)
 	if err != nil {
 		err = fmt.Errorf("move link to container namespace: %v", err)
 		return

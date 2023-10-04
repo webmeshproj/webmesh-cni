@@ -28,14 +28,18 @@ import (
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 )
 
+// MockNode is a mock mesh node exposing the methods used by the peercontainer
+// reconciler.
 type MockNode struct {
 	nodeID      meshtypes.NodeID
 	config      meshnode.Config
 	connectOpts meshnode.ConnectOptions
 	started     atomic.Bool
+	nw          meshnet.Manager
 	mu          sync.Mutex
 }
 
+// NewMockNode returns a new mock node.
 func NewMockNode(log *slog.Logger, opts meshnode.Config) Node {
 	return &MockNode{
 		nodeID: meshtypes.NodeID(opts.NodeID),
@@ -67,6 +71,17 @@ func (m *MockNode) Connect(_ context.Context, opts meshnode.ConnectOptions) erro
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.connectOpts = opts
+	m.nw = meshtestutil.NewManager(meshnet.Options{
+		InterfaceName:       m.connectOpts.NetworkOptions.InterfaceName,
+		ListenPort:          m.connectOpts.NetworkOptions.ListenPort,
+		Modprobe:            m.connectOpts.NetworkOptions.Modprobe,
+		PersistentKeepAlive: m.connectOpts.NetworkOptions.PersistentKeepAlive,
+		ForceTUN:            m.connectOpts.NetworkOptions.ForceTUN,
+		MTU:                 m.connectOpts.NetworkOptions.MTU,
+		ZoneAwarenessID:     m.config.ZoneAwarenessID,
+		DisableIPv4:         m.config.DisableIPv4,
+		DisableIPv6:         m.config.DisableIPv6,
+	}, m.nodeID)
 	m.started.Store(true)
 	return nil
 }
@@ -78,17 +93,7 @@ func (m *MockNode) Network() meshnet.Manager {
 	if !m.started.Load() {
 		return nil
 	}
-	return meshtestutil.NewManager(meshnet.Options{
-		InterfaceName:       m.connectOpts.NetworkOptions.InterfaceName,
-		ListenPort:          m.connectOpts.NetworkOptions.ListenPort,
-		Modprobe:            m.connectOpts.NetworkOptions.Modprobe,
-		PersistentKeepAlive: m.connectOpts.NetworkOptions.PersistentKeepAlive,
-		ForceTUN:            m.connectOpts.NetworkOptions.ForceTUN,
-		MTU:                 m.connectOpts.NetworkOptions.MTU,
-		ZoneAwarenessID:     m.config.ZoneAwarenessID,
-		DisableIPv4:         m.config.DisableIPv4,
-		DisableIPv6:         m.config.DisableIPv6,
-	}, m.nodeID)
+	return m.nw
 }
 
 // Close closes the node.
