@@ -42,7 +42,10 @@ import (
 
 func TestReconciler(t *testing.T) {
 	NewNode = meshnode.NewTestNodeWithLogger
-	_, _ = newTestManager(t)
+
+	t.Run("ReconcileValidNodes", func(t *testing.T) {
+		_, _ = newTestManager(t)
+	})
 }
 
 func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
