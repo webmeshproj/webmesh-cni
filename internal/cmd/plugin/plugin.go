@@ -61,7 +61,13 @@ func init() {
 
 // Main is the entrypoint for the webmesh-cni plugin.
 func Main(version version.BuildInfo) {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniversion.PluginSupports("0.3.1"), "Webmesh CNI plugin "+version.Version)
+	skel.PluginMain(
+		cmdAdd,
+		cmdCheck,
+		cmdDel,
+		cniversion.PluginSupports("0.3.1"),
+		"Webmesh CNI plugin "+version.Version,
+	)
 }
 
 // cmdAdd is the CNI ADD command handler.
