@@ -97,8 +97,8 @@ signs:
       - "sign-blob"
       - "--yes"
       - "--oidc-issuer=https://token.actions.githubusercontent.com"
-      - "--output-signature=bundle.yaml.sig"
-      - "--output-certificate=bundle.yaml.sig.cert"
+      - "--output-signature=dist/bundle.yaml.sig"
+      - "--output-certificate=dist/bundle.yaml.sig.cert"
       - "deploy/bundle.yaml"
     artifacts: source
 
