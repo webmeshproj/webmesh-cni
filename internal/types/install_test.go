@@ -114,7 +114,7 @@ func (i *TestInstallation) ValidateInstallation(t *testing.T) {
 		t.Fatal("Expected binary to be copied, got", string(data))
 	}
 	// Check that a kubeconfig exists.
-	kubeconfigPath := filepath.Join(i.BinaryDestDir, PluginKubeconfigName)
+	kubeconfigPath := filepath.Join(i.ConfDestDir, PluginKubeconfigName)
 	_, err = os.Stat(kubeconfigPath)
 	if err != nil {
 		t.Fatal(err)
