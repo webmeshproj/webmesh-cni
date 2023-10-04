@@ -38,8 +38,10 @@ import (
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
-// IfacePrefix is the prefix for interface names.
-const IfacePrefix = "wmesh"
+const (
+	// IfacePrefix is the prefix for interface names.
+	IfacePrefix = "wmesh"
+)
 
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
@@ -130,6 +132,9 @@ func (k *Kubernetes) Default() {
 	if k.Kubeconfig == "" {
 		k.Kubeconfig = DefaultKubeconfigPath
 	}
+	if k.Namespace == "" {
+		k.Namespace = DefaultNamespace
+	}
 }
 
 // DeepEqual returns whether the Kubernetes configuration is equal to the given configuration.
@@ -144,6 +149,11 @@ func (k *Kubernetes) DeepEqual(other *Kubernetes) bool {
 		k.NodeName == other.NodeName &&
 		k.K8sAPIRoot == other.K8sAPIRoot &&
 		k.Namespace == other.Namespace
+}
+
+// LoadDefaultNetConf attempts to load the configuration from the default file.
+func LoadDefaultNetConf() (*NetConf, error) {
+	return LoadNetConfFromFile(DefaultNetConfPath)
 }
 
 // LoadNetConfFromFile loads the configuration from the given file.

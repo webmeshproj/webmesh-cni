@@ -63,9 +63,13 @@ const (
 	// DefaultDestConfDir is the default destination directory for the CNI configuration.
 	DefaultDestConfDir = "/etc/cni/net.d"
 	// DefaultDestConfName is the default name of the CNI configuration file.
-	DefaultDestConfName = "10-webmesh.conf"
+	DefaultDestConfName = "10-webmesh.conflist"
+	// DefaultNetConfPath is the default path to the CNI configuration file.
+	DefaultNetConfPath = "/etc/cni/net.d/10-webmesh.conflist"
 	// Default kubeconfig path if not provided.
 	DefaultKubeconfigPath = "/opt/cni/bin/webmesh-kubeconfig"
+	// DefaultNamespace is the default namespace to use for the plugin.
+	DefaultNamespace = "kube-system"
 	// PluginKubeconfigName is the name of the kubeconfig file for the plugin.
 	PluginKubeconfigName = "webmesh-kubeconfig"
 	// PluginBinaryName is the name of the plugin binary.
