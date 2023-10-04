@@ -20,18 +20,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// InterfacePhase is the current status of a new peer interface.
-type InterfacePhase string
+// InterfaceStatus is the current status of a container interface.
+type InterfaceStatus string
 
 const (
-	// InterfacePhaseCreated is the initial phase of a new peer interface.
-	InterfacePhaseCreated InterfacePhase = "Created"
-	// InterfacePhaseStarting is the phase when the interface is starting.
-	InterfacePhaseStarting InterfacePhase = "Starting"
-	// InterfacePhaseRunning is the phase when the interface is running.
-	InterfacePhaseRunning InterfacePhase = "Running"
-	// InterfacePhaseFailed is the phase when the interface failed to start.
-	InterfacePhaseFailed InterfacePhase = "Failed"
+	// InterfaceStatusCreated is the initial phase of a new peer interface.
+	InterfaceStatusCreated InterfaceStatus = "Created"
+	// InterfaceStatusStarting is the phase when the interface is starting.
+	InterfaceStatusStarting InterfaceStatus = "Starting"
+	// InterfaceStatusRunning is the phase when the interface is running.
+	InterfaceStatusRunning InterfaceStatus = "Running"
+	// InterfaceStatusFailed is the phase when the interface failed to start.
+	InterfaceStatusFailed InterfaceStatus = "Failed"
 )
 
 const (
@@ -63,8 +63,8 @@ type PeerContainerSpec struct {
 
 // PeerContainerStatus defines the observed state of PeerContainer
 type PeerContainerStatus struct {
-	// Phase is the current status of the interface.
-	Phase InterfacePhase `json:"status"`
+	// InterfaceStatus is the current status of the interface.
+	InterfaceStatus InterfaceStatus `json:"status"`
 	// InterfaceName is the name of the interface.
 	InterfaceName string `json:"interfaceName"`
 	// MACAddress is the MAC address of the interface.

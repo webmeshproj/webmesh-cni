@@ -27,6 +27,8 @@ import (
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
+	"github.com/webmeshproj/webmesh/pkg/storage/testutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -34,6 +36,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -44,9 +47,112 @@ import (
 func TestReconciler(t *testing.T) {
 	NewNode = meshnode.NewTestNodeWithLogger
 
-	t.Run("ReconcileValidNodes", func(t *testing.T) {
-		_ = newTestReconcilers(t, 3)
+	t.Run("SingleNode", func(t *testing.T) {
+		rs := newTestReconcilers(t, 1)
+		r := rs[0]
+		cli := r.Client
+
+		t.Run("ValidContainer", func(t *testing.T) {
+			container := newTestContainerFor(r)
+			err := cli.Create(context.Background(), &container)
+			if err != nil {
+				t.Fatal("Failed to create container", err)
+			}
+			ValidateReconciledContainer(t, r, cli, client.ObjectKeyFromObject(&container))
+		})
 	})
+}
+
+func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli client.Client, key client.ObjectKey) {
+	// The finalizer should eventually be set.
+	var err error
+	ok := testutil.Eventually[bool](func() bool {
+		var container cniv1.PeerContainer
+		err = cli.Get(context.Background(), key, &container)
+		if err != nil {
+			t.Log("Failed to get container", err)
+			return false
+		}
+		return controllerutil.ContainsFinalizer(&container, cniv1.PeerContainerFinalizer)
+	}).ShouldEqual(time.Second*10, time.Second, true)
+	if !ok {
+		t.Error("Failed to see finalizer on peer container")
+	}
+	// The node should eventually be in the reconcilers node list.
+	ok = testutil.Eventually[bool](func() bool {
+		_, ok := r.nodes[key]
+		return ok
+	}).ShouldEqual(time.Second*10, time.Second, true)
+	if !ok {
+		t.Error("Failed to see node in reconciler")
+	}
+	// The node should eventually be started.
+	ok = testutil.Eventually[bool](func() bool {
+		node, ok := r.nodes[key]
+		if !ok {
+			// Would be very strange at this point
+			t.Log("Failed to find node in reconciler")
+			return false
+		}
+		return node.Started()
+	}).ShouldEqual(time.Second*10, time.Second, true)
+	if !ok {
+		t.Error("Failed to see node in started state")
+	}
+	// The peer container status should eventually be set to Running
+	var container cniv1.PeerContainer
+	ok = testutil.Eventually[bool](func() bool {
+		err = cli.Get(context.Background(), key, &container)
+		if err != nil {
+			t.Log("Failed to get container", err)
+			return false
+		}
+		t.Log("Container status", container.Status)
+		return container.Status.InterfaceStatus == cniv1.InterfaceStatusRunning
+	}).ShouldEqual(time.Second*10, time.Second, true)
+	if !ok {
+		t.Error("Failed to see container in running state")
+	}
+	// All status fields should be populated
+	if container.Status.InterfaceName != container.Spec.IfName {
+		t.Error("Interface name not set correctly, got:", container.Status.InterfaceName, "expected:", container.Spec.IfName)
+	}
+	if container.Status.IPv4Address == "" {
+		t.Error("IPv4 address not set")
+	}
+	if container.Status.IPv6Address == "" {
+		t.Error("IPv6 address not set")
+	}
+	if container.Status.MACAddress == "" {
+		t.Error("MAC address not set")
+	}
+	if container.Status.NetworkV4 == "" {
+		t.Error("NetworkV4 not set")
+	}
+	if container.Status.NetworkV6 == "" {
+		t.Error("NetworkV6 not set")
+	}
+}
+
+func newTestContainerFor(r *PeerContainerReconciler) cniv1.PeerContainer {
+	containerID := uuid.NewString()
+	return cniv1.PeerContainer{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PeerContainer",
+			APIVersion: cniv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      containerID,
+			Namespace: "default",
+		},
+		Spec: cniv1.PeerContainerSpec{
+			NodeID:   containerID,
+			Netns:    "/proc/1/ns/net",
+			IfName:   containerID[:min(9, len(containerID))] + "0",
+			NodeName: r.NodeName,
+			MTU:      1500,
+		},
+	}
 }
 
 func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
@@ -97,10 +203,7 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 		t.Fatal("Failed to bootstrap network state", err)
 	}
 	for _, r := range out {
-		r.meshDomain = networkState.MeshDomain
-		r.networkV4 = networkState.NetworkV4
-		r.networkV6 = networkState.NetworkV6
-		r.ready.Store(true)
+		r.SetNetworkState(networkState)
 	}
 	return out
 }

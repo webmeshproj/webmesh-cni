@@ -354,7 +354,7 @@ func TestClient(t *testing.T) {
 				if !ok {
 					t.Fatal("Failed to get peer container", err)
 				}
-				container.Status.Phase = meshcniv1.InterfacePhaseFailed
+				container.Status.InterfaceStatus = meshcniv1.InterfaceStatusFailed
 				container.SetManagedFields(nil)
 				err = raw.Status().Patch(context.Background(), container, client.Apply, client.ForceOwnership, client.FieldOwner(meshcniv1.FieldOwner))
 				if err != nil {
@@ -403,7 +403,7 @@ func TestClient(t *testing.T) {
 				if !ok {
 					t.Fatal("Failed to get peer container", err)
 				}
-				container.Status.Phase = meshcniv1.InterfacePhaseRunning
+				container.Status.InterfaceStatus = meshcniv1.InterfaceStatusRunning
 				container.Status.IPv4Address = "test-ipv4"
 				container.Status.IPv6Address = "test-ipv6"
 				container.SetManagedFields(nil)
@@ -439,7 +439,7 @@ func TestClient(t *testing.T) {
 					if err != nil {
 						t.Fatal("Failed to patch peer container", err)
 					}
-					container.Status.Phase = meshcniv1.InterfacePhaseRunning
+					container.Status.InterfaceStatus = meshcniv1.InterfaceStatusRunning
 					container.Status.IPv4Address = "test-ipv4"
 					container.Status.IPv6Address = "test-ipv6"
 					container.SetManagedFields(nil)

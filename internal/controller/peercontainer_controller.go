@@ -84,6 +84,7 @@ func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapR
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
+	r.nodes = make(map[types.NamespacedName]meshnode.Node)
 	r.ready.Store(true)
 }
 
@@ -130,9 +131,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.nodes == nil {
-		r.nodes = make(map[types.NamespacedName]meshnode.Node)
-	}
 
 	// Make sure the finalizer is present first.
 	if !controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
@@ -266,7 +264,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		})
 		// Update the status to created.
 		log.Info("Updating container status to created")
-		container.Status.Phase = cniv1.InterfacePhaseCreated
+		container.Status.InterfaceStatus = cniv1.InterfaceStatusCreated
 		container.Status.IPv4Address = ipv4addr
 		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
@@ -352,7 +350,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		}
 		// Update the status to starting.
 		log.Info("Updating container status to starting")
-		container.Status.Phase = cniv1.InterfacePhaseStarting
+		container.Status.InterfaceStatus = cniv1.InterfaceStatusStarting
 		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
@@ -455,9 +453,9 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 	log := log.FromContext(ctx)
 	// Update the status to running and sets its IP address.
 	var updateStatus bool
-	if container.Status.Phase != cniv1.InterfacePhaseRunning {
+	if container.Status.InterfaceStatus != cniv1.InterfaceStatusRunning {
 		// Update the status to running and sets its IP address.
-		container.Status.Phase = cniv1.InterfacePhaseRunning
+		container.Status.InterfaceStatus = cniv1.InterfaceStatusRunning
 		updateStatus = true
 	}
 	hwaddr, _ := node.Network().WireGuard().HardwareAddr()
@@ -497,7 +495,7 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 }
 
 func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
-	container.Status.Phase = cniv1.InterfacePhaseFailed
+	container.Status.InterfaceStatus = cniv1.InterfaceStatusFailed
 	container.Status.Error = reason.Error()
 	err := r.updateContainerStatus(ctx, container)
 	if err != nil {
