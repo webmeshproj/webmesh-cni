@@ -4,7 +4,7 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
-    - make bundle VERSION={{ .Version }} 
+    - make bundle VERSION={{ .Version }}
 
 builds:
   - id: webmesh-cni
@@ -36,7 +36,7 @@ checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  name_template: "latest"
+  name_template: 'latest'
 
 archives:
   - id: webmesh-cni
@@ -104,21 +104,17 @@ signs:
 
 changelog:
   sort: asc
-  filters:
-    exclude:
-      - '^examples:'
 
 release:
   github:
     owner: webmeshproj
     name: webmesh
   ids:
-    - webmesh
+    - webmesh-cni
   extra_files:
     - glob: deploy/bundle.yaml
     - glob: dist/*.sig
     - glob: dist/*.sig.cert
-
 
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
