@@ -102,7 +102,7 @@ func TestClient(t *testing.T) {
 			}
 		})
 
-		t.Run("Valid Kubeconfig", func(t *testing.T) {
+		t.Run("ValidKubeconfig", func(t *testing.T) {
 			dirTmp, err := os.MkdirTemp("", "")
 			if err != nil {
 				t.Fatal("Failed to create temp dir", err)
