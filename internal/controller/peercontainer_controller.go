@@ -61,28 +61,12 @@ type PeerContainerReconciler struct {
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
 	meshDomain string
-	nodes      map[types.NamespacedName]Node
+	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
 var NewNode = meshnode.NewWithLogger
-
-// Node wraps the meshnode.Node interface with just the methods we use internally.
-type Node interface {
-	// ID returns the node ID.
-	ID() meshtypes.NodeID
-	// Started returns true if the node is started.
-	Started() bool
-	// Ready returns a channel that is closed when the node is ready.
-	Ready() <-chan struct{}
-	// Network returns the meshnet.Network for this node.
-	Network() meshnet.Manager
-	// Connect connects the node to the mesh.
-	Connect(context.Context, meshnode.ConnectOptions) error
-	// Close closes the node.
-	Close(context.Context) error
-}
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
@@ -140,7 +124,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.nodes == nil {
-		r.nodes = make(map[types.NamespacedName]Node)
+		r.nodes = make(map[types.NamespacedName]meshnode.Node)
 	}
 
 	// Make sure the finalizer is present first.
@@ -460,7 +444,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 	return nil
 }
 
-func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context, container *cniv1.PeerContainer, node Node) error {
+func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context, container *cniv1.PeerContainer, node meshnode.Node) error {
 	log := log.FromContext(ctx)
 	// Update the status to running and sets its IP address.
 	var updateStatus bool

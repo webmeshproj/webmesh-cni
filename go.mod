@@ -5,10 +5,11 @@ go 1.21.1
 require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
 	github.com/webmeshproj/storage-provider-k8s v0.0.1
-	github.com/webmeshproj/webmesh v0.10.5-0.20231004110157-3740399a30df
+	github.com/webmeshproj/webmesh v0.10.5-0.20231004110802-984e06fa21fb
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
@@ -59,7 +60,6 @@ require (
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/nftables v0.1.0 // indirect
 	github.com/google/pprof v0.0.0-20230926050212-f7f687d19a98 // indirect
-	github.com/google/uuid v1.3.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
