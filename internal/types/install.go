@@ -67,7 +67,7 @@ const (
 	// DefaultNetConfPath is the default path to the CNI configuration file.
 	DefaultNetConfPath = "/etc/cni/net.d/10-webmesh.conflist"
 	// Default kubeconfig path if not provided.
-	DefaultKubeconfigPath = "/opt/cni/bin/webmesh-kubeconfig"
+	DefaultKubeconfigPath = "/etc/cni/net.d/webmesh-kubeconfig"
 	// DefaultNamespace is the default namespace to use for the plugin.
 	DefaultNamespace = "kube-system"
 	// PluginKubeconfigName is the name of the kubeconfig file for the plugin.
@@ -195,7 +195,7 @@ func (i *InstallOptions) RunInstall() error {
 	// 		return err
 	// 	}
 	// }
-	kubeconfigPath := filepath.Join(i.BinaryDestBin, PluginKubeconfigName)
+	kubeconfigPath := filepath.Join(i.ConfDestDir, PluginKubeconfigName)
 	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
 	err = i.InstallKubeconfig(kubeconfigPath)
 	if err != nil {
@@ -203,7 +203,7 @@ func (i *InstallOptions) RunInstall() error {
 		return err
 	}
 	log.Println("rendering CNI configuration")
-	netConf := i.RenderNetConf(apicfg.Host)
+	netConf := i.RenderNetConf(apicfg.Host, strings.TrimPrefix(kubeconfigPath, "/host"))
 	log.Println("effective CNI configuration ->\n", netConf)
 	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
 	log.Println("installing CNI configuration to destination -> ", confPath)
@@ -256,13 +256,12 @@ func (i *InstallOptions) InstallNetConf(path string, config string) error {
 }
 
 // RenderNetConf renders the CNI configuration.
-func (i *InstallOptions) RenderNetConf(apiEndpoint string) string {
-	kubeconfigPath := strings.TrimPrefix(filepath.Join(i.BinaryDestBin, PluginKubeconfigName), "/host")
+func (i *InstallOptions) RenderNetConf(apiEndpoint string, kubeconfig string) string {
 	conf := i.NetConfTemplate
 	conf = strings.Replace(conf, NodeNameReplaceStr, i.NodeName, -1)
 	conf = strings.Replace(conf, PodNamespaceReplaceStr, i.Namespace, -1)
 	conf = strings.Replace(conf, APIEndpointReplaceStr, apiEndpoint, -1)
-	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfigPath, -1)
+	conf = strings.Replace(conf, KubeconfigFilepathReplaceStr, kubeconfig, -1)
 	return conf
 }
 

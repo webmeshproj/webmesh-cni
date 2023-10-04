@@ -38,7 +38,7 @@ func main() {
 	case "webmesh-cni-install":
 		install.Main(version)
 	default:
-		// We were invoked as a passthrough plugin.
+		// Default to the plugin.
 		plugin.Main(version)
 	}
 }
