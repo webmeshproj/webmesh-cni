@@ -164,6 +164,7 @@ test-k3d: ## Create a test cluster with the WebMesh CNI installed.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
+		--k3s-arg "--disable=traefik@server:*" \
 		--k3s-arg '--cluster-cidr=10.42.0.0/16,2001:cafe:42:0::/56@server:*' \
 		--k3s-arg '--service-cidr=10.43.0.0/16,2001:cafe:43:0::/112@server:*' \
 		--k3s-arg '--node-ip=0.0.0.0,::@server:*' \
@@ -184,7 +185,7 @@ test-k3d-calico: ## Create a test cluster with Calico installed. This is used fo
 		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*'
 	kubens $(CNI_NAMESPACE)
 
-delete-k3d: ## Remove the test cluster.
+remove-k3d: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
 
 clean: ## Remove all local binaries and release assets.
