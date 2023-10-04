@@ -65,9 +65,6 @@ type PeerContainerReconciler struct {
 	mu         sync.Mutex
 }
 
-// PeerContainerFinalizer is the finalizer for PeerContainer objects.
-const PeerContainerFinalizer = "peercontainer.cniv1.webmesh.io"
-
 // Node wraps the meshnode.Node interface with just the methods we use internally.
 type Node interface {
 	// ID returns the node ID.
@@ -149,9 +146,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		r.nodes = make(map[types.NamespacedName]Node)
 	}
 	// Make sure the finalizer is present first.
-	if !controllerutil.ContainsFinalizer(container, PeerContainerFinalizer) {
-		updated := controllerutil.AddFinalizer(container, PeerContainerFinalizer)
+	if !controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
+		updated := controllerutil.AddFinalizer(container, cniv1.PeerContainerFinalizer)
 		if updated {
+			log.Info("Adding finalizer to container", "container", container)
 			if err := r.Update(ctx, container); err != nil {
 				return fmt.Errorf("failed to add finalizer: %w", err)
 			}
@@ -488,9 +486,10 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 			return fmt.Errorf("failed to delete peer: %w", err)
 		}
 	}
-	if controllerutil.ContainsFinalizer(container, PeerContainerFinalizer) {
-		updated := controllerutil.RemoveFinalizer(container, PeerContainerFinalizer)
+	if controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
+		updated := controllerutil.RemoveFinalizer(container, cniv1.PeerContainerFinalizer)
 		if updated {
+			log.Info("Removing finalizer from container", "container", container)
 			if err := r.Update(ctx, container); err != nil {
 				return fmt.Errorf("failed to remove finalizer: %w", err)
 			}

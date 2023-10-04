@@ -24,15 +24,21 @@ import (
 type InterfacePhase string
 
 const (
-	InterfacePhaseCreated  InterfacePhase = "Created"
+	// InterfacePhaseCreated is the initial phase of a new peer interface.
+	InterfacePhaseCreated InterfacePhase = "Created"
+	// InterfacePhaseStarting is the phase when the interface is starting.
 	InterfacePhaseStarting InterfacePhase = "Starting"
-	InterfacePhaseRunning  InterfacePhase = "Running"
-	InterfacePhaseFailed   InterfacePhase = "Failed"
+	// InterfacePhaseRunning is the phase when the interface is running.
+	InterfacePhaseRunning InterfacePhase = "Running"
+	// InterfacePhaseFailed is the phase when the interface failed to start.
+	InterfacePhaseFailed InterfacePhase = "Failed"
 )
 
 const (
 	// FieldOwner is the field owner for CNI objects.
 	FieldOwner = "webmesh-cni"
+	// PeerContainerFinalizer is the PeerContainer finalizer.
+	PeerContainerFinalizer = "peercontainer.cniv1.webmesh.io"
 )
 
 // PeerContainerSpec defines the desired state of PeerContainer
