@@ -7,7 +7,7 @@ before:
 
 builds:
   - id: webmesh-cni
-    main: cmd/main.go
+    main: main.go
     binary: webmesh-cni
     tags:
       - osusergo
