@@ -533,7 +533,7 @@ Ports:
 			}
 			lport, err := node.Network().WireGuard().ListenPort()
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("get listen port from %s: %w", node.ID(), err)
 			}
 			if uint16(lport) == i {
 				continue Ports
