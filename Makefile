@@ -162,7 +162,7 @@ KIND ?= kind
 CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
 
-test-k3d: ## Create a test cluster with the WebMesh CNI installed.
+test-k3d: ## Create a test cluster using k3d.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
 		--k3s-arg "--disable-network-policy@server:*" \
@@ -172,27 +172,28 @@ test-k3d: ## Create a test cluster with the WebMesh CNI installed.
 		--k3s-arg '--node-ip=0.0.0.0,::@server:*' \
 		--k3s-arg '--kube-proxy-arg=ipvs-strict-arp@server:*' \
 		--volume '/lib/modules:/lib/modules@server:*' \
-		--volume '/dev/net/tun:/dev/net/tun@server:*' \
-		--volume '$(CURDIR)/$(BUNDLE):/var/lib/rancher/k3s/server/manifests/webmesh.yaml@server:*'
+		--volume '/dev/net/tun:/dev/net/tun@server:*'
 
-KIND_CONFIG ?= deploy/kindconfig.yaml
-test-kind:
-	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
-	
 load-k3d: docker ## Load the docker image into the test cluster.
 	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
 
-test-k3d-calico: ## Create a test cluster with Calico installed. This is used for testing the storage provider.
-	curl -JL -o $(LOCALBIN)/calico.yaml https://k3d.io/v5.3.0/usage/advanced/calico.yaml
-	$(K3D) cluster create $(CLUSTER_NAME) \
-		--k3s-arg '--flannel-backend=none@server:*' \
-		--k3s-arg "--disable-network-policy@server:*" \
-		--volume '$(LOCALBIN)/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml@server:*'
+install-k3d: bundle ## Install the WebMesh CNI into the test cluster.
+	$(KUBECTL) --context k3d-$(CLUSTER_NAME) apply -f $(BUNDLE)
 
 remove-k3d: ## Remove the test cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
 
-remove-kind:
+KIND_CONFIG ?= deploy/kindconfig.yaml
+test-kind: ## Create a test cluster using kind.
+	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
+
+load-kind: docker ## Load the docker image into the test cluster.
+	$(KIND) load docker-image $(IMG) --name $(CLUSTER_NAME)
+
+install-kind: bundle ## Install the WebMesh CNI into the test cluster.
+	$(KUBECTL) --context kind-$(CLUSTER_NAME) apply -f $(BUNDLE)
+
+remove-kind: ## Remove the test cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
 clean: ## Remove all local binaries and release assets.
