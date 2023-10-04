@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -63,6 +64,9 @@ type PeerContainerReconciler struct {
 	nodes      map[types.NamespacedName]Node
 	mu         sync.Mutex
 }
+
+// PeerContainerFinalizer is the finalizer for PeerContainer objects.
+const PeerContainerFinalizer = "peercontainer.cniv1.webmesh.io"
 
 // Node wraps the meshnode.Node interface with just the methods we use internally.
 type Node interface {
@@ -113,9 +117,7 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var container cniv1.PeerContainer
 	if err := r.Get(ctx, req.NamespacedName, &container); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			// Stop the mesh node for this container.
-			log.Info("Stopping mesh node for container", "container", req.NamespacedName)
-			return ctrl.Result{}, r.teardownPeerContainer(ctx, req.NamespacedName)
+			return ctrl.Result{}, nil
 		}
 		log.Error(err, "Failed to get container")
 		return ctrl.Result{}, err
@@ -124,8 +126,14 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// This container is not for this node, so we don't care about it.
 		return ctrl.Result{}, nil
 	}
+	if container.GetDeletionTimestamp() != nil {
+		// Stop the mesh node for this container.
+		log.Info("Tearing down mesh node for container", "container", req.NamespacedName)
+		return ctrl.Result{}, r.teardownPeerContainer(ctx, req, &container)
+	}
+	// Reconcile the mesh node for this container.
 	log.Info("Reconciling mesh node for container", "container", req.NamespacedName)
-	return ctrl.Result{}, r.reconcilePeerContainer(ctx, &container)
+	return ctrl.Result{}, r.reconcilePeerContainer(ctx, req, &container)
 }
 
 // NewNode is the function for creating a new mesh node. Declared
@@ -133,15 +141,25 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 var NewNode = meshnode.NewWithLogger
 
 // reconcilePeerContainer reconciles the given PeerContainer.
-func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, container *cniv1.PeerContainer) error {
+func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.nodes == nil {
 		r.nodes = make(map[types.NamespacedName]Node)
 	}
+	// Make sure the finalizer is present first.
+	if !controllerutil.ContainsFinalizer(container, PeerContainerFinalizer) {
+		updated := controllerutil.AddFinalizer(container, PeerContainerFinalizer)
+		if updated {
+			if err := r.Update(ctx, container); err != nil {
+				return fmt.Errorf("failed to add finalizer: %w", err)
+			}
+			return nil
+		}
+	}
 	// Check if we have registered the node yet
-	id := types.NamespacedName{Name: container.Name, Namespace: container.Namespace}
+	id := req.NamespacedName
 	nodeID := meshtypes.NodeID(container.Spec.NodeID)
 	node, ok := r.nodes[id]
 	if !ok {
@@ -449,13 +467,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, co
 }
 
 // teardownPeerContainer tears down the given PeerContainer.
-func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, name types.NamespacedName) error {
+func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	name := req.NamespacedName
 	node, ok := r.nodes[name]
 	if !ok {
-		log.Info("Mesh node for container not found, we must have already deleted it or it wasn't ours", "container", name)
+		log.Info("Mesh node for container not found, we must have already deleted", "container", name)
 	} else {
 		if err := node.Close(ctx); err != nil {
 			log.Error(err, "Failed to stop mesh node for container", "container", name)
@@ -469,7 +488,24 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, nam
 			return fmt.Errorf("failed to delete peer: %w", err)
 		}
 	}
+	if controllerutil.ContainsFinalizer(container, PeerContainerFinalizer) {
+		updated := controllerutil.RemoveFinalizer(container, PeerContainerFinalizer)
+		if updated {
+			if err := r.Update(ctx, container); err != nil {
+				return fmt.Errorf("failed to remove finalizer: %w", err)
+			}
+		}
+	}
 	return nil
+}
+
+func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
+	container.Status.Phase = cniv1.InterfacePhaseFailed
+	container.Status.Error = reason.Error()
+	err := r.updateContainerStatus(ctx, container)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
+	}
 }
 
 func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, container *cniv1.PeerContainer) error {
@@ -484,15 +520,6 @@ func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, con
 		return fmt.Errorf("failed to update status: %w", err)
 	}
 	return nil
-}
-
-func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {
-	container.Status.Phase = cniv1.InterfacePhaseFailed
-	container.Status.Error = reason.Error()
-	err := r.updateContainerStatus(ctx, container)
-	if err != nil {
-		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
-	}
 }
 
 func (r *PeerContainerReconciler) nextAvailableWireGuardPort() (uint16, error) {

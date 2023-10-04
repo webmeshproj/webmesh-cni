@@ -62,7 +62,11 @@ func (m *MockNode) Started() bool {
 // Ready returns a channel that is closed when the node is ready.
 func (m *MockNode) Ready() <-chan struct{} {
 	ch := make(chan struct{})
-	go close(ch)
+	go func() {
+		defer close(ch)
+		for !m.Started() {
+		}
+	}()
 	return ch
 }
 
