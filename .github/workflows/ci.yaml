@@ -112,14 +112,14 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Run Snapshot Container Release
+      - name: Run Snapshot CNI Release
         uses: goreleaser/goreleaser-action@v5
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           version: latest
           args: build --snapshot --clean --parallelism=${{ env.BUILD_PARALLELISM }}
 
-      - name: Run Container Release
+      - name: Run CNI Release
         uses: goreleaser/goreleaser-action@v5
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         with:
