@@ -182,19 +182,19 @@ func (i *InstallOptions) RunInstall() error {
 		log.Println("error installing plugin:", err)
 		return err
 	}
-	err = os.Chdir(i.BinaryDestBin)
-	if err != nil {
-		log.Printf("error changing directory to %s: %v", i.BinaryDestBin, err)
-		return err
-	}
-	for _, symlinkName := range []string{"loopback", "host-local"} {
-		log.Println("creating symlink for ->", filepath.Join(i.BinaryDestBin, symlinkName))
-		err = os.Symlink(PluginBinaryName, symlinkName)
-		if err != nil {
-			log.Printf("error creating symlink for %s: %v", symlinkName, err)
-			return err
-		}
-	}
+	// err = os.Chdir(i.BinaryDestBin)
+	// if err != nil {
+	// 	log.Printf("error changing directory to %s: %v", i.BinaryDestBin, err)
+	// 	return err
+	// }
+	// for _, symlinkName := range []string{"loopback", "host-local"} {
+	// 	log.Println("creating symlink for ->", filepath.Join(i.BinaryDestBin, symlinkName))
+	// 	err = os.Symlink(PluginBinaryName, symlinkName)
+	// 	if err != nil {
+	// 		log.Printf("error creating symlink for %s: %v", symlinkName, err)
+	// 		return err
+	// 	}
+	// }
 	kubeconfigPath := filepath.Join(i.BinaryDestBin, PluginKubeconfigName)
 	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
 	err = i.InstallKubeconfig(kubeconfigPath)
