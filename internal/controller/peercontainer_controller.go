@@ -304,7 +304,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		}(),
 	})
 	if err != nil {
-		r.setFailedStatus(ctx, container, err)
+		// Try again on the next reconcile.
 		return fmt.Errorf("failed to detect endpoints: %w", err)
 	}
 	var wgeps []string
@@ -332,8 +332,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		},
 	})
 	if err != nil {
+		// Try again on the next reconcile.
 		log.Error(err, "Failed to register peer", "container", container)
-		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to register peer: %w", err)
 	}
 	// Make sure all MeshEdges are up to date for this node.
@@ -344,6 +344,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		meshstorage.FilterByZoneID(container.Spec.NodeName),
 	)
 	if err != nil {
+		// Try again on the next reconcile.
 		log.Error(err, "Failed to list peers", "container", container)
 		return fmt.Errorf("failed to list peers: %w", err)
 	}
@@ -352,6 +353,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			Source: nodeID.String(),
 			Target: peer.NodeID().String(),
 		}}); err != nil {
+			// Try again on the next reconcile.
 			log.Error(err, "Failed to create edge", "container", container)
 			return fmt.Errorf("failed to create edge: %w", err)
 		}
@@ -403,6 +405,11 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 	log := log.FromContext(ctx)
 	// Update the status to running and sets its IP address.
 	var updateStatus bool
+	origStatus := container.Status
+	addrV4 := validOrEmpty(node.Network().WireGuard().AddressV4())
+	addrV6 := validOrEmpty(node.Network().WireGuard().AddressV6())
+	netv4 := validOrEmpty(node.Network().NetworkV4())
+	netv6 := validOrEmpty(node.Network().NetworkV6())
 	if container.Status.InterfaceStatus != cniv1.InterfaceStatusRunning {
 		// Update the status to running and sets its IP address.
 		container.Status.InterfaceStatus = cniv1.InterfaceStatusRunning
@@ -413,22 +420,22 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		container.Status.MACAddress = hwaddr.String()
 		updateStatus = true
 	}
-	addrV4 := validOrEmpty(node.Network().WireGuard().AddressV4())
+
 	if container.Status.IPv4Address != addrV4 {
 		container.Status.IPv4Address = addrV4
 		updateStatus = true
 	}
-	addrV6 := validOrEmpty(node.Network().WireGuard().AddressV6())
+
 	if container.Status.IPv6Address != addrV6 {
 		container.Status.IPv6Address = addrV6
 		updateStatus = true
 	}
-	if container.Status.NetworkV4 != node.Network().NetworkV4().String() {
-		container.Status.NetworkV4 = node.Network().NetworkV4().String()
+	if container.Status.NetworkV4 != netv4 {
+		container.Status.NetworkV4 = netv4
 		updateStatus = true
 	}
-	if container.Status.NetworkV6 != node.Network().NetworkV6().String() {
-		container.Status.NetworkV6 = node.Network().NetworkV6().String()
+	if container.Status.NetworkV6 != netv6 {
+		container.Status.NetworkV6 = netv6
 		updateStatus = true
 	}
 	if container.Status.InterfaceName != node.Network().WireGuard().Name() {
@@ -440,7 +447,10 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		updateStatus = true
 	}
 	if updateStatus {
-		log.Info("Updating container status to running", "status", container.Status)
+		log.Info("Updating container interface status",
+			"newStatus", container.Status,
+			"oldStatus", origStatus,
+		)
 		return r.updateContainerStatus(ctx, container)
 	}
 	return nil
