@@ -185,8 +185,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				// IPv4, use the default plugin to allocate one.
 				// TODO: We need a better mechanism (likely plugin side) as this relies
 				// on read consistency of the database.
-				plugin := meshplugins.NewBuiltinIPAM(r.Provider.MeshDB())
-				alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
+				ipam := meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
+				alloc, err := ipam.Allocate(ctx, &v1.AllocateIPRequest{
 					NodeID: nodeID.String(),
 					Subnet: r.networkV4.String(),
 				})
