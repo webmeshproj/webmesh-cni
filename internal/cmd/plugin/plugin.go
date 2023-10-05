@@ -190,6 +190,9 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		}}
 		log.Debug("Adding routes to container namespace", "routes", result.Routes)
 		for _, route := range result.Routes {
+			if route.Dst.IP.To4() == nil {
+				continue
+			}
 			rt := netlink.Route{
 				LinkIndex: link.Attrs().Index,
 				Dst:       &route.Dst,
