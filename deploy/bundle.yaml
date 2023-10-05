@@ -855,39 +855,6 @@ rules:
 ---
 # Source: https://github.com/webmeshproj/webmesh-cni/raw/main/deploy/bundle.yaml
 ---
-# Source: deploy/rbac/role.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: webmesh-cni-role
-rules:
-- apiGroups:
-  - cni.webmesh.io
-  resources:
-  - peercontainers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - cni.webmesh.io
-  resources:
-  - peercontainers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - cni.webmesh.io
-  resources:
-  - peercontainers/status
-  verbs:
-  - get
-  - patch
-  - update
----
 # Source: deploy/rbac/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -921,6 +888,39 @@ subjects:
   - kind: ServiceAccount
     name: webmesh-cni-sa
     namespace: kube-system
+---
+# Source: deploy/rbac/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webmesh-cni-role
+rules:
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - peercontainers/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
 # Source: deploy/cni/cni.yaml
 # This ConfigMap is used to configure the webmesh-cni installation.

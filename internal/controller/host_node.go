@@ -28,7 +28,6 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
-	"github.com/webmeshproj/webmesh/pkg/meshnet/wireguard"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	"github.com/webmeshproj/webmesh/pkg/storage"
@@ -61,9 +60,6 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	defer r.mu.Unlock()
 	log := log.FromContext(ctx)
 	log.Info("Setting up host node")
-	if r.WireGuardPort == 0 {
-		r.WireGuardPort = wireguard.DefaultListenPort
-	}
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
