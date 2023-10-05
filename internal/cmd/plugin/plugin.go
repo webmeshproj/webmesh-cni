@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -155,20 +156,23 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to build container interface result from status: %w", err)
 		return
 	}
-	// Append the system gateway to the routes.
-	sysgw, err := meshroutes.GetDefaultGateway(ctx)
-	if err != nil {
-		log.Error("Failed to get system gateway", "error", err.Error())
-		err = fmt.Errorf("failed to get system gateway: %w", err)
-		return
+	if !conf.Interface.DisableIPv4 {
+		// Append the system IPv4 gateway to the routes.
+		var sysgw netip.Addr
+		sysgw, err = meshroutes.GetDefaultGateway(ctx)
+		if err != nil {
+			log.Error("Failed to get system gateway", "error", err.Error())
+			err = fmt.Errorf("failed to get system gateway: %w", err)
+			return
+		}
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: net.IPNet{
+				IP:   net.IPv4zero,
+				Mask: net.IPv4Mask(0, 0, 0, 0),
+			},
+			GW: sysgw.AsSlice(),
+		})
 	}
-	result.Routes = append(result.Routes, &cnitypes.Route{
-		Dst: net.IPNet{
-			IP:   net.IPv4zero,
-			Mask: net.IPv4Mask(0, 0, 0, 0),
-		},
-		GW: sysgw.AsSlice(),
-	})
 	// Move the wireguard interface to the container namespace.
 	log.Debug("Moving wireguard interface to container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
