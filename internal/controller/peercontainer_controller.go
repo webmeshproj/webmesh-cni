@@ -216,17 +216,17 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
-				Modprobe:              true,
-				NetNs:                 container.Spec.Netns,
-				InterfaceName:         container.Spec.IfName,
-				ForceReplace:          true,
-				ListenPort:            0, // Let the system decide
-				MTU:                   container.Spec.MTU,
-				RecordMetrics:         false, // Maybe by configuration?
+				NetNs:         container.Spec.Netns,
+				InterfaceName: container.Spec.IfName,
+				ForceReplace:  true,
+				MTU:           container.Spec.MTU,
+
+				ZoneAwarenessID: container.Spec.NodeName,
+				DisableIPv4:     container.Spec.DisableIPv4,
+				DisableIPv6:     container.Spec.DisableIPv6,
+				// Maybe by configuration?
+				RecordMetrics:         false,
 				RecordMetricsInterval: 0,
-				ZoneAwarenessID:       container.Spec.NodeName,
-				DisableIPv4:           container.Spec.DisableIPv4,
-				DisableIPv6:           container.Spec.DisableIPv6,
 			},
 			DirectPeers: func() map[string]v1.ConnectProtocol {
 				peers := make(map[string]v1.ConnectProtocol)
