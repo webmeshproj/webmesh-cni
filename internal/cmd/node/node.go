@@ -29,6 +29,7 @@ import (
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/system"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/wireguard"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -77,6 +78,12 @@ func Main(build version.BuildInfo) {
 		shutdownTimeout          time.Duration
 		cacheSyncTimeout         time.Duration
 		remoteEndpointDetection  bool
+		hostNodeLogLevel         string
+		hostNodeConnectTimeout   time.Duration
+		hostNodeMTU              int
+		hostNodeWireGuardPort    int
+		disableIPv4              bool
+		disableIPv6              bool
 		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&namespace, "namespace", os.Getenv(types.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
@@ -93,6 +100,12 @@ func Main(build version.BuildInfo) {
 	flag.DurationVar(&shutdownTimeout, "shutdown-timeout", time.Second*10, "The duration to wait for the manager to shutdown.")
 	flag.DurationVar(&cacheSyncTimeout, "cache-sync-timeout", time.Second*10, "The duration to wait for the manager to sync caches.")
 	flag.BoolVar(&remoteEndpointDetection, "remote-endpoint-detection", false, "Whether to enable remote endpoint detection.")
+	flag.StringVar(&hostNodeLogLevel, "host-node-log-level", "info", "The log level to use for the host node.")
+	flag.DurationVar(&hostNodeConnectTimeout, "host-node-connect-timeout", time.Second*10, "The timeout to use when connecting to the host node.")
+	flag.IntVar(&hostNodeMTU, "host-node-mtu", system.DefaultMTU, "The MTU to use for the host node. If not specified, the MTU will be autodetected.")
+	flag.IntVar(&hostNodeWireGuardPort, "host-node-wireguard-port", wireguard.DefaultListenPort, "The port to use for the host node WireGuard interface.")
+	flag.BoolVar(&disableIPv4, "disable-ipv4", false, "Whether to disable IPv4.")
+	flag.BoolVar(&disableIPv6, "disable-ipv6", false, "Whether to disable IPv6.")
 	zapopts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
@@ -167,9 +180,12 @@ func Main(build version.BuildInfo) {
 		NodeName:                nodeID,
 		ReconcileTimeout:        reconcileTimeout,
 		RemoteEndpointDetection: remoteEndpointDetection,
-		HostNodeLogLevel:        "debug",
-		MTU:                     system.DefaultMTU,
-		ConnectTimeout:          time.Second * 10,
+		MTU:                     hostNodeMTU,
+		WireGuardPort:           hostNodeWireGuardPort,
+		ConnectTimeout:          hostNodeConnectTimeout,
+		DisableIPv4:             disableIPv4,
+		DisableIPv6:             disableIPv6,
+		HostNodeLogLevel:        hostNodeLogLevel,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
@@ -213,7 +229,8 @@ func Main(build version.BuildInfo) {
 	}
 	defer storageProvider.Close()
 
-	// Wait for the manager cache to sync and then ensure the mesh network is bootstrapped.
+	// Wait for the manager cache to sync and then get ready to handle requests
+
 	setupLog.Info("Waiting for manager cache to sync", "timeout", cacheSyncTimeout)
 	cacheCtx, cancel := context.WithTimeout(ctx, cacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
@@ -222,20 +239,24 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 	cancel()
-
 	setupLog.V(1).Info("Caches synced, bootstrapping network state")
+
+	setupLog.Info("Starting host node for routing traffic")
 	results, err := tryBootstrap(ctx, storageProvider, podcidr, clusterDomain)
 	if err != nil {
 		setupLog.Error(err, "Unable to bootstrap network state")
 		os.Exit(1)
 	}
-
-	setupLog.Info("Starting host node for routing traffic")
 	err = containerReconciler.StartHostNode(ctx, results)
 	if err != nil {
 		setupLog.Error(err, "Unable to start host node")
 		os.Exit(1)
 	}
+	defer func() {
+		if err := containerReconciler.StopHostNode(context.Background()); err != nil {
+			setupLog.Error(err, "Unable to stop host node")
+		}
+	}()
 
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
@@ -255,7 +276,7 @@ func Main(build version.BuildInfo) {
 
 func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, podcidr netip.Prefix, clusterDomain string) (meshstorage.BootstrapResults, error) {
 	log := ctrl.Log.WithName("bootstrap")
-	log.Info("Bootstrapping webmesh network")
+	log.Info("Checking that webmesh network is bootstrapped")
 	// Try to bootstrap the storage provider.
 	log.V(1).Info("Attempting to bootstrap storage provider")
 	var networkState meshstorage.BootstrapResults

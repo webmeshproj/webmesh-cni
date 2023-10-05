@@ -31,7 +31,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/meshnet/wireguard"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
-	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
+	"github.com/webmeshproj/webmesh/pkg/storage"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -39,8 +39,26 @@ import (
 	cnitypes "github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
+// StopHostNode stops the host node.
+func (r *PeerContainerReconciler) StopHostNode(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	log := log.FromContext(ctx)
+	log.Info("Stopping host node")
+	r.ready.Store(false)
+	if r.host != nil {
+		err := r.host.Close(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to stop host node: %w", err)
+		}
+	}
+	return nil
+}
+
 // SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
-func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results meshstorage.BootstrapResults) error {
+func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results storage.BootstrapResults) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	log := log.FromContext(ctx)
 	log.Info("Setting up host node")
 	if r.WireGuardPort == 0 {
