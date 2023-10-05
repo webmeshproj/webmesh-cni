@@ -114,8 +114,10 @@ docker: build ## Build docker image for the current architecture.
 
 RAW_REPO_URL ?= https://github.com/webmeshproj/webmesh-cni/raw/main
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
-BUNDLE ?= deploy/bundle.yaml
+BUNDLE_DIR ?= deploy
+BUNDLE ?= $(BUNDLE_DIR)/bundle.yaml
 bundle: generate ## Bundle creates a distribution bundle manifest.
+	mkdir -p $(BUNDLE_DIR)
 	rm -f $(BUNDLE)
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "---" >> $(BUNDLE)

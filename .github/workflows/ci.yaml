@@ -15,6 +15,7 @@ env:
   DOCKER_PLATFORMS: linux/amd64,linux/arm64,linux/arm,linux/386,linux/ppc64le,linux/s390x
   CACHE_DEP_PATH: go.sum
   LINT_TIMEOUT: 10m
+  BUNDLE_DIR: bundle
   BUILD_PARALLELISM: 6
   COSIGN_EXPERIMENTAL: 1
   RICHGO_FORCE_COLOR: 1
@@ -73,8 +74,8 @@ jobs:
         shell: bash
         run: make ci-test
 
-  build-containers:
-    name: Build Containers
+  build:
+    name: Build Release Assets
     runs-on: ubuntu-latest
     needs: [tests]
     permissions:
@@ -129,7 +130,7 @@ jobs:
             --oidc-issuer=https://token.actions.githubusercontent.com \
             --output-signature=deploy/bundle.yaml.sig \
             --output-certificate=deploy/bundle.yaml.sig.cert \
-            deploy/bundle.yaml
+            ${{ env.BUNDLE_DIR }}/bundle.yaml
 
       - name: Run CNI Release
         uses: goreleaser/goreleaser-action@v5

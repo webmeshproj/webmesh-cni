@@ -99,7 +99,7 @@ release:
   ids:
     - webmesh-cni
   extra_files:
-    - glob: deploy/bundle*
+    - glob: bundle/*
     - glob: dist/*.sig
     - glob: dist/*.sig.cert
 
