@@ -159,6 +159,42 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if err != nil {
 			return fmt.Errorf("failed to generate key: %w", err)
 		}
+		var ipv4addr string
+		if !container.Spec.DisableIPv4 && container.Status.IPv4Address == "" {
+			// If the container does not have an IPv4 address and we are not disabling
+			// IPv4, use the default plugin to allocate one.
+			alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
+				NodeID: nodeID.String(),
+				Subnet: r.networkV4.String(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
+			}
+			ipv4addr = alloc.GetIp()
+		}
+		// Go ahead and register a Peer for this node.
+		encoded, err := key.PublicKey().Encode()
+		if err != nil {
+			return fmt.Errorf("failed to encode public key: %w", err)
+		}
+		peer := meshtypes.MeshNode{
+			MeshNode: &v1.MeshNode{
+				Id:              nodeID.String(),
+				PublicKey:       encoded,
+				ZoneAwarenessID: container.Spec.NodeName,
+				PrivateIPv4:     ipv4addr,
+				PrivateIPv6: func() string {
+					if container.Spec.DisableIPv6 {
+						return ""
+					}
+					return netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String()
+				}(),
+			},
+		}
+		log.Info("Registering peer", "peer", peer.MeshNode)
+		if err := r.Provider.MeshDB().Peers().Put(ctx, peer); err != nil {
+			return fmt.Errorf("failed to register peer: %w", err)
+		}
 		// Create the mesh node.
 		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
@@ -180,35 +216,24 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	if !node.Started() {
 		log.Info("Starting mesh node for container", "container", container)
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
-			// Get the next available IPv4 address if requested.
-			var ipv4addr string
-			if !container.Spec.DisableIPv4 {
-				// If the container does not have an IPv4 address and we are not disabling
-				// IPv4, use the default plugin to allocate one.
-				// TODO: We need a better mechanism (likely plugin side) as this relies
-				// on read consistency of the database.
-				alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
-					NodeID: nodeID.String(),
-					Subnet: r.networkV4.String(),
-				})
-				if err != nil {
-					return nil, fmt.Errorf("failed to allocate IPv4 address: %w", err)
+			// Retrieve the peer we created earlier
+			peer, err := r.Provider.MeshDB().Peers().Get(ctx, node.ID())
+			if err != nil {
+				if client.IgnoreNotFound(err) == nil {
+					// Might just be waiting a minute for the API to catch up
+					log.Info("Peer not found, requeing reconcile request")
+					return nil, fmt.Errorf("peer not found in mesh storage: %s", nodeID.String())
 				}
-				ipv4addr = alloc.GetIp()
+				return nil, fmt.Errorf("failed to get registered peer for container: %w", err)
 			}
 			return &v1.JoinResponse{
 				MeshDomain: r.meshDomain,
 				// We always return both networks regardless of IP preferences.
 				NetworkIPv4: r.networkV4.String(),
 				NetworkIPv6: r.networkV6.String(),
-				// We only return addresses if they are enabled.
-				AddressIPv6: func() string {
-					if container.Spec.DisableIPv6 {
-						return ""
-					}
-					return netutil.AssignToPrefix(r.networkV6, node.Key().PublicKey()).String()
-				}(),
-				AddressIPv4: ipv4addr,
+				// Addresses as allocated above.
+				AddressIPv4: peer.PrivateIPv4,
+				AddressIPv6: peer.PrivateIPv6,
 			}, nil
 		})
 		err := node.Connect(ctx, meshnode.ConnectOptions{
@@ -331,14 +356,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {
 		wgeps = append(wgeps, ep.String())
 	}
-	// Try to register this node as a peer directly via the API.
-	log.Info("Registering peer",
+	// Register the peer's endpoints.
+	log.Info("Registering peer endpoints",
 		"nodeID", nodeID,
-		"publicKey", encoded,
 		"wireguardPort", wireguardPort,
+		"primaryEndpoint", eps.FirstPublicAddr().String(),
 		"wireguardEndpoints", wgeps,
-		"ipv4addr", validOrNone(node.Network().WireGuard().AddressV4()),
-		"ipv6addr", validOrNone(node.Network().WireGuard().AddressV6()),
 	)
 	err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
@@ -381,7 +404,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	// Force a sync of the node.
 	err = node.Network().Peers().Sync(ctx)
 	if err != nil {
-		log.Error(err, "Failed to sysnc peers", "container", container)
+		log.Error(err, "Failed to sync peers", "container", container)
 		// We don't return an error because the peer will eventually sync on its own.
 	}
 	return nil
