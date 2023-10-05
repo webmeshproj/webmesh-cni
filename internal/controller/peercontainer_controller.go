@@ -253,13 +253,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				RecordMetrics:         false,
 				RecordMetricsInterval: 0,
 			},
-			DirectPeers: func() map[string]v1.ConnectProtocol {
-				peers := make(map[string]v1.ConnectProtocol)
+			DirectPeers: func() map[meshtypes.NodeID]v1.ConnectProtocol {
+				peers := make(map[meshtypes.NodeID]v1.ConnectProtocol)
 				for _, n := range r.nodes {
 					if n.ID() == node.ID() {
 						continue
 					}
-					peers[string(n.ID())] = v1.ConnectProtocol_CONNECT_NATIVE
+					peers[n.ID()] = v1.ConnectProtocol_CONNECT_NATIVE
 				}
 				return peers
 			}(),
