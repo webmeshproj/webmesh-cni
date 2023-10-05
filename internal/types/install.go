@@ -142,9 +142,9 @@ var getExecutable = os.Executable
 // LoadInstallOptionsFromEnv loads the install options from the environment.
 func LoadInstallOptionsFromEnv() *InstallOptions {
 	var opts InstallOptions
-	opts.Kubeconfig = envOrDefault(KubeconfigEnvVar, DefaultKubeconfigPath)
-	opts.HostLocalNetDir = envOrDefault(CNINetDirEnvVar, os.Getenv(CNINetDirEnvVar))
+	opts.Kubeconfig = envOrDefault(KubeconfigEnvVar, "")
 	opts.NodeName = envOrDefault(NodeNameEnvVar, "")
+	opts.HostLocalNetDir = envOrDefault(CNINetDirEnvVar, os.Getenv(CNINetDirEnvVar))
 	opts.Namespace = envOrDefault(PodNamespaceEnvVar, DefaultNamespace)
 	opts.BinaryDestBin = envOrDefault(DestBinEnvVar, DefaultDestBin)
 	opts.ConfDestDir = envOrDefault(DestConfEnvVar, DefaultDestConfDir)
