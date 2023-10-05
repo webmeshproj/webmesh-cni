@@ -78,6 +78,7 @@ spec:
       initContainers:
         - name: install-cni
           image: ghcr.io/webmeshproj/webmesh-cni:latest
+          imagePullPolicy: IfNotPresent
           command: ["/webmesh-cni-install"]
           env:
             # Paths to install the CNI binaries and config.
@@ -124,6 +125,7 @@ spec:
       containers:
         - name: webmesh-node
           image: ghcr.io/webmeshproj/webmesh-cni:latest
+          imagePullPolicy: IfNotPresent
           command:
             - /webmesh-cni-node
             - --reconcile-timeout=10s

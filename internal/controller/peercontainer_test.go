@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	"github.com/webmeshproj/webmesh/pkg/storage/testutil"
@@ -154,6 +155,9 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 			Provider:         provider,
 			NodeName:         uuid.NewString(),
 			ReconcileTimeout: time.Second * 10,
+			HostNodeLogLevel: "debug",
+			MTU:              system.DefaultMTU,
+			ConnectTimeout:   time.Second * 10,
 		}
 		err := r.SetupWithManager(mgr)
 		if err != nil {
@@ -191,7 +195,10 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 		t.Fatal("Failed to bootstrap network state", err)
 	}
 	for _, r := range out {
-		r.SetNetworkState(networkState)
+		err := r.StartHostNode(ctx, networkState)
+		if err != nil {
+			t.Fatal("Failed to start host node", err)
+		}
 	}
 	return out
 }

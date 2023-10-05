@@ -56,8 +56,15 @@ type PeerContainerReconciler struct {
 	NodeName                string
 	ReconcileTimeout        time.Duration
 	RemoteEndpointDetection bool
+	MTU                     int
+	WireGuardPort           int
+	ConnectTimeout          time.Duration
+	DisableIPv4             bool
+	DisableIPv6             bool
+	HostNodeLogLevel        string
 
 	ready      atomic.Bool
+	host       meshnode.Node
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
 	meshDomain string
@@ -80,16 +87,6 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
-}
-
-// SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
-func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapResults) {
-	r.meshDomain = results.MeshDomain
-	r.networkV4 = results.NetworkV4
-	r.networkV6 = results.NetworkV6
-	r.nodes = make(map[types.NamespacedName]meshnode.Node)
-	r.ipam = meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
-	r.ready.Store(true)
 }
 
 // Reconcile reconciles a PeerContainer.

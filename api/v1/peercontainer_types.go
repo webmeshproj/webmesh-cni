@@ -18,6 +18,7 @@ package v1
 
 import (
 	"fmt"
+	"net"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
@@ -111,7 +112,14 @@ func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
 		}
 		result.IPs = append(result.IPs, &cniv1.IPConfig{
 			Address: *ipv4net,
-			Gateway: ipv4net.IP, // Use system's default gateway or self?
+			Gateway: ipv4net.IP,
+		})
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: net.IPNet{
+				IP:   net.IPv4zero,
+				Mask: net.CIDRMask(0, 32),
+			},
+			GW: ipv4net.IP,
 		})
 		rtnet, err := netlink.ParseIPNet(p.Status.NetworkV4)
 		if err != nil {
@@ -129,7 +137,14 @@ func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
 		}
 		result.IPs = append(result.IPs, &cniv1.IPConfig{
 			Address: *ipv6net,
-			Gateway: ipv6net.IP, // Use system's default gateway or self?
+			Gateway: ipv6net.IP,
+		})
+		result.Routes = append(result.Routes, &cnitypes.Route{
+			Dst: net.IPNet{
+				IP:   net.IPv6zero,
+				Mask: net.CIDRMask(0, 128),
+			},
+			GW: ipv6net.IP,
 		})
 		rtnet, err := netlink.ParseIPNet(p.Status.NetworkV6)
 		if err != nil {

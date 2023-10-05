@@ -28,6 +28,7 @@ import (
 
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -166,6 +167,9 @@ func Main(build version.BuildInfo) {
 		NodeName:                nodeID,
 		ReconcileTimeout:        reconcileTimeout,
 		RemoteEndpointDetection: remoteEndpointDetection,
+		HostNodeLogLevel:        "debug",
+		MTU:                     system.DefaultMTU,
+		ConnectTimeout:          time.Second * 10,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
@@ -225,7 +229,13 @@ func Main(build version.BuildInfo) {
 		setupLog.Error(err, "Unable to bootstrap network state")
 		os.Exit(1)
 	}
-	containerReconciler.SetNetworkState(results)
+
+	setupLog.Info("Starting host node for routing traffic")
+	err = containerReconciler.StartHostNode(ctx, results)
+	if err != nil {
+		setupLog.Error(err, "Unable to start host node")
+		os.Exit(1)
+	}
 
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.

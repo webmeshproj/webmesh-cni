@@ -18,11 +18,8 @@ package plugin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/netip"
 	"os"
 	"runtime/debug"
 	"time"
@@ -32,8 +29,8 @@ import (
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	"github.com/vishvananda/netlink"
-	meshroutes "github.com/webmeshproj/webmesh/pkg/meshnet/system/routes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
@@ -152,24 +149,8 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to build container interface result from status: %w", err)
 		return
 	}
-	if !conf.Interface.DisableIPv4 {
-		// Append the system IPv4 gateway to the routes.
-		var sysgw netip.Addr
-		sysgw, err = meshroutes.GetDefaultGateway(ctx)
-		if err != nil {
-			log.Error("Failed to get system gateway", "error", err.Error())
-			err = fmt.Errorf("failed to get system gateway: %w", err)
-			return
-		}
-		result.Routes = append(result.Routes, &cnitypes.Route{
-			Dst: net.IPNet{
-				IP:   net.IPv4zero,
-				Mask: net.IPv4Mask(0, 0, 0, 0),
-			},
-			GW: sysgw.AsSlice(),
-		})
-	}
-	// Get the interface details from the container namespace.
+	// Get the interface details from the container namespace and
+	// enable IP forwarding.
 	log.Debug("Getting interface details from container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
@@ -188,27 +169,15 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			Mac:     link.Attrs().HardwareAddr.String(),
 			Sandbox: containerNs.Path(),
 		}}
-		log.Debug("Adding routes to container namespace", "routes", result.Routes)
-		for _, route := range result.Routes {
-			if route.Dst.IP.To4() == nil {
-				continue
-			}
-			rt := netlink.Route{
-				LinkIndex: link.Attrs().Index,
-				Dst:       &route.Dst,
-				Gw:        route.GW,
-			}
-			err = netlink.RouteAdd(&rt)
-			if err != nil {
-				if errors.Is(err, os.ErrExist) {
-					log.Debug("Route already exists", "route", rt)
-					continue
-				}
-				err = fmt.Errorf("failed to add route %+v: %w", route, err)
-				return
-			}
+		if !conf.Interface.DisableIPv6 {
+			log.Debug("Enabling IPv6 forwarding")
+			_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/forwarding", link.Attrs().Name), "1")
 		}
-		return nil
+		if !conf.Interface.DisableIPv4 {
+			log.Debug("Enabling IPv4 forwarding")
+			_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv4/conf/%s/forwarding", link.Attrs().Name), "1")
+		}
+		return
 	})
 	return
 }

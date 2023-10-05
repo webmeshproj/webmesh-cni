@@ -252,7 +252,12 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 
 // GetIfName returns the interface name for the given container ID.
 func (n *NetConf) GetIfName(args *skel.CmdArgs) string {
-	return IfacePrefix + args.ContainerID[:min(9, len(args.ContainerID))] + "0"
+	return IfNameFromID(meshtypes.TruncateID(args.ContainerID))
+}
+
+// IfNameFromID returns a suitable interface name for the given identifier.
+func IfNameFromID(id string) string {
+	return IfacePrefix + id[:min(9, len(id))] + "0"
 }
 
 // NewClient creates a new client for the Kubernetes API server.
