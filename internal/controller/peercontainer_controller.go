@@ -30,7 +30,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
 	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
-	"github.com/webmeshproj/webmesh/pkg/meshnet/transport"
+	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
@@ -130,6 +130,17 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, req, &container)
 }
 
+// NoOpStorageCloser wraps the storage provider with a no-op closer so
+// that mesh nodes will not close the storage provider.
+type NoOpStorageCloser struct {
+	meshstorage.Provider
+}
+
+// Close is a no-op.
+func (n *NoOpStorageCloser) Close() error {
+	return nil
+}
+
 // reconcilePeerContainer reconciles the given PeerContainer.
 func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
@@ -215,7 +226,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	// If the node is not started, start it.
 	if !node.Started() {
 		log.Info("Starting mesh node for container", "container", container)
-		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
+		rtt := meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 			// Retrieve the peer we created earlier
 			peer, err := r.Provider.MeshDB().Peers().Get(ctx, node.ID())
 			if err != nil {
@@ -232,9 +243,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			}, nil
 		})
 		err := node.Connect(ctx, meshnode.ConnectOptions{
-			StorageProvider:  r.Provider,
+			StorageProvider:  &NoOpStorageCloser{r.Provider},
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
+			LeaveRoundTripper: meshtransport.LeaveRoundTripperFunc(func(ctx context.Context, req *v1.LeaveRequest) (*v1.LeaveResponse, error) {
+				// No-op, we clean up in the finalizers
+				return &v1.LeaveResponse{}, nil
+			}),
 			NetworkOptions: meshnet.Options{
 				NetNs:           container.Spec.Netns,
 				InterfaceName:   container.Spec.IfName,
