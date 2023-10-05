@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime"
 	"runtime/debug"
 	"time"
 
@@ -56,10 +55,6 @@ const (
 
 // Main is the entrypoint for the webmesh-cni plugin.
 func Main(version version.BuildInfo) {
-	// This ensures that main runs only on the main thread (thread group leader).
-	// Since namespace ops (unshare, setns) are done for a single thread, we must
-	// ensure that the goroutine does not jump from OS thread to thread
-	runtime.LockOSThread()
 	// Defer a panic recover, so that in case we panic we can still return
 	// a proper error to the runtime.
 	defer func() {
@@ -121,7 +116,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	// Use the host DNS servers?
 	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
-	log.Debug("Handling new ADD request")
+	log.Debug("Handling new container add request")
 	cli, err := conf.NewClient(testConnectionTimeout)
 	if err != nil {
 		err = fmt.Errorf("failed to create client: %w", err)
@@ -173,29 +168,27 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			GW: sysgw.AsSlice(),
 		})
 	}
-	// Move the wireguard interface to the container namespace.
-	log.Debug("Moving wireguard interface to container namespace")
+	// Get the interface details from the container namespace.
+	log.Debug("Getting interface details from container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
 		err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
 		return
 	}
 	defer containerNs.Close()
-	link, err := netlink.LinkByName(ifname)
-	if err != nil {
-		err = fmt.Errorf("failed to find %q: %v", ifname, err)
-		return
-	}
-	contDev, err := moveLinkIn(link, containerNs, ifname)
-	if err != nil {
-		err = fmt.Errorf("move link to container namespace: %v", err)
-		return
-	}
-	result.Interfaces = []*cniv1.Interface{{
-		Name:    contDev.Attrs().Name,
-		Mac:     contDev.Attrs().HardwareAddr.String(),
-		Sandbox: containerNs.Path(),
-	}}
+	err = containerNs.Do(func(_ ns.NetNS) (err error) {
+		link, err := netlink.LinkByName(ifname)
+		if err != nil {
+			err = fmt.Errorf("failed to find %q: %v", ifname, err)
+			return
+		}
+		result.Interfaces = []*cniv1.Interface{{
+			Name:    link.Attrs().Name,
+			Mac:     link.Attrs().HardwareAddr.String(),
+			Sandbox: containerNs.Path(),
+		}}
+		return nil
+	})
 	return
 }
 
@@ -252,21 +245,6 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 		return
 	}
 	log = conf.NewLogger(args)
-	log.Debug("Handling new DEL request")
-	// Remove the interface from the container namespace.
-	if args.Netns != "" {
-		var containerNs ns.NetNS
-		containerNs, err = ns.GetNS(args.Netns)
-		if err != nil {
-			err = fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-			return
-		}
-		defer containerNs.Close()
-		if err = moveLinkOut(containerNs, args.IfName); err != nil {
-			err = fmt.Errorf("failed to move link out of container namespace: %w", err)
-			return
-		}
-	}
 	// Delete the PeerContainer.
 	log.Debug("Deleting PeerContainer", "container", conf.ObjectKeyFromArgs(args))
 	cli, err := conf.NewClient(testConnectionTimeout)

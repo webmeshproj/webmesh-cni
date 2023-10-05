@@ -217,6 +217,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
 				Modprobe:              true,
+				NetNs:                 container.Spec.Netns,
 				InterfaceName:         container.Spec.IfName,
 				ForceReplace:          true,
 				ListenPort:            0, // Let the system decide

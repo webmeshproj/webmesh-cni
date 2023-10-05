@@ -20,12 +20,20 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/install"
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/node"
 	"github.com/webmeshproj/webmesh-cni/internal/cmd/plugin"
 	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
+
+func init() {
+	// This ensures that main runs only on the main thread (thread group leader).
+	// Since namespace ops (unshare, setns) are done for a single thread, we must
+	// ensure that the goroutine does not jump from OS thread to thread
+	runtime.LockOSThread()
+}
 
 func main() {
 	// We run the entrypoint based on how we were invoked.
