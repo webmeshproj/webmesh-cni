@@ -1103,6 +1103,8 @@ spec:
               readOnly: true
             - mountPath: /dev/net/tun
               name: dev-tun
+            - mountPath: /var/run/netns
+              name: host-netns-dir
           securityContext:
             privileged: true
             capabilities:
@@ -1125,6 +1127,9 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        - name: host-netns-dir
+          hostPath:
+            path: /var/run/netns
         # Mount in the directory for host-local IPAM allocations. This is
         # used when upgrading from host-local to calico-ipam, and can be removed
         # if not using the upgrade-ipam init container.
@@ -1169,7 +1174,7 @@ spec:
             description: PeerContainerSpec defines the desired state of PeerContainer
             properties:
               containerID:
-                description: NodeID is the ID to use for the container.
+                description: ContainerID is the ID of the container to peer with.
                 type: string
               disableIPv4:
                 description: DisableIPv4 is whether to disable IPv4 on the interface.
@@ -1190,6 +1195,9 @@ spec:
                 description: Netns is the network namespace of the container to peer
                   with.
                 type: string
+              nodeID:
+                description: NodeID is the ID to use for the container.
+                type: string
               nodeName:
                 description: NodeName is the name of the node the container is running
                   on.
@@ -1202,6 +1210,7 @@ spec:
             - logLevel
             - mtu
             - netns
+            - nodeID
             - nodeName
             type: object
           status:

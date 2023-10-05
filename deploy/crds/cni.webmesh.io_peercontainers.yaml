@@ -35,7 +35,7 @@ spec:
             description: PeerContainerSpec defines the desired state of PeerContainer
             properties:
               containerID:
-                description: NodeID is the ID to use for the container.
+                description: ContainerID is the ID of the container to peer with.
                 type: string
               disableIPv4:
                 description: DisableIPv4 is whether to disable IPv4 on the interface.
@@ -56,6 +56,9 @@ spec:
                 description: Netns is the network namespace of the container to peer
                   with.
                 type: string
+              nodeID:
+                description: NodeID is the ID to use for the container.
+                type: string
               nodeName:
                 description: NodeName is the name of the node the container is running
                   on.
@@ -68,6 +71,7 @@ spec:
             - logLevel
             - mtu
             - netns
+            - nodeID
             - nodeName
             type: object
           status:

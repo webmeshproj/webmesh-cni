@@ -220,7 +220,7 @@ func (n *NetConf) LogWriter() io.Writer {
 // ObjectKeyFromArgs creates a new object key for the given container ID.
 func (n *NetConf) ObjectKeyFromArgs(args *skel.CmdArgs) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      args.ContainerID,
+		Name:      meshtypes.TruncateID(args.ContainerID),
 		Namespace: n.Kubernetes.Namespace,
 	}
 }
@@ -233,11 +233,12 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			APIVersion: meshcniv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      args.ContainerID,
+			Name:      meshtypes.TruncateID(args.ContainerID),
 			Namespace: n.Kubernetes.Namespace,
 		},
 		Spec: meshcniv1.PeerContainerSpec{
 			NodeID:      meshtypes.TruncateID(args.ContainerID),
+			ContainerID: args.ContainerID,
 			Netns:       args.Netns,
 			IfName:      n.GetIfName(args),
 			NodeName:    n.Kubernetes.NodeName,
