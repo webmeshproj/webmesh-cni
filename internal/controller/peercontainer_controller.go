@@ -155,7 +155,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		log.Info("Mesh node for container not found, we must need to create it", "container", id)
 		key, err := crypto.GenerateKey()
 		if err != nil {
-			r.setFailedStatus(ctx, container, err)
 			return fmt.Errorf("failed to generate key: %w", err)
 		}
 		// Create the mesh node.
@@ -178,25 +177,24 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	// If the node is not started, start it.
 	if !node.Started() {
 		log.Info("Starting mesh node for container", "container", container)
-		// Get the next available IPv4 address if requested.
-		var ipv4addr string
-		if !container.Spec.DisableIPv4 {
-			// If the container does not have an IPv4 address and we are not disabling
-			// IPv4, use the default plugin to allocate one.
-			// TODO: We need a better mechanism (likely plugin side) as this relies
-			// on read consistency of the database.
-			plugin := meshplugins.NewBuiltinIPAM(r.Provider.MeshDB())
-			alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
-				NodeID: nodeID.String(),
-				Subnet: r.networkV4.String(),
-			})
-			if err != nil {
-				r.setFailedStatus(ctx, container, err)
-				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
-			}
-			ipv4addr = alloc.GetIp()
-		}
 		rtt := transport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
+			// Get the next available IPv4 address if requested.
+			var ipv4addr string
+			if !container.Spec.DisableIPv4 {
+				// If the container does not have an IPv4 address and we are not disabling
+				// IPv4, use the default plugin to allocate one.
+				// TODO: We need a better mechanism (likely plugin side) as this relies
+				// on read consistency of the database.
+				plugin := meshplugins.NewBuiltinIPAM(r.Provider.MeshDB())
+				alloc, err := plugin.Allocate(ctx, &v1.AllocateIPRequest{
+					NodeID: nodeID.String(),
+					Subnet: r.networkV4.String(),
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to allocate IPv4 address: %w", err)
+				}
+				ipv4addr = alloc.GetIp()
+			}
 			return &v1.JoinResponse{
 				MeshDomain:  r.meshDomain,
 				NetworkIPv4: r.networkV4.String(),
@@ -271,8 +269,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	case <-ctx.Done():
 		// Update the status to failed.
 		log.Error(ctx.Err(), "Timed out waiting for mesh node to start", "container", container)
-		r.setFailedStatus(ctx, container, ctx.Err())
-		// Don't delete the node, maybe it'll be ready on the next reconcile.
+		// Don't delete the node or set it to failed yet, maybe it'll be ready on the next reconcile.
 		return ctx.Err()
 	}
 
@@ -280,11 +277,25 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 
 	wireguardPort, err := node.Network().WireGuard().ListenPort()
 	if err != nil {
+		// Something went terribly wrong, we need to recreate the node.
+		defer func() {
+			if err := node.Close(ctx); err != nil {
+				log.Error(err, "Failed to stop mesh node for container", "container", container)
+			}
+		}()
+		delete(r.nodes, id)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to get wireguard port: %w", err)
 	}
 	encoded, err := node.Key().PublicKey().Encode()
 	if err != nil {
+		// Something went terribly wrong, we need to recreate the node.
+		defer func() {
+			if err := node.Close(ctx); err != nil {
+				log.Error(err, "Failed to stop mesh node for container", "container", container)
+			}
+		}()
+		delete(r.nodes, id)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
