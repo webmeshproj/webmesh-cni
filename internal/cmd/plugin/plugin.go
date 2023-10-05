@@ -51,15 +51,26 @@ const (
 	setupContainerInterfaceTimeout = time.Second * 10
 )
 
-func init() {
+// Main is the entrypoint for the webmesh-cni plugin.
+func Main(version version.BuildInfo) {
 	// This ensures that main runs only on the main thread (thread group leader).
 	// Since namespace ops (unshare, setns) are done for a single thread, we must
 	// ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
-}
-
-// Main is the entrypoint for the webmesh-cni plugin.
-func Main(version version.BuildInfo) {
+	// Defer a panic recover, so that in case we panic we can still return
+	// a proper error to the runtime.
+	defer func() {
+		if e := recover(); e != nil {
+			msg := fmt.Sprintf("Webmesh CNI panicked: %s\nStack trace:\n%s", e, string(debug.Stack()))
+			cnierr := cnitypes.Error{
+				Code:    100,
+				Msg:     "Webmesh CNI panicked",
+				Details: msg,
+			}
+			cnierr.Print()
+			os.Exit(1)
+		}
+	}()
 	skel.PluginMain(
 		cmdAdd,
 		cmdCheck,
@@ -71,19 +82,9 @@ func Main(version version.BuildInfo) {
 
 // cmdAdd is the CNI ADD command handler.
 func cmdAdd(args *skel.CmdArgs) (err error) {
-	// Defer a panic recover, so that in case we panic we can still return
-	// a proper error to the runtime.
 	log := slog.Default()
 	result := &cniv1.Result{}
 	defer func() {
-		if e := recover(); e != nil {
-			msg := fmt.Sprintf("Webmesh CNI panicked during ADD: %s\nStack trace:\n%s", e, string(debug.Stack()))
-			if err != nil {
-				// If we're recovering and there was also an error, then we need to present both.
-				msg = fmt.Sprintf("%s: error=%s", msg, err)
-			}
-			err = fmt.Errorf(msg)
-		}
 		if err != nil {
 			log.Error("Final result of CNI ADD was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
@@ -181,19 +182,8 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 // cmdCheck is the CNI CHECK command handler. Most implementations do a dummy check like this.
 // TODO: This could be used to check if there are new routes to track.
 func cmdCheck(args *skel.CmdArgs) (err error) {
-	// Defer a panic recover, so that in case we panic we can still return
-	// a proper error to the runtime.
 	log := slog.Default()
 	defer func() {
-		if e := recover(); e != nil {
-			msg := fmt.Sprintf("Webmesh CNI panicked during CHECK: %s\nStack trace:\n%s", e, string(debug.Stack()))
-			if err != nil {
-				// If we're recovering and there was also an error, then we need to
-				// present both.
-				msg = fmt.Sprintf("%s: error=%s", msg, err)
-			}
-			err = fmt.Errorf(msg)
-		}
 		if err != nil {
 			log.Error("Final result of CNI CHECK was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
@@ -223,18 +213,8 @@ func cmdCheck(args *skel.CmdArgs) (err error) {
 
 // cmdDel is the CNI DEL command handler.
 func cmdDel(args *skel.CmdArgs) (err error) {
-	// Defer a panic recover, so that in case we panic we can still return
-	// a proper error to the runtime.
 	log := slog.Default()
 	defer func() {
-		if e := recover(); e != nil {
-			msg := fmt.Sprintf("Webmesh CNI panicked during DEL: %s\nStack trace:\n%s", e, string(debug.Stack()))
-			if err != nil {
-				// If we're recovering and there was also an error, then we need to present both.
-				msg = fmt.Sprintf("%s: error=%s", msg, err)
-			}
-			err = fmt.Errorf(msg)
-		}
 		if err != nil {
 			log.Error("Final result of CNI DEL was an error", "error", err.Error())
 			cnierr := cnitypes.Error{
