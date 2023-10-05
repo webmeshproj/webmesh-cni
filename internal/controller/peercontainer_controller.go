@@ -61,6 +61,7 @@ type PeerContainerReconciler struct {
 	networkV4  netip.Prefix
 	networkV6  netip.Prefix
 	meshDomain string
+	ipam       *meshplugins.BuiltinIPAM
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
 }
@@ -87,6 +88,7 @@ func (r *PeerContainerReconciler) SetNetworkState(results meshstorage.BootstrapR
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
 	r.nodes = make(map[types.NamespacedName]meshnode.Node)
+	r.ipam = meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
 	r.ready.Store(true)
 }
 
@@ -185,8 +187,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				// IPv4, use the default plugin to allocate one.
 				// TODO: We need a better mechanism (likely plugin side) as this relies
 				// on read consistency of the database.
-				ipam := meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
-				alloc, err := ipam.Allocate(ctx, &v1.AllocateIPRequest{
+				alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
 					NodeID: nodeID.String(),
 					Subnet: r.networkV4.String(),
 				})
