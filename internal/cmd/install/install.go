@@ -18,6 +18,7 @@ limitations under the License.
 package install
 
 import (
+	"flag"
 	"log"
 	"os"
 
@@ -27,12 +28,16 @@ import (
 
 // Main ensures the CNI binaries and configuration are installed on the host system.
 func Main(version version.BuildInfo) {
+	conf := types.LoadInstallOptionsFromEnv()
+	conf.BindFlags(flag.CommandLine)
+	flag.Parse()
 	log.Printf("installing webmesh-cni, version: %+v", version)
-	conf, err := types.LoadInstallOptionsFromEnv()
+	err := conf.Validate()
 	if err != nil {
-		log.Println("error loading install options from environment:", err)
+		log.Println("install options are invalid:", err)
 		os.Exit(1)
 	}
+	log.Printf("installing webmesh-cni with options:\n%s", conf.String())
 	err = conf.RunInstall()
 	if err != nil {
 		log.Println("error running install:", err)

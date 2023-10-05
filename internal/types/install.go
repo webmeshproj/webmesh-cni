@@ -18,6 +18,8 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -33,14 +35,14 @@ import (
 )
 
 const (
-	// NetConfEnvVar is the name of the environment variable that contains the CNI configuration.
-	NetConfEnvVar = "CNI_NETWORK_CONFIG"
-	// NetConfFileName is the name of the file that contains the CNI configuration.
-	NetConfFileNameEnvVar = "CNI_CONF_NAME"
-	// BinaryDestBinEnvVar is the destination directory for the CNI binaries.
-	BinaryDestBinEnvVar = "CNI_BIN_DIR"
-	// BinaryDestConfEnvVar is the destination directory for the CNI configuration.
-	BinaryDestConfEnvVar = "CNI_CONF_DIR"
+	// NetConfTemplateEnvVar is the name of the environment variable that contains the CNI configuration.
+	NetConfTemplateEnvVar = "CNI_NETWORK_CONFIG"
+	// DestConfFileNameEnvVar is the name of the file that contains the CNI configuration.
+	DestConfFileNameEnvVar = "CNI_CONF_NAME"
+	// DestBinEnvVar is the destination directory for the CNI binaries.
+	DestBinEnvVar = "CNI_BIN_DIR"
+	// DestConfEnvVar is the destination directory for the CNI configuration.
+	DestConfEnvVar = "CNI_CONF_DIR"
 	// CNINetDirEnvVar is the directory containing host-local IPAM allocations. We release these
 	// when we start for the first time.
 	CNINetDirEnvVar = "CNI_NET_DIR"
@@ -62,8 +64,8 @@ const (
 	DefaultDestBin = "/opt/cni/bin"
 	// DefaultDestConfDir is the default destination directory for the CNI configuration.
 	DefaultDestConfDir = "/etc/cni/net.d"
-	// DefaultDestConfName is the default name of the CNI configuration file.
-	DefaultDestConfName = "10-webmesh.conflist"
+	// DefaultDestConfFilename is the default name of the CNI configuration file.
+	DefaultDestConfFilename = "10-webmesh.conflist"
 	// DefaultNetConfPath is the default path to the CNI configuration file.
 	DefaultNetConfPath = "/etc/cni/net.d/10-webmesh.conflist"
 	// Default kubeconfig path if not provided.
@@ -78,20 +80,12 @@ const (
 	KubeconfigContextName = "webmesh-cni"
 )
 
-// ErrMissingEnvVar is returned when a required environment variable is missing.
-var ErrMissingEnvar = fmt.Errorf("missing environment variable")
-
-// ErrGetExecutable is returned when we can't determine the binary to install.
-var ErrInvalidExecutable = fmt.Errorf("error getting executable path")
-
 // InstallOptions are the options for the install component.
 type InstallOptions struct {
 	// SourceBinary is the path to the source binary.
 	SourceBinary string
 	// BinaryDestBin is the destination directory for the CNI binaries.
 	BinaryDestBin string
-	// BinaryName is the name of the plugin binary.
-	BinaryName string
 	// ConfDestDir is the destination directory for the CNI configuration.
 	ConfDestDir string
 	// ConfDestName is the name of the CNI configuration file.
@@ -107,54 +101,104 @@ type InstallOptions struct {
 	Namespace string
 }
 
+// String returns a string representation of the install options.
+func (i *InstallOptions) String() string {
+	out, _ := json.MarshalIndent(i, "", "  ")
+	return string(out)
+}
+
+// BindFlags binds the install options to the given flag set.
+func (i *InstallOptions) BindFlags(fs *flag.FlagSet) {
+	fs.StringVar(&i.SourceBinary, "source-binary", i.SourceBinary, "path to the source binary (default: current executable)")
+	fs.StringVar(&i.BinaryDestBin, "binary-dest-bin", i.BinaryDestBin, "destination directory for the CNI binaries")
+	fs.StringVar(&i.ConfDestDir, "conf-dest-dir", i.ConfDestDir, "destination directory for the CNI configuration")
+	fs.StringVar(&i.ConfDestName, "conf-dest-name", i.ConfDestName, "name of the CNI configuration file")
+	fs.StringVar(&i.HostLocalNetDir, "host-local-net-dir", i.HostLocalNetDir, "directory containing host-local IPAM allocations")
+	fs.StringVar(&i.NodeName, "node-name", i.NodeName, "name of the node we are running on")
+	fs.StringVar(&i.Namespace, "namespace", i.Namespace, "namespace to use for the plugin")
+	fs.Func("netconf-template", "template file for the CNI configuration", func(fname string) error {
+		data, err := os.ReadFile(fname)
+		if err != nil {
+			return fmt.Errorf("read file: %w", err)
+		}
+		i.NetConfTemplate = string(data)
+		return nil
+	})
+}
+
 // getExecutable is the function for retrieving the current executable.
 // This is overridden in tests.
 var getExecutable = os.Executable
 
 // LoadInstallOptionsFromEnv loads the install options from the environment.
-func LoadInstallOptionsFromEnv() (*InstallOptions, error) {
+func LoadInstallOptionsFromEnv() *InstallOptions {
 	var opts InstallOptions
-	var err error
-	opts.BinaryName = PluginBinaryName
-	opts.HostLocalNetDir = os.Getenv(CNINetDirEnvVar)
-	if opts.HostLocalNetDir == "" {
-		opts.HostLocalNetDir = DefaultHostLocalNetDir
+	opts.HostLocalNetDir = envOrDefault(CNINetDirEnvVar, os.Getenv(CNINetDirEnvVar))
+	opts.NodeName = envOrDefault(NodeNameEnvVar, "")
+	opts.Namespace = envOrDefault(PodNamespaceEnvVar, DefaultNamespace)
+	opts.BinaryDestBin = envOrDefault(DestBinEnvVar, DefaultDestBin)
+	opts.ConfDestDir = envOrDefault(DestConfEnvVar, DefaultDestConfDir)
+	opts.ConfDestName = envOrDefault(DestConfFileNameEnvVar, DefaultDestConfFilename)
+	opts.NetConfTemplate = os.Getenv(NetConfTemplateEnvVar)
+	opts.SourceBinary, _ = getExecutable()
+	return &opts
+}
+
+func envOrDefault(env, def string) string {
+	if val, ok := os.LookupEnv(env); ok {
+		return val
 	}
-	opts.NodeName = os.Getenv(NodeNameEnvVar)
-	if opts.NodeName == "" {
-		return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, NodeNameEnvVar)
+	return def
+}
+
+func (i *InstallOptions) Default() {
+	if i.SourceBinary == "" {
+		i.SourceBinary, _ = getExecutable()
 	}
-	opts.Namespace = os.Getenv(PodNamespaceEnvVar)
-	if opts.Namespace == "" {
-		opts.Namespace, err = getInClusterNamespace()
-		if err != nil {
-			return nil, fmt.Errorf("%s %w and error getting in-cluster namespace: %v", PodNamespaceEnvVar, ErrMissingEnvar, err)
-		}
-		if opts.Namespace == "" {
-			return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, PodNamespaceEnvVar)
-		}
+	if i.BinaryDestBin == "" {
+		i.BinaryDestBin = DefaultDestBin
 	}
-	opts.NetConfTemplate = os.Getenv(NetConfEnvVar)
-	if opts.NetConfTemplate == "" {
-		return nil, fmt.Errorf("%w: %s", ErrMissingEnvar, NetConfEnvVar)
+	if i.ConfDestDir == "" {
+		i.ConfDestDir = DefaultDestConfDir
 	}
-	opts.SourceBinary, err = getExecutable()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidExecutable, err)
+	if i.ConfDestName == "" {
+		i.ConfDestName = DefaultDestConfFilename
 	}
-	opts.BinaryDestBin = os.Getenv(BinaryDestBinEnvVar)
-	if opts.BinaryDestBin == "" {
-		opts.BinaryDestBin = DefaultDestBin
+	if i.HostLocalNetDir == "" {
+		i.HostLocalNetDir = DefaultHostLocalNetDir
 	}
-	opts.ConfDestDir = os.Getenv(BinaryDestConfEnvVar)
-	if opts.ConfDestDir == "" {
-		opts.ConfDestDir = DefaultDestConfDir
+	if i.Namespace == "" {
+		i.Namespace, _ = getInClusterNamespace()
 	}
-	opts.ConfDestName = os.Getenv(NetConfFileNameEnvVar)
-	if opts.ConfDestName == "" {
-		opts.ConfDestName = DefaultDestConfName
+}
+
+func (i *InstallOptions) Validate() error {
+	i.Default()
+	if i.SourceBinary == "" {
+		return fmt.Errorf("source binary not set")
 	}
-	return &opts, nil
+	if i.BinaryDestBin == "" {
+		return fmt.Errorf("binary destination directory not set")
+	}
+	if i.ConfDestDir == "" {
+		return fmt.Errorf("configuration destination directory not set")
+	}
+	if i.ConfDestName == "" {
+		return fmt.Errorf("configuration destination name not set")
+	}
+	if i.HostLocalNetDir == "" {
+		return fmt.Errorf("host-local IPAM directory not set")
+	}
+	if i.NetConfTemplate == "" {
+		return fmt.Errorf("CNI configuration template not set")
+	}
+	if i.NodeName == "" {
+		return fmt.Errorf("node name not set")
+	}
+	if i.Namespace == "" {
+		return fmt.Errorf("%s not set and unable to get in-cluster namespace", PodNamespaceEnvVar)
+	}
+	return nil
 }
 
 // getInstallRestConfig is the function for retrieving the REST config during installation.
