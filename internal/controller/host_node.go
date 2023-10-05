@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/logging"
@@ -69,12 +68,13 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	log.V(1).Info("Detecting host endpoints")
 	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 		DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
-		DetectIPv6:           true, // Make configurable?
+		DetectIPv6:           !r.DisableIPv6,
 		AllowRemoteDetection: r.RemoteEndpointDetection,
-		SkipInterfaces:       []string{}, // Make configurable?
+		// Make configurable? It will at least need to account for any CNI interfaces
+		// from a previous run.
+		SkipInterfaces: []string{},
 	})
 	if err != nil {
-		// Try again on the next reconcile.
 		return fmt.Errorf("failed to detect endpoints: %w", err)
 	}
 	key, err := crypto.GenerateKey()
@@ -85,9 +85,8 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	if err != nil {
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
+	// We always allocate addresses for ourselves, even if we won't use them.
 	var ipv4Addr, ipv6Addr string
-	// If the container does not have an IPv4 address and we are not disabling
-	// IPv4, use the default plugin to allocate one.
 	log.Info("Allocating a mesh IPv4 address")
 	alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
 		NodeID: r.NodeName,
@@ -177,7 +176,7 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	// Put a default gateway route for ourselves.
 	err = r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
-			Name: fmt.Sprintf("%s-default-gw", r.NodeName),
+			Name: fmt.Sprintf("%s-node-gw", r.NodeName),
 			Node: r.NodeName,
 			// This should be more configurable.
 			DestinationCIDRs: func() []string {
@@ -194,8 +193,8 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 		return fmt.Errorf("failed to register default gateway route: %w", err)
 	}
 	ifName := hostNode.Network().WireGuard().Name()
-	_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/forwarding", ifName), "1")
-	_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv4/conf/%s/forwarding", ifName), "1")
+	// _, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/forwarding", ifName), "1")
+	// _, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv4/conf/%s/forwarding", ifName), "1")
 	err = hostNode.Network().Firewall().AddMasquerade(ctx, ifName)
 	if err != nil {
 		defer hostNode.Close(ctx)

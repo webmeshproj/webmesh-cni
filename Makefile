@@ -51,7 +51,7 @@ help: ## Display this help.
 CONTROLLER_TOOLS_VERSION ?= v0.13.0
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
-generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: ## Run code generators, including DeepCopy methods and manifests.
 	go generate ./...
 
 .PHONY: fmt
@@ -96,18 +96,18 @@ BUILD_ARGS ?= --skip=validate --clean --parallelism=$(PARALLEL)
 build: ## Build cni binaries for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
 
+DOCKER ?= docker
+docker: build ## Build docker image for the current architecture.
+	$(DOCKER) build -t $(IMG) .
+
+##@ Distribution
+
 .PHONY: dist
 dist: ## Build cni binaries for all supported architectures.
 	$(GORELEASER) build --snapshot $(BUILD_ARGS)
 
 snapshot: ## Same as dist, but with running all release steps except for signing.
 	$(GORELEASER) release --snapshot --skip=sign $(BUILD_ARGS)
-
-DOCKER ?= docker
-docker: build ## Build docker image for the current architecture.
-	$(DOCKER) build -t $(IMG) .
-
-##@ Distribute
 
 RAW_REPO_URL ?= https://github.com/webmeshproj/webmesh-cni/raw/main
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
@@ -144,6 +144,9 @@ CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
 KIND_CONFIG   ?= deploy/kindconfig.yaml
 
+K3D_CONTEXT := k3d-$(CLUSTER_NAME)
+KIND_CONTEXT := kind-$(CLUSTER_NAME)
+
 test-k3d: ## Create a test cluster using k3d.
 	$(K3D) cluster create $(CLUSTER_NAME) \
 		--k3s-arg '--flannel-backend=none@server:*' \
@@ -155,27 +158,29 @@ test-k3d: ## Create a test cluster using k3d.
 		--k3s-arg '--kube-proxy-arg=ipvs-strict-arp@server:*' \
 		--volume '/lib/modules:/lib/modules@server:*' \
 		--volume '/dev/net/tun:/dev/net/tun@server:*'
+	$(KUBECTL) config set-context $(K3D_CONTEXT) --namespace=$(CNI_NAMESPACE)
 
-load-k3d: docker ## Load the docker image into the test cluster.
+load-k3d: docker ## Load the docker image into the test k3d cluster.
 	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
 
-install-k3d: bundle ## Install the WebMesh CNI into the test cluster.
-	$(KUBECTL) --context k3d-$(CLUSTER_NAME) apply -f $(BUNDLE)
+install-k3d: bundle ## Install the WebMesh CNI into the test k3d cluster.
+	$(KUBECTL) --context $(K3D_CONTEXT) apply -f $(BUNDLE)
 
-remove-k3d: ## Remove the test cluster.
+remove-k3d: ## Remove the test k3d cluster.
 	$(K3D) cluster delete $(CLUSTER_NAME)
 
 test-kind: ## Create a test cluster using kind.
 	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
+	$(KUBECTL) config set-context $(KIND_CONTEXT) --namespace=$(CNI_NAMESPACE)
 
-load-kind: docker ## Load the docker image into the test cluster.
+load-kind: docker ## Load the docker image into the test kind cluster.
 	$(KIND) load docker-image $(IMG) --name $(CLUSTER_NAME)
 
-install-kind: bundle ## Install the WebMesh CNI into the test cluster.
-	$(KUBECTL) --context kind-$(CLUSTER_NAME) apply -f $(BUNDLE)
+install-kind: bundle ## Install the WebMesh CNI into the test kind cluster.
+	$(KUBECTL) --context $(KIND_CONTEXT) apply -f $(BUNDLE)
 
-remove-kind: ## Remove the test cluster.
+remove-kind: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
-clean: remove-kind remove-k3d ## Remove all local binaries and release assets.
+clean: remove-kind remove-k3d ## Remove all local binaries, test clusters, and release assets.
 	rm -rf dist cover.out
