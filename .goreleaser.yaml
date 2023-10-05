@@ -99,7 +99,7 @@ release:
   ids:
     - webmesh-cni
   extra_files:
-    - glob: bundle/*
+    - glob: "{{ .Env.BUNDLE_DIR }}/*"
     - glob: dist/*.sig
     - glob: dist/*.sig.cert
 

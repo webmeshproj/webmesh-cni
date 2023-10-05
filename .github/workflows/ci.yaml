@@ -128,8 +128,8 @@ jobs:
           make bundle
           cosign sign-blob --yes \
             --oidc-issuer=https://token.actions.githubusercontent.com \
-            --output-signature=deploy/bundle.yaml.sig \
-            --output-certificate=deploy/bundle.yaml.sig.cert \
+            --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
+            --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
             ${{ env.BUNDLE_DIR }}/bundle.yaml
 
       - name: Run CNI Release
