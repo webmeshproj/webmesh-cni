@@ -18,6 +18,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -187,6 +188,23 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 			Mac:     link.Attrs().HardwareAddr.String(),
 			Sandbox: containerNs.Path(),
 		}}
+		log.Debug("Adding routes to container namespace", "routes", result.Routes)
+		for _, route := range result.Routes {
+			rt := netlink.Route{
+				LinkIndex: link.Attrs().Index,
+				Dst:       &route.Dst,
+				Gw:        route.GW,
+			}
+			err = netlink.RouteAdd(&rt)
+			if err != nil {
+				if errors.Is(err, os.ErrExist) {
+					log.Debug("Route already exists", "route", rt)
+					continue
+				}
+				err = fmt.Errorf("failed to add route %+v: %w", route, err)
+				return
+			}
+		}
 		return nil
 	})
 	return

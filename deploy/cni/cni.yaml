@@ -24,7 +24,7 @@ data:
           "interface": {
               "mtu": 1420,
               "disableIPv4": false,
-              "disableIPv6": true
+              "disableIPv6": false
           },
           "kubernetes": {
               "kubeconfig": "__KUBECONFIG_FILEPATH__",
