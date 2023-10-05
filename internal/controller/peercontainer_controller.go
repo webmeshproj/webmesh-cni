@@ -196,10 +196,17 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				ipv4addr = alloc.GetIp()
 			}
 			return &v1.JoinResponse{
-				MeshDomain:  r.meshDomain,
+				MeshDomain: r.meshDomain,
+				// We always return both networks regardless of IP preferences.
 				NetworkIPv4: r.networkV4.String(),
 				NetworkIPv6: r.networkV6.String(),
-				AddressIPv6: netutil.AssignToPrefix(r.networkV6, node.Key().PublicKey()).String(),
+				// We only return addresses if they are enabled.
+				AddressIPv6: func() string {
+					if container.Spec.DisableIPv6 {
+						return ""
+					}
+					return netutil.AssignToPrefix(r.networkV6, node.Key().PublicKey()).String()
+				}(),
 				AddressIPv4: ipv4addr,
 			}, nil
 		})
