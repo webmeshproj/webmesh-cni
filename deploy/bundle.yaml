@@ -933,17 +933,23 @@ spec:
           command: ["/webmesh-cni-install"]
           env:
             # Paths to install the CNI binaries and config.
-            - name: CNI_BIN_DIR
+            - name: WEBMESH_CNI_BIN_DIR
               value: "/host/opt/cni/bin"
-            - name: CNI_CONF_DIR
+            - name: WEBMESH_CNI_CONF_DIR
               value: "/host/etc/cni/net.d"
             # The path to clear IPAM allocations from when upgrading from
             # host-local plugins.
-            - name: CNI_NET_DIR
+            - name: WEBMESH_CNI_HOSTNET_DIR
               value: "/var/lib/cni/networks"
             # Name of the CNI config file to create.
-            - name: CNI_CONF_NAME
+            - name: WEBMESH_CNI_CONF_NAME
               value: "10-webmesh.conflist"
+            # The CNI network config to install on each node.
+            - name: WEBMESH_CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cni-network-config
             # Set the hostname based on the k8s node name.
             - name: KUBERNETES_NODE_NAME
               valueFrom:
@@ -954,12 +960,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            # The CNI network config to install on each node.
-            - name: CNI_NETWORK_CONFIG
-              valueFrom:
-                configMapKeyRef:
-                  name: webmesh-config
-                  key: cni-network-config
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir

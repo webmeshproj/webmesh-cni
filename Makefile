@@ -94,7 +94,7 @@ ci-test: $(CI_TARGETS) ## Run all CI tests.
 
 PARALLEL   ?= $(shell nproc)
 GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
-BUILD_ARGS ?= --skip-validate --clean --parallelism=$(PARALLEL)
+BUILD_ARGS ?= --skip=validate --clean --parallelism=$(PARALLEL)
 
 build: ## Build cni binaries for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)

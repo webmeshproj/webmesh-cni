@@ -31,7 +31,7 @@ func Main(version version.BuildInfo) {
 	conf := types.LoadInstallOptionsFromEnv()
 	conf.BindFlags(flag.CommandLine)
 	flag.Parse()
-	log.Printf("installing webmesh-cni, version: %+v", version)
+	log.Printf("installing webmesh-cni, version: %s", version.String())
 	err := conf.Validate()
 	if err != nil {
 		log.Println("install options are invalid:", err)

@@ -17,6 +17,8 @@ limitations under the License.
 // Package version contains the build-time version information.
 package version
 
+import "encoding/json"
+
 // Compile-time variables set by the build script.
 var (
 	Version   = "0.0.0"
@@ -38,4 +40,10 @@ func GetBuildInfo() BuildInfo {
 		Commit:    Commit,
 		BuildDate: BuildDate,
 	}
+}
+
+// String returns a string representation of the build-time version information.
+func (b BuildInfo) String() string {
+	out, _ := json.Marshal(b)
+	return string(out)
 }

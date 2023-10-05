@@ -35,21 +35,25 @@ import (
 )
 
 const (
+	// DryRunEnvVar is the name of the environment variable that enables dry run mode.
+	DryRunEnvVar = "WEBMESH_CNI_INSTALL_DRY_RUN"
 	// NetConfTemplateEnvVar is the name of the environment variable that contains the CNI configuration.
-	NetConfTemplateEnvVar = "CNI_NETWORK_CONFIG"
+	NetConfTemplateEnvVar = "WEBMESH_CNI_NETWORK_CONFIG"
 	// DestConfFileNameEnvVar is the name of the file that contains the CNI configuration.
-	DestConfFileNameEnvVar = "CNI_CONF_NAME"
+	DestConfFileNameEnvVar = "WEBMESH_CNI_CONF_NAME"
 	// DestBinEnvVar is the destination directory for the CNI binaries.
-	DestBinEnvVar = "CNI_BIN_DIR"
+	DestBinEnvVar = "WEBMESH_CNI_BIN_DIR"
 	// DestConfEnvVar is the destination directory for the CNI configuration.
-	DestConfEnvVar = "CNI_CONF_DIR"
+	DestConfEnvVar = "WEBMESH_CNI_CONF_DIR"
 	// CNINetDirEnvVar is the directory containing host-local IPAM allocations. We release these
 	// when we start for the first time.
-	CNINetDirEnvVar = "CNI_NET_DIR"
+	CNINetDirEnvVar = "WEBMESH_CNI_HOSTNET_DIR"
 	// NodeNameEnvVar is the name of the environment variable that contains the node name.
 	NodeNameEnvVar = "KUBERNETES_NODE_NAME"
 	// PodNamespaceEnvVar is the name of the environment variable that contains the pod namespace.
 	PodNamespaceEnvVar = "KUBERNETES_POD_NAMESPACE"
+	// KubeconfigEnvVar is the name of the environment variable that contains the kubeconfig.
+	KubeconfigEnvVar = "WEBMESH_CNI_KUBECONFIG"
 	// NodeNameReplaceStr is the string that will be replaced in the CNI configuration with the node name.
 	NodeNameReplaceStr = "__KUBERNETES_NODE_NAME__"
 	// PodNamespaceReplaceStr is the string that will be replaced in the CNI configuration with the pod namespace.
@@ -82,6 +86,8 @@ const (
 
 // InstallOptions are the options for the install component.
 type InstallOptions struct {
+	// Kubeconfig is the kubeconfig to use for the plugin.
+	Kubeconfig string
 	// SourceBinary is the path to the source binary.
 	SourceBinary string
 	// BinaryDestBin is the destination directory for the CNI binaries.
@@ -99,6 +105,8 @@ type InstallOptions struct {
 	NodeName string
 	// Namespace is the namespace to use for the plugin.
 	Namespace string
+	// DryRun is whether or not to run in dry run mode.
+	DryRun bool
 }
 
 // String returns a string representation of the install options.
@@ -109,6 +117,7 @@ func (i *InstallOptions) String() string {
 
 // BindFlags binds the install options to the given flag set.
 func (i *InstallOptions) BindFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&i.DryRun, "dry-run", i.DryRun, "whether or not to run in dry run mode")
 	fs.StringVar(&i.SourceBinary, "source-binary", i.SourceBinary, "path to the source binary (default: current executable)")
 	fs.StringVar(&i.BinaryDestBin, "binary-dest-bin", i.BinaryDestBin, "destination directory for the CNI binaries")
 	fs.StringVar(&i.ConfDestDir, "conf-dest-dir", i.ConfDestDir, "destination directory for the CNI configuration")
@@ -133,6 +142,7 @@ var getExecutable = os.Executable
 // LoadInstallOptionsFromEnv loads the install options from the environment.
 func LoadInstallOptionsFromEnv() *InstallOptions {
 	var opts InstallOptions
+	opts.Kubeconfig = envOrDefault(KubeconfigEnvVar, DefaultKubeconfigPath)
 	opts.HostLocalNetDir = envOrDefault(CNINetDirEnvVar, os.Getenv(CNINetDirEnvVar))
 	opts.NodeName = envOrDefault(NodeNameEnvVar, "")
 	opts.Namespace = envOrDefault(PodNamespaceEnvVar, DefaultNamespace)
@@ -141,6 +151,9 @@ func LoadInstallOptionsFromEnv() *InstallOptions {
 	opts.ConfDestName = envOrDefault(DestConfFileNameEnvVar, DefaultDestConfFilename)
 	opts.NetConfTemplate = os.Getenv(NetConfTemplateEnvVar)
 	opts.SourceBinary, _ = getExecutable()
+	if dryrun, ok := os.LookupEnv(DryRunEnvVar); ok {
+		opts.DryRun = dryrun == "true" || dryrun == "1"
+	}
 	return &opts
 }
 
@@ -207,41 +220,63 @@ var getInstallRestConfig = ctrl.GetConfig
 
 // RunInstall is an alias for running all install steps.
 func (i *InstallOptions) RunInstall() error {
-	apicfg, err := getInstallRestConfig()
-	if err != nil {
-		log.Println("error getting kubeconfig:", err)
-		return err
+	var apicfg *rest.Config
+	var err error
+	if i.Kubeconfig == "" {
+		log.Println("no kubeconfig provided, trying to auto-detect")
+		apicfg, err = getInstallRestConfig()
+		if err != nil {
+			log.Println("error getting kubeconfig:", err)
+			return err
+		}
+	} else {
+		log.Println("using kubeconfig provided at", i.Kubeconfig)
+		apicfg, err = clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+			return clientcmd.LoadFromFile(i.Kubeconfig)
+		})
+		if err != nil {
+			log.Println("error getting kubeconfig:", err)
+			return err
+		}
 	}
 	// Clear any local host IPAM allocations that already exist.
 	log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
-	err = i.ClearHostLocalIPAMAllocations()
-	if err != nil {
-		log.Println("error clearing host-local IPAM allocations:", err)
-		return err
+	if !i.DryRun {
+		err = i.ClearHostLocalIPAMAllocations()
+		if err != nil {
+			log.Println("error clearing host-local IPAM allocations:", err)
+			return err
+		}
 	}
 	pluginBin := filepath.Join(i.BinaryDestBin, PluginBinaryName)
 	log.Println("installing plugin binary to -> ", pluginBin)
-	err = i.InstallPlugin(pluginBin)
-	if err != nil {
-		log.Println("error installing plugin:", err)
-		return err
+	if !i.DryRun {
+		err = i.InstallPlugin(pluginBin)
+		if err != nil {
+			log.Println("error installing plugin:", err)
+			return err
+		}
 	}
 	kubeconfigPath := filepath.Join(i.ConfDestDir, PluginKubeconfigName)
 	log.Println("installing kubeconfig to destination -> ", kubeconfigPath)
-	err = i.InstallKubeconfig(kubeconfigPath)
-	if err != nil {
-		log.Println("error writing kubeconfig:", err)
-		return err
+	if !i.DryRun {
+		err = i.InstallKubeconfig(kubeconfigPath)
+		if err != nil {
+			log.Println("error writing kubeconfig:", err)
+			return err
+		}
 	}
 	log.Println("rendering CNI configuration")
 	netConf := i.RenderNetConf(apicfg.Host, strings.TrimPrefix(kubeconfigPath, "/host"))
 	log.Println("effective CNI configuration ->\n", netConf)
 	confPath := filepath.Join(i.ConfDestDir, i.ConfDestName)
 	log.Println("installing CNI configuration to destination -> ", confPath)
-	err = i.InstallNetConf(confPath, netConf)
-	if err != nil {
-		log.Println("error writing netconf:", err)
-		return err
+	if !i.DryRun {
+		err = i.InstallNetConf(confPath, netConf)
+		if err != nil {
+			log.Println("error writing netconf:", err)
+			return err
+		}
 	}
 	return nil
 }
