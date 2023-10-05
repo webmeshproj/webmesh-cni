@@ -6,6 +6,7 @@ require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.3.0
 	github.com/google/uuid v1.3.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
 	github.com/webmeshproj/storage-provider-k8s v0.0.2-0.20231004221713-02169c3965da

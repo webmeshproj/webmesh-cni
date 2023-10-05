@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -87,31 +88,44 @@ const (
 // InstallOptions are the options for the install component.
 type InstallOptions struct {
 	// Kubeconfig is the kubeconfig to use for the plugin.
-	Kubeconfig string
+	Kubeconfig string `json:"kubeconfig" mapstructure:"kubeconfig"`
 	// SourceBinary is the path to the source binary.
-	SourceBinary string
+	SourceBinary string `json:"sourceBinary" mapstructure:"sourceBinary"`
 	// BinaryDestBin is the destination directory for the CNI binaries.
-	BinaryDestBin string
+	BinaryDestBin string `json:"binaryDestBin" mapstructure:"binaryDestBin"`
 	// ConfDestDir is the destination directory for the CNI configuration.
-	ConfDestDir string
+	ConfDestDir string `json:"confDestDir" mapstructure:"confDestDir"`
 	// ConfDestName is the name of the CNI configuration file.
-	ConfDestName string
+	ConfDestName string `json:"confDestName" mapstructure:"confDestName"`
 	// HostLocalNetDir is the directory containing host-local IPAM allocations.
 	// We release these when we start for the first time.
-	HostLocalNetDir string
+	HostLocalNetDir string `json:"hostLocalNetDir" mapstructure:"hostLocalNetDir"`
 	// NetConfTemplate is the template for the CNI configuration.
-	NetConfTemplate string
+	NetConfTemplate string `json:"netConfTemplate" mapstructure:"netConfTemplate"`
 	// NodeName is the name of the node we are running on.
-	NodeName string
+	NodeName string `json:"nodeName" mapstructure:"nodeName"`
 	// Namespace is the namespace to use for the plugin.
-	Namespace string
+	Namespace string `json:"namespace" mapstructure:"namespace"`
 	// DryRun is whether or not to run in dry run mode.
-	DryRun bool
+	DryRun bool `json:"dryRun" mapstructure:"dryRun"`
 }
 
 // String returns a string representation of the install options.
 func (i *InstallOptions) String() string {
-	out, _ := json.MarshalIndent(i, "", "  ")
+	mapstruct := map[string]any{}
+	err := mapstructure.Decode(i, &mapstruct)
+	if err != nil {
+		return fmt.Sprintf("error decoding install options: %s", err.Error())
+	}
+	delete(mapstruct, "netConfTemplate")
+	confTempl := map[string]any{}
+	err = json.Unmarshal([]byte(i.NetConfTemplate), &confTempl)
+	if err == nil {
+		mapstruct["netConfTemplate"] = confTempl
+	} else {
+		mapstruct["netConfTemplate"] = "error parsing netconf template: " + err.Error()
+	}
+	out, _ := json.MarshalIndent(mapstruct, "", "  ")
 	return string(out)
 }
 
@@ -210,6 +224,10 @@ func (i *InstallOptions) Validate() error {
 	}
 	if i.Namespace == "" {
 		return fmt.Errorf("%s not set and unable to get in-cluster namespace", PodNamespaceEnvVar)
+	}
+	err := json.Unmarshal([]byte(i.NetConfTemplate), &struct{}{})
+	if err != nil {
+		return fmt.Errorf("CNI configuration template is not proper JSON: %w", err)
 	}
 	return nil
 }
