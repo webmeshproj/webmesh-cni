@@ -4,7 +4,6 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
-    - make bundle VERSION={{ .Version }}
 
 builds:
   - id: webmesh-cni
@@ -89,18 +88,6 @@ signs:
       - "--output-certificate=${signature}.cert"
       - "${artifact}"
     artifacts: checksum
-  - cmd: cosign
-    id: bundle
-    env:
-      - COSIGN_EXPERIMENTAL=1
-    args:
-      - "sign-blob"
-      - "--yes"
-      - "--oidc-issuer=https://token.actions.githubusercontent.com"
-      - "--output-signature=dist/bundle.yaml.sig"
-      - "--output-certificate=dist/bundle.yaml.sig.cert"
-      - "deploy/bundle.yaml"
-    artifacts: source
 
 changelog:
   sort: asc
@@ -108,11 +95,11 @@ changelog:
 release:
   github:
     owner: webmeshproj
-    name: webmesh
+    name: webmesh-cni
   ids:
     - webmesh-cni
   extra_files:
-    - glob: deploy/bundle.yaml
+    - glob: deploy/bundle*
     - glob: dist/*.sig
     - glob: dist/*.sig.cert
 

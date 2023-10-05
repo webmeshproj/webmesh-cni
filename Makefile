@@ -104,7 +104,7 @@ dist: ## Build cni binaries for all supported architectures.
 	$(GORELEASER) build $(BUILD_ARGS)
 
 snapshot: ## Same as dist, but without running the release hooks.
-	$(GORELEASER) build --snapshot $(BUILD_ARGS)
+	$(GORELEASER) release --snapshot $(BUILD_ARGS)
 
 DOCKER ?= docker
 docker: build ## Build docker image for the current architecture.

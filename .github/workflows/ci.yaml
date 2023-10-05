@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/webmeshproj/webmesh-cni
-  VERSION: ${{ startswith(github.ref, 'refs/tags/v') && github.ref || 'latest' }}
+  VERSION: ${{ startswith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
   GO_VERSION: "1.21"
   GOLANGCI_LINT_VERSION: v1.54.2
   DOCKER_PLATFORMS: linux/amd64,linux/arm64,linux/arm,linux/386,linux/ppc64le,linux/s390x
@@ -118,6 +118,18 @@ jobs:
         with:
           version: latest
           args: build --snapshot --clean --parallelism=${{ env.BUILD_PARALLELISM }}
+
+      - name: Generate and Sign Bundle Manifests
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          set -ex
+          make bundle
+          cosign sign-blob --yes \
+            --oidc-issuer=https://token.actions.githubusercontent.com \
+            --output-signature=deploy/bundle.yaml.sig \
+            --output-certificate=deploy/bundle.yaml.sig.cert \
+            deploy/bundle.yaml
 
       - name: Run CNI Release
         uses: goreleaser/goreleaser-action@v5
