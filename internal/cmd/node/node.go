@@ -172,6 +172,9 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 
+	// TODO: Register a Node reconciler that ensures their presence in the
+	// consensus group.
+
 	// Register the health and ready checks.
 	setupLog.V(1).Info("Registering health and ready checks")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

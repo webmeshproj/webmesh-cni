@@ -9,8 +9,8 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
-	github.com/webmeshproj/storage-provider-k8s v0.0.2-0.20231004221713-02169c3965da
-	github.com/webmeshproj/webmesh v0.10.6-0.20231004220644-db2099bb668d
+	github.com/webmeshproj/storage-provider-k8s v0.0.2
+	github.com/webmeshproj/webmesh v0.11.0
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
