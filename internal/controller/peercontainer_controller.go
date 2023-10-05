@@ -219,11 +219,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			// Retrieve the peer we created earlier
 			peer, err := r.Provider.MeshDB().Peers().Get(ctx, node.ID())
 			if err != nil {
-				if client.IgnoreNotFound(err) == nil {
-					// Might just be waiting a minute for the API to catch up
-					log.Info("Peer not found, requeing reconcile request")
-					return nil, fmt.Errorf("peer not found in mesh storage: %s", nodeID.String())
-				}
 				return nil, fmt.Errorf("failed to get registered peer for container: %w", err)
 			}
 			return &v1.JoinResponse{
@@ -241,11 +236,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			MaxJoinRetries:   10,
 			JoinRoundTripper: rtt,
 			NetworkOptions: meshnet.Options{
-				NetNs:         container.Spec.Netns,
-				InterfaceName: container.Spec.IfName,
-				ForceReplace:  true,
-				MTU:           container.Spec.MTU,
-
+				NetNs:           container.Spec.Netns,
+				InterfaceName:   container.Spec.IfName,
+				ForceReplace:    true,
+				MTU:             container.Spec.MTU,
 				ZoneAwarenessID: container.Spec.NodeName,
 				DisableIPv4:     container.Spec.DisableIPv4,
 				DisableIPv6:     container.Spec.DisableIPv6,
