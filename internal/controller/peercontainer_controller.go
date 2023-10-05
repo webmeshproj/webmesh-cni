@@ -266,8 +266,8 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			"macAddress", hwaddr.String(),
 			"ipv4Address", validOrNone(node.Network().WireGuard().AddressV4()),
 			"ipv4Address", validOrNone(node.Network().WireGuard().AddressV6()),
-			"networkV4", node.Network().NetworkV4().String(),
-			"networkV6", node.Network().NetworkV6().String(),
+			"networkV4", validOrNone(node.Network().NetworkV4()),
+			"networkV6", validOrNone(node.Network().NetworkV6()),
 		)
 		err := r.ensureInterfaceReadyStatus(ctx, container, node)
 		if err != nil {
