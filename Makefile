@@ -94,14 +94,14 @@ ci-test: $(CI_TARGETS) ## Run all CI tests.
 
 PARALLEL   ?= $(shell nproc)
 GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
-BUILD_ARGS ?= --clean --parallelism=$(PARALLEL)
+BUILD_ARGS ?= --skip-validate --clean --parallelism=$(PARALLEL)
 
 build: ## Build cni binaries for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
 
 .PHONY: dist
 dist: ## Build cni binaries for all supported architectures.
-	$(GORELEASER) build $(BUILD_ARGS)
+	$(GORELEASER) build --snapshot $(BUILD_ARGS)
 
 snapshot: ## Same as dist, but with running all release steps except for signing.
 	$(GORELEASER) release --snapshot --skip=sign $(BUILD_ARGS)

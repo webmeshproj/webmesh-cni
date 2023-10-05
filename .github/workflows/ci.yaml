@@ -16,7 +16,7 @@ env:
   CACHE_DEP_PATH: go.sum
   LINT_TIMEOUT: 10m
   BUNDLE_DIR: bundle
-  BUILD_PARALLELISM: 6
+  BUILD_PARALLELISM: 2
   COSIGN_EXPERIMENTAL: 1
   RICHGO_FORCE_COLOR: 1
 
@@ -113,33 +113,17 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Run Snapshot CNI Release
-        uses: goreleaser/goreleaser-action@v5
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        with:
-          version: latest
-          args: build --snapshot --clean --parallelism=${{ env.BUILD_PARALLELISM }}
-
-      - name: Generate and Sign Bundle Manifests
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      - name: Generate Bundle Manifest
         shell: bash
-        run: |
-          set -ex
-          make bundle
-          cosign sign-blob --yes \
-            --oidc-issuer=https://token.actions.githubusercontent.com \
-            --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
-            --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
-            ${{ env.BUNDLE_DIR }}/bundle.yaml
+        run: make bundle
 
-      - name: Run CNI Release
+      - name: Run CNI Build
         uses: goreleaser/goreleaser-action@v5
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          SNAPSHOT: ${{ startsWith(github.ref, 'refs/tags/v') && '' || '--snapshot' }}
         with:
           version: latest
-          args: release --clean --parallelism=${{ env.BUILD_PARALLELISM }}
+          args: build --clean --parallelism=${{ env.BUILD_PARALLELISM }} ${{ env.SNAPSHOT }}
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -158,6 +142,25 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ env.VERSION }}
           platforms: ${{ env.DOCKER_PLATFORMS }}
 
-      - name: Sign Container Images
+      - name: Sign Release Assets
         if: ${{ github.event_name != 'pull_request' }}
-        run: cosign sign --yes --recursive ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          cosign sign --yes --recursive ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          cosign sign-blob --yes \
+            --oidc-issuer=https://token.actions.githubusercontent.com \
+            --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
+            --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
+            ${{ env.BUNDLE_DIR }}/bundle.yaml
+
+      - name: Run CNI Release
+        uses: goreleaser/goreleaser-action@v5
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          version: latest
+          args: release --clean --parallelism=${{ env.BUILD_PARALLELISM }}
