@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -31,6 +32,7 @@ import (
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+	meshroutes "github.com/webmeshproj/webmesh/pkg/meshnet/system/routes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
@@ -153,6 +155,20 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to build container interface result from status: %w", err)
 		return
 	}
+	// Append the system gateway to the routes.
+	sysgw, err := meshroutes.GetDefaultGateway(ctx)
+	if err != nil {
+		log.Error("Failed to get system gateway", "error", err.Error())
+		err = fmt.Errorf("failed to get system gateway: %w", err)
+		return
+	}
+	result.Routes = append(result.Routes, &cnitypes.Route{
+		Dst: net.IPNet{
+			IP:   net.IPv4zero,
+			Mask: net.IPv4Mask(0, 0, 0, 0),
+		},
+		GW: sysgw.AsSlice(),
+	})
 	// Move the wireguard interface to the container namespace.
 	log.Debug("Moving wireguard interface to container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
