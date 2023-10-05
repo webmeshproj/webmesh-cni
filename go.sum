@@ -611,6 +611,8 @@ github.com/webmeshproj/webmesh v0.11.2-0.20231005171104-7f11e0880d3f h1:N98mkjev
 github.com/webmeshproj/webmesh v0.11.2-0.20231005171104-7f11e0880d3f/go.mod h1:h41cC3KVTnY1/aO9omZOMY3LitmO5KULf66Pw3WmWtQ=
 github.com/webmeshproj/webmesh v0.11.2-0.20231005172839-fb493b29d0c2 h1:TxTu3shmWnxHRKooeUv3ELkf8lNqc5urRRDe8Tx8jB4=
 github.com/webmeshproj/webmesh v0.11.2-0.20231005172839-fb493b29d0c2/go.mod h1:h41cC3KVTnY1/aO9omZOMY3LitmO5KULf66Pw3WmWtQ=
+github.com/webmeshproj/webmesh v0.11.2-0.20231005181220-61edc05cd679 h1:7glUo/1TtjNH5eJaDM41eYcIbPC/3CoAQkCRMYddpFw=
+github.com/webmeshproj/webmesh v0.11.2-0.20231005181220-61edc05cd679/go.mod h1:h41cC3KVTnY1/aO9omZOMY3LitmO5KULf66Pw3WmWtQ=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 h1:EKhdznlJHPMoKr0XTrX+IlJs1LH3lyx2nfr1dOlZ79k=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1/go.mod h1:8UvriyWtv5Q5EOgjHaSseUEdkQfvwFv1I/In/O2M9gc=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
