@@ -4,7 +4,7 @@ name: webmesh-cni
 networking:
   ipFamily: dual
   disableDefaultCNI: true
-  kubeProxyMode: "ipvs" # The goal is 'none'
+  kubeProxyMode: "ipvs"
   podSubnet: "10.42.0.0/16"
 nodes:
 - role: control-plane
