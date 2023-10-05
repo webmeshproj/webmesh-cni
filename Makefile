@@ -3,6 +3,7 @@
 REPO    ?= ghcr.io/webmeshproj/webmesh-cni
 VERSION ?= latest
 IMG     ?= $(REPO):$(VERSION)
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
@@ -12,7 +13,6 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
-LOCALBIN := $(CURDIR)/bin
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -63,13 +63,10 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 ## Location to install dependencies to
-LOCALBIN ?= $(CURDIR)/bin
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
 
 K8S_VERSION := 1.28
-SETUP := go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use $(K8S_VERSION) --bin-dir $(LOCALBIN) -p path
-setup-envtest: $(LOCALBIN) ## Setup envtest. This is automatically run by the test target.
+SETUP := go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use $(K8S_VERSION) -p path
+setup-envtest: ## Setup envtest. This is automatically run by the test target.
 	$(SETUP) 1> /dev/null
 
 RICHGO       ?= go run github.com/kyoh86/richgo@v0.3.12
@@ -180,5 +177,5 @@ install-kind: bundle ## Install the WebMesh CNI into the test cluster.
 remove-kind: ## Remove the test cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
-clean: ## Remove all local binaries and release assets.
-	rm -rf $(LOCALBIN) dist cover.out
+clean: remove-kind remove-k3d ## Remove all local binaries and release assets.
+	rm -rf dist cover.out
