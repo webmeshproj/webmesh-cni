@@ -180,7 +180,8 @@ spec:
             - mountPath: /dev/net/tun
               name: dev-tun
             - mountPath: /var/run/netns
-              name: host-netns-dir
+              name: host-netns
+              mountPropagation: Bidirectional
           securityContext:
             privileged: true
             capabilities:
@@ -203,7 +204,7 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
-        - name: host-netns-dir
+        - name: host-netns
           hostPath:
             path: /var/run/netns
         # Mount in the directory for host-local IPAM allocations. This is
