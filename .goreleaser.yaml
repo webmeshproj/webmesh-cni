@@ -65,6 +65,8 @@ nfpms:
       - archlinux
     recommends:
       - wireguard-tools
+    provides:
+      - webmesh-cni
     archlinux:
       packager: Avi Zimmerman <avi.zimmerman@gmail.com>
       pkgbase: webmesh-cni

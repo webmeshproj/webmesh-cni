@@ -33,6 +33,22 @@ func main() {
 	switch filepath.Base(os.Args[0]) {
 	case "webmesh":
 		plugin.Main(version)
+	case "webmesh-cni":
+		// This is a package installation. Run either install or node
+		// depending on the first argument.
+		var cmd string
+		if len(os.Args) > 1 {
+			cmd = os.Args[1]
+		}
+		switch cmd {
+		case "install":
+			install.Main(version)
+		case "node":
+			node.Main(version)
+		default:
+			// Default to the plugin.
+			plugin.Main(version)
+		}
 	case "webmesh-cni-node", "webmesh-node":
 		node.Main(version)
 	case "webmesh-cni-install":
