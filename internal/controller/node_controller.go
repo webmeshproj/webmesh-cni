@@ -42,6 +42,7 @@ type NodeReconciler struct {
 // SetupWithManager sets up the node reconciler with the manager.
 func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("node-edges").
 		Watches(&corev1.Node{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
