@@ -156,9 +156,9 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 				Manager: ManagerConfig{
 					NodeName:         uuid.NewString(),
 					Namespace:        "default",
-					ReconcileTimeout: time.Second * 10,
+					ReconcileTimeout: time.Second * 15,
 					IPAMLockDuration: time.Second * 5,
-					IPAMLockTimeout:  time.Second * 3,
+					IPAMLockTimeout:  time.Second * 10,
 				},
 				HostNode: HostNodeConfig{
 					LogLevel:       "debug",

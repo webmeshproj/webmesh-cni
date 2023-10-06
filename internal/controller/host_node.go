@@ -95,13 +95,13 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	if err != nil {
 		return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 	}
-	defer lock.Release(ctx)
 	var ipv4Addr, ipv6Addr string
 	log.Info("Allocating a mesh IPv4 address")
 	alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
 		NodeID: nodeID.String(),
 		Subnet: r.networkV4.String(),
 	})
+	lock.Release(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 	}
