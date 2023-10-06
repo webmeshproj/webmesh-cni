@@ -136,38 +136,13 @@ bundle: generate ## Bundle creates a distribution bundle manifest.
 
 ##@ Local Development
 
-K3D     ?= k3d
 KIND    ?= kind
 KUBECTL ?= kubectl
 
 CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
 KIND_CONFIG   ?= deploy/kindconfig.yaml
-
-K3D_CONTEXT := k3d-$(CLUSTER_NAME)
-KIND_CONTEXT := kind-$(CLUSTER_NAME)
-
-test-k3d: ## Create a test cluster using k3d.
-	$(K3D) cluster create $(CLUSTER_NAME) \
-		--k3s-arg '--flannel-backend=none@server:*' \
-		--k3s-arg "--disable-network-policy@server:*" \
-		--k3s-arg "--disable=traefik,servicelb,local-storage,metrics-server@server:*" \
-		--k3s-arg '--cluster-cidr=10.42.0.0/16,2001:cafe:42:0::/56@server:*' \
-		--k3s-arg '--service-cidr=10.43.0.0/16,2001:cafe:43:0::/112@server:*' \
-		--k3s-arg '--node-ip=0.0.0.0,::@server:*' \
-		--k3s-arg '--kube-proxy-arg=ipvs-strict-arp@server:*' \
-		--volume '/lib/modules:/lib/modules@server:*' \
-		--volume '/dev/net/tun:/dev/net/tun@server:*'
-	$(KUBECTL) config set-context $(K3D_CONTEXT) --namespace=$(CNI_NAMESPACE)
-
-load-k3d: docker ## Load the docker image into the test k3d cluster.
-	$(K3D) image import $(IMG) --cluster $(CLUSTER_NAME)
-
-install-k3d: bundle ## Install the WebMesh CNI into the test k3d cluster.
-	$(KUBECTL) --context $(K3D_CONTEXT) apply -f $(BUNDLE)
-
-remove-k3d: ## Remove the test k3d cluster.
-	$(K3D) cluster delete $(CLUSTER_NAME)
+KIND_CONTEXT  := kind-$(CLUSTER_NAME)
 
 test-kind: ## Create a test cluster using kind.
 	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
@@ -182,5 +157,5 @@ install-kind: bundle ## Install the WebMesh CNI into the test kind cluster.
 remove-kind: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
-clean: remove-kind remove-k3d ## Remove all local binaries, test clusters, and release assets.
+clean: remove-kind ## Remove all local binaries, test clusters, and release assets.
 	rm -rf dist cover.out
