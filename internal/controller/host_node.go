@@ -91,6 +91,11 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
 	// We always allocate addresses for ourselves, even if we won't use them.
+	lock, err := r.ipamlock.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire IPAM lock: %w", err)
+	}
+	defer lock.Release(ctx)
 	var ipv4Addr, ipv6Addr string
 	log.Info("Allocating a mesh IPv4 address")
 	alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{

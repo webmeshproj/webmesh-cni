@@ -56,7 +56,6 @@ type PeerContainerReconciler struct {
 	client.Client
 	Config
 	Provider *provider.Provider
-	IPAMLock IPAMLock
 
 	ready      atomic.Bool
 	host       meshnode.Node
@@ -64,6 +63,7 @@ type PeerContainerReconciler struct {
 	networkV6  netip.Prefix
 	meshDomain string
 	ipam       *meshplugins.BuiltinIPAM
+	ipamlock   *IPAMLock
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
 }
@@ -106,7 +106,7 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return fmt.Errorf("create ipam lock: %w", err)
 	}
-	r.IPAMLock = IPAMLock{Interface: rlock, config: r.Manager}
+	r.ipamlock = &IPAMLock{Interface: rlock, config: r.Manager}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
@@ -194,10 +194,15 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if !container.Spec.DisableIPv4 && container.Status.IPv4Address == "" {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
+			lock, err := r.ipamlock.Acquire(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to acquire IPAM lock: %w", err)
+			}
 			alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
 				NodeID: nodeID.String(),
 				Subnet: r.networkV4.String(),
 			})
+			lock.Release(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}

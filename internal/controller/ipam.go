@@ -18,23 +18,82 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // IPAMLock is the interface for taking a distributed lock during IPAM
 // allocations.
 type IPAMLock struct {
 	resourcelock.Interface
-	config ManagerConfig
+	config    ManagerConfig
+	lockHeld  bool
+	lockCount int
+	curLock   Lock
+	mu        sync.Mutex
 }
 
 // Acquire attempts to acquire the lock.
-func (l *IPAMLock) Acquire(ctx context.Context) error {
-	return nil
+func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.lockHeld {
+		l.lockCount++
+		return l.curLock, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, l.config.IPAMLockTimeout)
+	defer cancel()
+	for {
+		lock := resourcelock.LeaderElectionRecord{
+			HolderIdentity:       l.config.NodeName,
+			LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
+			AcquireTime:          metav1.Now(),
+		}
+		err := l.Interface.Create(ctx, lock)
+		if err == nil {
+			l.lockHeld = true
+			l.lockCount = 1
+			l.curLock = &ipamLock{IPAMLock: l, acquiredAt: lock.AcquireTime}
+			return l.curLock, nil
+		}
+		log.FromContext(ctx).WithName("ipam-lock").Error(err, "Failed to acquire IPAM lock, retrying...")
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("failed to acquire IPAM lock: %w", ctx.Err())
+		default:
+			time.Sleep(time.Millisecond * 500)
+		}
+	}
 }
 
-// Release releases the lock.
-func (l *IPAMLock) Release(ctx context.Context) error {
-	return nil
+type Lock interface {
+	// Release releases the lock.
+	Release(ctx context.Context)
+}
+
+type ipamLock struct {
+	*IPAMLock
+	acquiredAt metav1.Time
+}
+
+func (i *ipamLock) Release(ctx context.Context) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if !i.lockHeld {
+		return
+	}
+	i.lockCount--
+	if i.lockCount == 0 {
+		err := i.Interface.Update(ctx, resourcelock.LeaderElectionRecord{
+			HolderIdentity: "",
+		})
+		if err != nil {
+			log.FromContext(ctx).WithName("ipam-lock").Error(err, "Failed to release IPAM lock")
+		}
+	}
 }
