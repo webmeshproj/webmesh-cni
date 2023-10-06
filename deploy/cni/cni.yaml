@@ -128,7 +128,7 @@ spec:
           imagePullPolicy: IfNotPresent
           command:
             - /webmesh-cni-node
-            - --manager.reconcile-timeout=10s
+            - --manager.reconcile-timeout=15s
             - --manager.shutdown-timeout=10s
             - --storage.cache-sync-timeout=10s
             - --storage.leader-elect-lease-duration=15s
