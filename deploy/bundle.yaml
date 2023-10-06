@@ -896,6 +896,14 @@ metadata:
   name: webmesh-cni-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - cni.webmesh.io
   resources:
   - peercontainers
