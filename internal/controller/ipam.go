@@ -45,13 +45,13 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 	log := log.FromContext(ctx).WithName("ipam-lock")
 	if l.lockHeld {
 		log.V(1).Info("Lock already held, incrementing lock count")
-		l.lockCount++
 		// Try to update the lock with a renew time.
 		lock, _, err := l.Interface.Get(ctx)
 		if err == nil {
 			lock.RenewTime = metav1.Now()
 			err = l.Interface.Update(ctx, *lock)
 			if err == nil {
+				l.lockCount++
 				return l.curLock, nil
 			}
 			log.Error(err, "Failed to renew IPAM lock")
