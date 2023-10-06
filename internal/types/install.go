@@ -36,6 +36,10 @@ import (
 )
 
 const (
+	// PodCIDREnvVar is the name of the environment variable that contains the pod CIDR.
+	PodCIDREnvVar = "WEBMESH_CNI_POD_CIDR"
+	// ClusterDomainEnvVar is the name of the environment variable that contains the cluster domain.
+	ClusterDomainEnvVar = "WEBMESH_CNI_CLUSTER_DOMAIN"
 	// DryRunEnvVar is the name of the environment variable that enables dry run mode.
 	DryRunEnvVar = "WEBMESH_CNI_INSTALL_DRY_RUN"
 	// NetConfTemplateEnvVar is the name of the environment variable that contains the CNI configuration.

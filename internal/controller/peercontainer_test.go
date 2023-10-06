@@ -138,7 +138,7 @@ func newTestContainerFor(r *PeerContainerReconciler) cniv1.PeerContainer {
 			NodeID:   containerID,
 			Netns:    "/proc/1/ns/net",
 			IfName:   containerID[:min(9, len(containerID))] + "0",
-			NodeName: r.NodeName,
+			NodeName: r.Manager.NodeName,
 			MTU:      1500,
 		},
 	}
@@ -150,15 +150,19 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	var out []*PeerContainerReconciler
 	for i := 0; i < count; i++ {
 		r := &PeerContainerReconciler{
-			Client: mgr.GetClient(),
-			PeerContainerReconcilerConfig: PeerContainerReconcilerConfig{
-				Provider:         provider,
-				NodeName:         uuid.NewString(),
-				Namespace:        "default",
-				ReconcileTimeout: time.Second * 10,
-				HostNodeLogLevel: "debug",
-				MTU:              system.DefaultMTU,
-				ConnectTimeout:   time.Second * 10,
+			Client:   mgr.GetClient(),
+			Provider: provider,
+			Config: Config{
+				Manager: ManagerConfig{
+					NodeName:         uuid.NewString(),
+					Namespace:        "default",
+					ReconcileTimeout: time.Second * 10,
+				},
+				HostNode: HostNodeConfig{
+					LogLevel:       "debug",
+					MTU:            system.DefaultMTU,
+					ConnectTimeout: time.Second * 10,
+				},
 			},
 		}
 		err := r.SetupWithManager(mgr)

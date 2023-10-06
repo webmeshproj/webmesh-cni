@@ -50,7 +50,7 @@ func (r *PeerContainerReconciler) StopHostNode(ctx context.Context) {
 			log.Error(err, "Failed to close host webmesh node")
 		}
 		// Try to remove our peer from the mesh.
-		err = r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(r.NodeName))
+		err = r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(r.Manager.NodeName))
 		if err != nil {
 			log.Error(err, "Failed to remove host webmesh node from network")
 		}
@@ -62,7 +62,8 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	log := log.FromContext(ctx).WithName("host-node")
-	log.Info("Setting up host node")
+	nodeID := meshtypes.NodeID(r.Manager.NodeName)
+	log.Info("Setting up host node", "node-id", nodeID)
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
@@ -72,8 +73,8 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	log.V(1).Info("Detecting host endpoints")
 	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 		DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
-		DetectIPv6:           !r.DisableIPv6,
-		AllowRemoteDetection: r.RemoteEndpointDetection,
+		DetectIPv6:           !r.HostNode.DisableIPv6,
+		AllowRemoteDetection: r.HostNode.RemoteEndpointDetection,
 		// Make configurable? It will at least need to account for any CNI interfaces
 		// from a previous run.
 		SkipInterfaces: []string{},
@@ -93,7 +94,7 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	var ipv4Addr, ipv6Addr string
 	log.Info("Allocating a mesh IPv4 address")
 	alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
-		NodeID: r.NodeName,
+		NodeID: nodeID.String(),
 		Subnet: r.networkV4.String(),
 	})
 	if err != nil {
@@ -103,14 +104,14 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	log.Info("Allocating a mesh IPv6 address")
 	ipv6Addr = netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String()
 	log.Info("Joining the mesh")
-	hostNode := NewNode(logging.NewLogger(r.HostNodeLogLevel, "json"), meshnode.Config{
+	hostNode := NewNode(logging.NewLogger(r.HostNode.LogLevel, "json"), meshnode.Config{
 		Key:             key,
-		NodeID:          r.NodeName,
-		ZoneAwarenessID: r.NodeName,
-		DisableIPv4:     r.DisableIPv4,
-		DisableIPv6:     r.DisableIPv6,
+		NodeID:          nodeID.String(),
+		ZoneAwarenessID: nodeID.String(),
+		DisableIPv4:     r.HostNode.DisableIPv4,
+		DisableIPv6:     r.HostNode.DisableIPv6,
 	})
-	connectCtx, cancel := context.WithTimeout(ctx, r.ConnectTimeout)
+	connectCtx, cancel := context.WithTimeout(ctx, r.HostNode.ConnectTimeout)
 	defer cancel()
 	err = hostNode.Connect(connectCtx, meshnode.ConnectOptions{
 		StorageProvider: &NoOpStorageCloser{r.Provider},
@@ -130,13 +131,13 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 			return &v1.LeaveResponse{}, nil
 		}),
 		NetworkOptions: meshnet.Options{
-			ListenPort:      r.WireGuardPort,
-			InterfaceName:   cnitypes.IfNameFromID(r.NodeName),
+			ListenPort:      r.HostNode.WireGuardPort,
+			InterfaceName:   cnitypes.IfNameFromID(nodeID.String()),
 			ForceReplace:    true,
-			MTU:             r.MTU,
-			ZoneAwarenessID: r.NodeName,
-			DisableIPv4:     r.DisableIPv4,
-			DisableIPv6:     r.DisableIPv6,
+			MTU:             r.HostNode.MTU,
+			ZoneAwarenessID: nodeID.String(),
+			DisableIPv4:     r.HostNode.DisableIPv4,
+			DisableIPv6:     r.HostNode.DisableIPv6,
 			// Maybe by configuration?
 			RecordMetrics:         false,
 			RecordMetricsInterval: 0,
@@ -163,11 +164,11 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	}
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
-			Id:                 r.NodeName,
+			Id:                 nodeID.String(),
 			PublicKey:          encoded,
 			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 			WireguardEndpoints: wgeps,
-			ZoneAwarenessID:    r.NodeName,
+			ZoneAwarenessID:    nodeID.String(),
 			PrivateIPv4:        ipv4Addr,
 			PrivateIPv6:        ipv6Addr,
 		},
@@ -180,8 +181,8 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	// Put a default gateway route for ourselves.
 	err = r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
-			Name: fmt.Sprintf("%s-node-gw", r.NodeName),
-			Node: r.NodeName,
+			Name: fmt.Sprintf("%s-node-gw", nodeID.String()),
+			Node: nodeID.String(),
 			// This should be more configurable.
 			DestinationCIDRs: func() []string {
 				out := []string{"0.0.0.0/0", "::/0"}

@@ -47,6 +47,12 @@ func main() {
 		var cmd string
 		if len(os.Args) > 1 {
 			cmd = os.Args[1]
+			// Pop the command from the args.
+			if len(os.Args) > 2 {
+				os.Args = append(os.Args[:1], os.Args[2:]...)
+			} else {
+				os.Args = os.Args[:1]
+			}
 		}
 		switch cmd {
 		case "install":

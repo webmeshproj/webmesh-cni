@@ -7,6 +7,7 @@ require (
 	github.com/containernetworking/plugins v1.3.0
 	github.com/google/uuid v1.3.1
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
 	github.com/webmeshproj/storage-provider-k8s v0.0.3
@@ -163,7 +164,6 @@ require (
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/sbezverk/nftableslib v0.0.0-20221012061059-e05e022cec75 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect

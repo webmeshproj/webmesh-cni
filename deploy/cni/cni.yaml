@@ -128,12 +128,12 @@ spec:
           imagePullPolicy: IfNotPresent
           command:
             - /webmesh-cni-node
-            - --reconcile-timeout=10s
-            - --shutdown-timeout=10s
-            - --cache-sync-timeout=10s
-            - --leader-elect-lease-duration=15s
-            - --leader-elect-renew-deadline=10s
-            - --leader-elect-retry-period=2s
+            - --manager.reconcile-timeout=10s
+            - --manager.shutdown-timeout=10s
+            - --storage.cache-sync-timeout=10s
+            - --storage.leader-elect-lease-duration=15s
+            - --storage.leader-elect-renew-deadline=10s
+            - --storage.leader-elect-retry-period=2s
           env:
             # Use the kubernetes storage provider. This is the only
             # supported storage provider at the moment for k8s.
@@ -150,13 +150,13 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             # Set the pod cidr based on the one we are running.
-            - name: POD_CIDR
+            - name: WEBMESH_CNI_POD_CIDR
               valueFrom:
                 configMapKeyRef:
                   name: webmesh-config
                   key: pod-cidr
             # Set the cluster domain based on the one we are running.
-            - name: CLUSTER_DOMAIN
+            - name: WEBMESH_CNI_CLUSTER_DOMAIN
               valueFrom:
                 configMapKeyRef:
                   name: webmesh-config

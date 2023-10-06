@@ -54,7 +54,8 @@ import (
 // attempts will fail until SetNetworkState is called.
 type PeerContainerReconciler struct {
 	client.Client
-	PeerContainerReconcilerConfig
+	Config
+	Provider *provider.Provider
 
 	ipamlock   IPAMLock
 	ready      atomic.Bool
@@ -65,21 +66,6 @@ type PeerContainerReconciler struct {
 	ipam       *meshplugins.BuiltinIPAM
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
-}
-
-// PeerContainerReconcilerConfig is the configuration for the PeerContainerReconciler.
-type PeerContainerReconcilerConfig struct {
-	Provider                *provider.Provider
-	NodeName                string
-	Namespace               string
-	ReconcileTimeout        time.Duration
-	RemoteEndpointDetection bool
-	MTU                     int
-	WireGuardPort           int
-	ConnectTimeout          time.Duration
-	DisableIPv4             bool
-	DisableIPv6             bool
-	HostNodeLogLevel        string
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
@@ -109,12 +95,12 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Create the IPAM lock.
 	rlock, err := resourcelock.New(
 		"leases",
-		r.Namespace,
+		r.Manager.Namespace,
 		IPAMLockID,
 		corev1client,
 		coordinationClient,
 		resourcelock.ResourceLockConfig{
-			Identity: r.NodeName,
+			Identity: r.Manager.NodeName,
 		},
 	)
 	if err != nil {
@@ -136,10 +122,10 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			RequeueAfter: 1 * time.Second,
 		}, nil
 	}
-	if r.ReconcileTimeout > 0 {
-		log.V(1).Info("Setting reconcile timeout", "timeout", r.ReconcileTimeout)
+	if r.Manager.ReconcileTimeout > 0 {
+		log.V(1).Info("Setting reconcile timeout", "timeout", r.Manager.ReconcileTimeout)
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, r.ReconcileTimeout)
+		ctx, cancel = context.WithTimeout(ctx, r.Manager.ReconcileTimeout)
 		defer cancel()
 	}
 	var container cniv1.PeerContainer
@@ -150,7 +136,7 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to get container")
 		return ctrl.Result{}, err
 	}
-	if container.Spec.NodeName != r.NodeName {
+	if container.Spec.NodeName != r.Manager.NodeName {
 		// This container is not for this node, so we don't care about it.
 		return ctrl.Result{}, nil
 	}
@@ -380,7 +366,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 		DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
 		DetectIPv6:           !container.Spec.DisableIPv6,
-		AllowRemoteDetection: r.RemoteEndpointDetection,
+		AllowRemoteDetection: r.HostNode.RemoteEndpointDetection,
 		SkipInterfaces: func() []string {
 			var out []string
 			for _, n := range r.nodes {
