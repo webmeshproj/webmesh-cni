@@ -81,15 +81,16 @@ type ipamLock struct {
 	acquiredAt metav1.Time
 }
 
-func (i *ipamLock) Release(ctx context.Context) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if !i.lockHeld {
+func (l *ipamLock) Release(ctx context.Context) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.lockHeld {
 		return
 	}
-	i.lockCount--
-	if i.lockCount == 0 {
-		err := i.Interface.Update(ctx, resourcelock.LeaderElectionRecord{
+	l.lockCount--
+	if l.lockCount == 0 {
+		l.lockHeld = false
+		err := l.Interface.Update(ctx, resourcelock.LeaderElectionRecord{
 			HolderIdentity: "",
 		})
 		if err != nil {
