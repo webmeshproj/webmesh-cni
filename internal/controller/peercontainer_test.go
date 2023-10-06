@@ -81,7 +81,7 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 	}
 	// The node should eventually be in the reconcilers node list.
 	ok = testutil.Eventually[bool](func() bool {
-		_, ok := r.nodes[key]
+		_, ok := r.containerNodes[key]
 		return ok
 	}).ShouldEqual(time.Second*10, time.Second, true)
 	if !ok {
@@ -89,7 +89,7 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 	}
 	// The node should eventually be started.
 	ok = testutil.Eventually[bool](func() bool {
-		node, ok := r.nodes[key]
+		node, ok := r.containerNodes[key]
 		if !ok {
 			// Would be very strange at this point
 			t.Log("Failed to find node in reconciler")

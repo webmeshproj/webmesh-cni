@@ -54,15 +54,15 @@ type PeerContainerReconciler struct {
 	Config
 	Provider *provider.Provider
 
-	ready      atomic.Bool
-	host       meshnode.Node
-	networkV4  netip.Prefix
-	networkV6  netip.Prefix
-	meshDomain string
-	ipam       *meshplugins.BuiltinIPAM
-	ipamlock   *IPAMLock
-	nodes      map[types.NamespacedName]meshnode.Node
-	mu         sync.Mutex
+	ready          atomic.Bool
+	host           meshnode.Node
+	networkV4      netip.Prefix
+	networkV6      netip.Prefix
+	meshDomain     string
+	ipamlock       IPAMLocker
+	ipam           *meshplugins.BuiltinIPAM
+	containerNodes map[types.NamespacedName]meshnode.Node
+	mu             sync.Mutex
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
@@ -77,6 +77,7 @@ var NewNode = meshnode.NewWithLogger
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	// Create clients for IPAM locking
+	r.containerNodes = make(map[types.NamespacedName]meshnode.Node)
 	r.ipamlock, err = NewIPAMLock(rest.CopyConfig(mgr.GetConfig()), r.Manager)
 	if err != nil {
 		err = fmt.Errorf("failed to create IPAM lock: %w", err)
@@ -157,7 +158,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	// Check if we have registered the node yet
 	id := req.NamespacedName
 	nodeID := meshtypes.NodeID(container.Spec.NodeID)
-	node, ok := r.nodes[id]
+	node, ok := r.containerNodes[id]
 	if !ok {
 		// We need to create the node.
 		log.Info("Mesh node for container not found, we must need to create it", "container", id)
@@ -207,7 +208,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			return fmt.Errorf("failed to register peer: %w", err)
 		}
 		// Create the mesh node.
-		r.nodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
+		r.containerNodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
 			NodeID:          nodeID.String(),
 			ZoneAwarenessID: container.Spec.NodeName,
@@ -264,7 +265,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			},
 			DirectPeers: func() map[meshtypes.NodeID]v1.ConnectProtocol {
 				peers := make(map[meshtypes.NodeID]v1.ConnectProtocol)
-				for _, n := range r.nodes {
+				for _, n := range r.containerNodes {
 					if n.ID() == node.ID() {
 						continue
 					}
@@ -278,7 +279,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			log.Error(err, "Failed to connect meshnode", "container", container)
 			r.setFailedStatus(ctx, container, err)
 			// Create a new node on the next reconcile.
-			delete(r.nodes, id)
+			delete(r.containerNodes, id)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
@@ -326,7 +327,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				log.Error(err, "Failed to stop mesh node for container", "container", container)
 			}
 		}()
-		delete(r.nodes, id)
+		delete(r.containerNodes, id)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to get wireguard port: %w", err)
 	}
@@ -338,7 +339,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				log.Error(err, "Failed to stop mesh node for container", "container", container)
 			}
 		}()
-		delete(r.nodes, id)
+		delete(r.containerNodes, id)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
@@ -349,7 +350,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		AllowRemoteDetection: r.HostNode.RemoteEndpointDetection,
 		SkipInterfaces: func() []string {
 			var out []string
-			for _, n := range r.nodes {
+			for _, n := range r.containerNodes {
 				if n.Started() {
 					out = append(out, n.Network().WireGuard().Name())
 				}
@@ -425,14 +426,14 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	name := req.NamespacedName
-	node, ok := r.nodes[name]
+	node, ok := r.containerNodes[name]
 	if !ok {
 		log.Info("Mesh node for container not found, we must have already deleted", "container", name)
 	} else {
 		if err := node.Close(ctx); err != nil {
 			log.Error(err, "Failed to stop mesh node for container", "container", name)
 		}
-		delete(r.nodes, name)
+		delete(r.containerNodes, name)
 	}
 	// Make sure we've deleted the mesh peer from the database.
 	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(name.Name)); err != nil {

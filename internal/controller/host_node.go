@@ -31,7 +31,6 @@ import (
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	"github.com/webmeshproj/webmesh/pkg/storage"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	cnitypes "github.com/webmeshproj/webmesh-cni/internal/types"
@@ -67,7 +66,6 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
-	r.nodes = make(map[types.NamespacedName]meshnode.Node)
 	r.ipam = meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
 	// Detect the current endpoints on the machine.
 	log.V(1).Info("Detecting host endpoints")

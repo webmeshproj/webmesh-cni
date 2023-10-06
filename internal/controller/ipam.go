@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,19 +34,22 @@ import (
 // IPAMLockID is the ID used for the IPAM lock.
 const IPAMLockID = "webmesh-cni-ipam"
 
-// IPAMLock is the interface for taking a distributed lock during IPAM
-// allocations.
-type IPAMLock struct {
-	resourcelock.Interface
-	config    ManagerConfig
-	lockHeld  bool
-	lockCount int
-	rlock     Lock
-	mu        sync.Mutex
+// IPAMLocker is the interface for taking a distributed lock during IPv4 allocations.
+type IPAMLocker interface {
+	// Acquire attempts to acquire the lock. If a lock is already acquired, the
+	// lock count is incremented. When the lock is released, the lock count is
+	// decremented. When the lock count reaches 0, the lock is released.
+	Acquire(ctx context.Context) (Lock, error)
+}
+
+// Lock is the interface for a lock.
+type Lock interface {
+	// Release releases the lock.
+	Release(ctx context.Context)
 }
 
 // NewIPAMLock creates a new IPAM lock.
-func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (*IPAMLock, error) {
+func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (IPAMLocker, error) {
 	corev1client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create corev1 client: %w", err)
@@ -68,68 +72,77 @@ func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (*IPAMLock, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create resource lock interface: %w", err)
 	}
-	ipamlock := &IPAMLock{
-		Interface: rlock,
-		config:    config,
+	ipamlock := &ipamLock{
+		rlock:  rlock,
+		config: config,
 	}
-	ipamlock.rlock = &ipamLock{IPAMLock: ipamlock}
 	return ipamlock, nil
 }
 
+type ipamLock struct {
+	rlock     resourcelock.Interface
+	config    ManagerConfig
+	lockCount atomic.Int32
+	mu        sync.Mutex
+}
+
 // Acquire attempts to acquire the lock.
-func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
+func (l *ipamLock) Acquire(ctx context.Context) (Lock, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	log := log.FromContext(ctx).WithName("ipam-lock")
-	if l.lockHeld {
-		log.V(1).Info("Lock already held, incrementing lock count")
+	if l.lockCount.Load() > 0 {
+		log.V(1).Info("Lock already held, attempting to renew and increment lock count")
 		// Try to update the lock with a renew time.
-		lock, _, err := l.Interface.Get(ctx)
+		lock, _, err := l.rlock.Get(ctx)
 		if err == nil {
-			lock.RenewTime = metav1.Now()
-			err = l.Interface.Update(ctx, *lock)
+			lock.RenewTime = metav1.NewTime(time.Now().UTC())
+			err = l.rlock.Update(ctx, *lock)
 			if err == nil {
-				l.lockCount++
-				return l.rlock, nil
+				l.lockCount.Add(1)
+				return l, nil
 			}
 			log.Error(err, "Failed to renew IPAM lock")
-			// We'll still let a current holder try to release the lock.
+			l.lockCount.Store(0)
 			return nil, fmt.Errorf("failed to renew IPAM lock: %w", err)
 		}
-		// Something very bad happened, we'll try to acquire the lock again next time.
 		log.Error(err, "Failed to get IPAM lock")
-		l.lockHeld = false
-		l.lockCount = 0
+		l.lockCount.Store(0)
 		return nil, fmt.Errorf("failed to acquire IPAM lock: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, l.config.IPAMLockTimeout)
 	defer cancel()
 	for {
 		// Check if the lock has already been created.
-		lock, _, err := l.Interface.Get(ctx)
+		lock, _, err := l.rlock.Get(ctx)
 		if err == nil {
 			// Check if there is a holder for the lock.
 			if lock.HolderIdentity != "" {
 				// Check if the lock expired.
-				if !lock.RenewTime.IsZero() && time.Now().Before(lock.RenewTime.Time) {
-					log.V(1).Info("Lock currently held, retrying...", "holder", lock.HolderIdentity)
-					goto Retry
-				}
-				if !lock.AcquireTime.IsZero() && time.Now().Before(lock.AcquireTime.Time.Add(l.config.IPAMLockDuration)) {
-					log.V(1).Info("Lock currently held, retrying...", "holder", lock.HolderIdentity)
-					goto Retry
+				if !lock.RenewTime.IsZero() || !lock.AcquireTime.IsZero() {
+					var lockExpiry time.Time
+					if !lock.RenewTime.IsZero() {
+						lockExpiry = lock.RenewTime.Add(time.Duration(lock.LeaseDurationSeconds) * time.Second)
+					} else {
+						lockExpiry = lock.AcquireTime.Add(time.Duration(lock.LeaseDurationSeconds) * time.Second)
+					}
+					if lockExpiry.After(time.Now().UTC()) {
+						log.V(1).Info("Lock currently held, retrying...", "holder", lock.HolderIdentity)
+						goto Retry
+					}
+					// The lock has expired, try to acquire it.
 				}
 			}
 			// Try to update the lock.
 			lock.LeaseDurationSeconds = int(l.config.IPAMLockDuration.Seconds())
 			lock.HolderIdentity = l.config.NodeName
-			lock.AcquireTime = metav1.Now()
-			err = l.Interface.Update(ctx, *lock)
+			lock.AcquireTime = metav1.NewTime(time.Now().UTC())
+			lock.RenewTime = metav1.NewTime(time.Now().UTC())
+			err = l.rlock.Update(ctx, *lock)
 			if err == nil {
 				// We acquired the lock.
-				l.lockHeld = true
-				l.lockCount = 1
-				return l.rlock, nil
+				l.lockCount.Add(1)
+				return l, nil
 			}
 			log.Error(err, "Failed to acquire IPAM lock, retrying...")
 			goto Retry
@@ -139,11 +152,10 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 			HolderIdentity:       l.config.NodeName,
 			LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
 		}
-		err = l.Interface.Create(ctx, *lock)
+		err = l.rlock.Create(ctx, *lock)
 		if err == nil {
-			l.lockHeld = true
-			l.lockCount = 1
-			return l.rlock, nil
+			l.lockCount.Add(1)
+			return l, nil
 		}
 		log.Error(err, "Failed to acquire IPAM lock, retrying...")
 	Retry:
@@ -156,30 +168,23 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 	}
 }
 
-type Lock interface {
-	// Release releases the lock.
-	Release(ctx context.Context)
-}
-
-type ipamLock struct {
-	*IPAMLock
-}
-
 func (l *ipamLock) Release(ctx context.Context) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if !l.lockHeld {
+	lockCount := l.lockCount.Load()
+	if lockCount <= 0 {
 		return
 	}
-	l.lockCount--
-	if l.lockCount <= 0 {
-		l.lockHeld = false
-		err := l.Interface.Update(ctx, resourcelock.LeaderElectionRecord{
-			HolderIdentity:       "",
-			LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
-		})
-		if err != nil {
-			log.FromContext(ctx).WithName("ipam-lock").Error(err, "Failed to release IPAM lock")
-		}
+	lockCount--
+	l.lockCount.Store(lockCount)
+	if lockCount > 0 {
+		return
+	}
+	err := l.rlock.Update(ctx, resourcelock.LeaderElectionRecord{
+		HolderIdentity:       "",
+		LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
+	})
+	if err != nil {
+		log.FromContext(ctx).WithName("ipam-lock").Error(err, "Failed to release IPAM lock")
 	}
 }
