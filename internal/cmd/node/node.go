@@ -113,6 +113,14 @@ func Main(build version.BuildInfo) {
 	if clusterDomain == "" {
 		clusterDomain = "cluster.local"
 	}
+	if namespace == "" {
+		var err error
+		namespace, err = types.GetInClusterNamespace()
+		if err != nil {
+			mainLog.Error(err, "Failed to get namespace from environment")
+			os.Exit(1)
+		}
+	}
 	if podCIDR == "" {
 		mainLog.Error(errors.New("no pod cidr"), "Pod CIDR must be specified")
 		os.Exit(1)
@@ -175,18 +183,20 @@ func Main(build version.BuildInfo) {
 	// Register the peer container controller.
 	mainLog.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
-		Client:                  mgr.GetClient(),
-		Scheme:                  mgr.GetScheme(),
-		Provider:                storageProvider,
-		NodeName:                nodeName,
-		ReconcileTimeout:        reconcileTimeout,
-		RemoteEndpointDetection: remoteEndpointDetection,
-		MTU:                     hostNodeMTU,
-		WireGuardPort:           hostNodeWireGuardPort,
-		ConnectTimeout:          hostNodeConnectTimeout,
-		DisableIPv4:             disableIPv4,
-		DisableIPv6:             disableIPv6,
-		HostNodeLogLevel:        hostNodeLogLevel,
+		Client: mgr.GetClient(),
+		PeerContainerReconcilerConfig: controller.PeerContainerReconcilerConfig{
+			Provider:                storageProvider,
+			NodeName:                nodeName,
+			Namespace:               namespace,
+			ReconcileTimeout:        reconcileTimeout,
+			RemoteEndpointDetection: remoteEndpointDetection,
+			MTU:                     hostNodeMTU,
+			WireGuardPort:           hostNodeWireGuardPort,
+			ConnectTimeout:          hostNodeConnectTimeout,
+			DisableIPv4:             disableIPv4,
+			DisableIPv6:             disableIPv6,
+			HostNodeLogLevel:        hostNodeLogLevel,
+		},
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
 		mainLog.Error(err, "Failed to setup controller with manager", "controller", "PeerContainer")

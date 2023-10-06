@@ -150,14 +150,16 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	var out []*PeerContainerReconciler
 	for i := 0; i < count; i++ {
 		r := &PeerContainerReconciler{
-			Client:           mgr.GetClient(),
-			Scheme:           mgr.GetScheme(),
-			Provider:         provider,
-			NodeName:         uuid.NewString(),
-			ReconcileTimeout: time.Second * 10,
-			HostNodeLogLevel: "debug",
-			MTU:              system.DefaultMTU,
-			ConnectTimeout:   time.Second * 10,
+			Client: mgr.GetClient(),
+			PeerContainerReconcilerConfig: PeerContainerReconcilerConfig{
+				Provider:         provider,
+				NodeName:         uuid.NewString(),
+				Namespace:        "default",
+				ReconcileTimeout: time.Second * 10,
+				HostNodeLogLevel: "debug",
+				MTU:              system.DefaultMTU,
+				ConnectTimeout:   time.Second * 10,
+			},
 		}
 		err := r.SetupWithManager(mgr)
 		if err != nil {

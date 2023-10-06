@@ -37,8 +37,11 @@ import (
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,18 +54,9 @@ import (
 // attempts will fail until SetNetworkState is called.
 type PeerContainerReconciler struct {
 	client.Client
-	Scheme                  *runtime.Scheme
-	Provider                *provider.Provider
-	NodeName                string
-	ReconcileTimeout        time.Duration
-	RemoteEndpointDetection bool
-	MTU                     int
-	WireGuardPort           int
-	ConnectTimeout          time.Duration
-	DisableIPv4             bool
-	DisableIPv6             bool
-	HostNodeLogLevel        string
+	PeerContainerReconcilerConfig
 
+	ipamlock   IPAMLock
 	ready      atomic.Bool
 	host       meshnode.Node
 	networkV4  netip.Prefix
@@ -71,6 +65,21 @@ type PeerContainerReconciler struct {
 	ipam       *meshplugins.BuiltinIPAM
 	nodes      map[types.NamespacedName]meshnode.Node
 	mu         sync.Mutex
+}
+
+// PeerContainerReconcilerConfig is the configuration for the PeerContainerReconciler.
+type PeerContainerReconcilerConfig struct {
+	Provider                *provider.Provider
+	NodeName                string
+	Namespace               string
+	ReconcileTimeout        time.Duration
+	RemoteEndpointDetection bool
+	MTU                     int
+	WireGuardPort           int
+	ConnectTimeout          time.Duration
+	DisableIPv4             bool
+	DisableIPv6             bool
+	HostNodeLogLevel        string
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
@@ -82,8 +91,36 @@ var NewNode = meshnode.NewWithLogger
 
 //go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest rbac:roleName=webmesh-cni-role webhook paths='./...' output:rbac:artifacts:config=../../deploy/rbac"
 
+// IPAMLockID is the ID used for the IPAM lock.
+const IPAMLockID = "webmesh-cni-ipam"
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Create clients for IPAM locking
+	cfg := rest.CopyConfig(mgr.GetConfig())
+	corev1client, err := corev1client.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("create corev1 client: %w", err)
+	}
+	coordinationClient, err := coordinationv1client.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("create coordinationv1 client: %w", err)
+	}
+	// Create the IPAM lock.
+	rlock, err := resourcelock.New(
+		"leases",
+		r.Namespace,
+		IPAMLockID,
+		corev1client,
+		coordinationClient,
+		resourcelock.ResourceLockConfig{
+			Identity: r.NodeName,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("create ipam lock: %w", err)
+	}
+	r.ipamlock = IPAMLock{rlock}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)

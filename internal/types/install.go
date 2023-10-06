@@ -195,7 +195,7 @@ func (i *InstallOptions) Default() {
 		i.HostLocalNetDir = DefaultHostLocalNetDir
 	}
 	if i.Namespace == "" {
-		i.Namespace, _ = getInClusterNamespace()
+		i.Namespace, _ = GetInClusterNamespace()
 	}
 }
 
@@ -496,7 +496,8 @@ func setSuidBitToFile(file string) error {
 // Declared as a variable for testing.
 var inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
-func getInClusterNamespace() (string, error) {
+// GetInClusterNamespace returns the namespace of the pod we are running in.
+func GetInClusterNamespace() (string, error) {
 	// Load the namespace file and return its content
 	namespace, err := os.ReadFile(inClusterNamespacePath)
 	if err != nil {
