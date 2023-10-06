@@ -23,9 +23,15 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+// IPAMLockID is the ID used for the IPAM lock.
+const IPAMLockID = "webmesh-cni-ipam"
 
 // IPAMLock is the interface for taking a distributed lock during IPAM
 // allocations.
@@ -34,8 +40,40 @@ type IPAMLock struct {
 	config    ManagerConfig
 	lockHeld  bool
 	lockCount int
-	curLock   Lock
+	rlock     Lock
 	mu        sync.Mutex
+}
+
+// NewIPAMLock creates a new IPAM lock.
+func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (*IPAMLock, error) {
+	corev1client, err := corev1client.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create corev1 client: %w", err)
+	}
+	coordinationClient, err := coordinationv1client.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create coordinationv1 client: %w", err)
+	}
+	// Create the IPAM lock.
+	rlock, err := resourcelock.New(
+		"leases",
+		config.Namespace,
+		IPAMLockID,
+		corev1client,
+		coordinationClient,
+		resourcelock.ResourceLockConfig{
+			Identity: config.NodeName,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create resource lock interface: %w", err)
+	}
+	ipamlock := &IPAMLock{
+		Interface: rlock,
+		config:    config,
+	}
+	ipamlock.rlock = &ipamLock{IPAMLock: ipamlock}
+	return ipamlock, nil
 }
 
 // Acquire attempts to acquire the lock.
@@ -52,7 +90,7 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 			err = l.Interface.Update(ctx, *lock)
 			if err == nil {
 				l.lockCount++
-				return l.curLock, nil
+				return l.rlock, nil
 			}
 			log.Error(err, "Failed to renew IPAM lock")
 			// We'll still let a current holder try to release the lock.
@@ -67,11 +105,6 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.config.IPAMLockTimeout)
 	defer cancel()
 	for {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("failed to acquire IPAM lock: %w", ctx.Err())
-		default:
-		}
 		// Check if the lock has already been created.
 		lock, _, err := l.Interface.Get(ctx)
 		if err == nil {
@@ -80,13 +113,11 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 				// Check if the lock expired.
 				if !lock.RenewTime.IsZero() && time.Now().Before(lock.RenewTime.Time) {
 					log.V(1).Info("Lock currently held, retrying...", "holder", lock.HolderIdentity)
-					time.Sleep(time.Second)
-					continue
+					goto Retry
 				}
 				if !lock.AcquireTime.IsZero() && time.Now().Before(lock.AcquireTime.Time.Add(l.config.IPAMLockDuration)) {
 					log.V(1).Info("Lock currently held, retrying...", "holder", lock.HolderIdentity)
-					time.Sleep(time.Second)
-					continue
+					goto Retry
 				}
 			}
 			// Try to update the lock.
@@ -98,12 +129,10 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 				// We acquired the lock.
 				l.lockHeld = true
 				l.lockCount = 1
-				l.curLock = &ipamLock{IPAMLock: l}
-				return l.curLock, nil
+				return l.rlock, nil
 			}
 			log.Error(err, "Failed to acquire IPAM lock, retrying...")
-			time.Sleep(time.Second)
-			continue
+			goto Retry
 		}
 		// Try to create the lock.
 		lock = &resourcelock.LeaderElectionRecord{
@@ -114,11 +143,16 @@ func (l *IPAMLock) Acquire(ctx context.Context) (Lock, error) {
 		if err == nil {
 			l.lockHeld = true
 			l.lockCount = 1
-			l.curLock = &ipamLock{IPAMLock: l}
-			return l.curLock, nil
+			return l.rlock, nil
 		}
 		log.Error(err, "Failed to acquire IPAM lock, retrying...")
-		time.Sleep(time.Second)
+	Retry:
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("failed to acquire IPAM lock: %w", ctx.Err())
+		default:
+			time.Sleep(time.Second)
+		}
 	}
 }
 

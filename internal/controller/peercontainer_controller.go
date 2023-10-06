@@ -38,10 +38,7 @@ import (
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/types"
-	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
-	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -77,36 +74,14 @@ var NewNode = meshnode.NewWithLogger
 
 //go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest rbac:roleName=webmesh-cni-role webhook paths='./...' output:rbac:artifacts:config=../../deploy/rbac"
 
-// IPAMLockID is the ID used for the IPAM lock.
-const IPAMLockID = "webmesh-cni-ipam"
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	// Create clients for IPAM locking
-	cfg := rest.CopyConfig(mgr.GetConfig())
-	corev1client, err := corev1client.NewForConfig(cfg)
+	r.ipamlock, err = NewIPAMLock(rest.CopyConfig(mgr.GetConfig()), r.Manager)
 	if err != nil {
-		return fmt.Errorf("create corev1 client: %w", err)
+		err = fmt.Errorf("failed to create IPAM lock: %w", err)
+		return
 	}
-	coordinationClient, err := coordinationv1client.NewForConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("create coordinationv1 client: %w", err)
-	}
-	// Create the IPAM lock.
-	rlock, err := resourcelock.New(
-		"leases",
-		r.Manager.Namespace,
-		IPAMLockID,
-		corev1client,
-		coordinationClient,
-		resourcelock.ResourceLockConfig{
-			Identity: r.Manager.NodeName,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("create ipam lock: %w", err)
-	}
-	r.ipamlock = &IPAMLock{Interface: rlock, config: r.Manager}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
