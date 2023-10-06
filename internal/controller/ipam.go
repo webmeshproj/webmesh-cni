@@ -16,10 +16,25 @@ limitations under the License.
 
 package controller
 
-import "k8s.io/client-go/tools/leaderelection/resourcelock"
+import (
+	"context"
+
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+)
 
 // IPAMLock is the interface for taking a distributed lock during IPAM
 // allocations.
 type IPAMLock struct {
 	resourcelock.Interface
+	config ManagerConfig
+}
+
+// Acquire attempts to acquire the lock.
+func (l *IPAMLock) Acquire(ctx context.Context) error {
+	return nil
+}
+
+// Release releases the lock.
+func (l *IPAMLock) Release(ctx context.Context) error {
+	return nil
 }

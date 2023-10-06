@@ -117,7 +117,7 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&c.NodeName, prefix+"node-name", os.Getenv(types.NodeNameEnvVar), "The name of this node.")
 	fs.StringVar(&c.Namespace, prefix+"namespace", os.Getenv(types.PodNamespaceEnvVar), "The namespace to use for shared resources.")
 	fs.DurationVar(&c.ReconcileTimeout, prefix+"reconcile-timeout", 15*time.Second, "The timeout for reconciling a container's interface.")
-	fs.DurationVar(&c.IPAMLockDuration, prefix+"ipam-lock-duration", 10*time.Second, "The duration of the IPAM lock.")
+	fs.DurationVar(&c.IPAMLockDuration, prefix+"ipam-lock-duration", 5*time.Second, "The duration of the IPAM lock.")
 	fs.DurationVar(&c.IPAMLockTimeout, prefix+"ipam-lock-timeout", 5*time.Second, "The timeout for attempting to acquire an IPAM lock.")
 	fs.StringVar(&c.MetricsAddress, prefix+"metrics-address", ":8080", "The address the metric endpoint binds to.")
 	fs.StringVar(&c.ProbeAddress, prefix+"probe-address", ":8081", "The address the probe endpoint binds to.")
@@ -157,6 +157,15 @@ func (c *Config) Validate() error {
 	}
 	if c.Manager.NodeName == "" {
 		return fmt.Errorf("node name not set")
+	}
+	if c.Manager.IPAMLockDuration <= 0 {
+		return fmt.Errorf("ipam lock duration must be positive")
+	}
+	if c.Manager.IPAMLockTimeout <= 0 {
+		return fmt.Errorf("ipam lock timeout must be positive")
+	}
+	if c.Manager.ReconcileTimeout <= 0 {
+		return fmt.Errorf("reconcile timeout must be positive")
 	}
 	if c.Manager.IPAMLockTimeout >= c.Manager.ReconcileTimeout {
 		return fmt.Errorf("ipam lock timeout must be less than reconcile timeout")

@@ -56,8 +56,8 @@ type PeerContainerReconciler struct {
 	client.Client
 	Config
 	Provider *provider.Provider
+	IPAMLock IPAMLock
 
-	ipamlock   IPAMLock
 	ready      atomic.Bool
 	host       meshnode.Node
 	networkV4  netip.Prefix
@@ -106,7 +106,7 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return fmt.Errorf("create ipam lock: %w", err)
 	}
-	r.ipamlock = IPAMLock{rlock}
+	r.IPAMLock = IPAMLock{Interface: rlock, config: r.Manager}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
