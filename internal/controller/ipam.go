@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -42,12 +43,6 @@ type IPAMLocker interface {
 	Acquire(ctx context.Context) error
 	// Release releases the lock. This decrements the lock count. When the lock
 	// count reaches 0, the lock is released.
-	Release(ctx context.Context)
-}
-
-// Lock is the interface for a lock.
-type Lock interface {
-	// Release releases the lock.
 	Release(ctx context.Context)
 }
 
@@ -174,20 +169,24 @@ func (l *ipamLock) Acquire(ctx context.Context) error {
 func (l *ipamLock) Release(ctx context.Context) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	log := log.FromContext(ctx).WithName("ipam-lock")
 	lockCount := l.lockCount.Load()
 	if lockCount <= 0 {
+		log.Error(errors.New("release unacquired lock"), "Lock count is already 0, cannot release lock")
 		return
 	}
 	lockCount--
 	l.lockCount.Store(lockCount)
 	if lockCount > 0 {
+		log.V(1).Info("Lock still held, not releasing")
 		return
 	}
+	log.V(1).Info("Releasing IPAM lock")
 	err := l.rlock.Update(ctx, resourcelock.LeaderElectionRecord{
 		HolderIdentity:       "",
 		LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
 	})
 	if err != nil {
-		log.FromContext(ctx).WithName("ipam-lock").Error(err, "Failed to release IPAM lock")
+		log.Error(err, "Failed to release IPAM lock")
 	}
 }
