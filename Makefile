@@ -157,5 +157,8 @@ install-kind: bundle ## Install the WebMesh CNI into the test kind cluster.
 remove-kind: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
+debug-box:
+	$(KUBECTL) --context $(KIND_CONTEXT) run -it --rm --restart=Never --image=alpine -- sh
+
 clean: remove-kind ## Remove all local binaries, test clusters, and release assets.
 	rm -rf dist cover.out

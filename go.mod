@@ -10,8 +10,8 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.7.0
-	github.com/webmeshproj/storage-provider-k8s v0.0.3
-	github.com/webmeshproj/webmesh v0.11.3-0.20231006113236-d030d3ccd632
+	github.com/webmeshproj/storage-provider-k8s v0.0.4
+	github.com/webmeshproj/webmesh v0.11.3
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.2
