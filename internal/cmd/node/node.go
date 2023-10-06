@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -50,8 +51,8 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme  = runtime.NewScheme()
+	mainLog = ctrl.Log.WithName("webmesh-cni")
 )
 
 func init() {
@@ -69,7 +70,7 @@ func Main(build version.BuildInfo) {
 		probeAddr                string
 		clusterDomain            string
 		podCIDR                  string
-		nodeID                   string
+		nodeName                 string
 		grpcListenPort           int
 		leaderElectLeaseDuration time.Duration
 		leaderElectRenewDeadline time.Duration
@@ -87,7 +88,7 @@ func Main(build version.BuildInfo) {
 		zapopts                  = zap.Options{Development: true}
 	)
 	flag.StringVar(&namespace, "namespace", os.Getenv(types.PodNamespaceEnvVar), "The namespace to use for the webmesh resources.")
-	flag.StringVar(&nodeID, "node-id", os.Getenv(types.NodeNameEnvVar), "The node ID to use for the webmesh cluster.")
+	flag.StringVar(&nodeName, "node-id", os.Getenv(types.NodeNameEnvVar), "The node ID to use for the webmesh cluster.")
 	flag.StringVar(&podCIDR, "pod-cidr", os.Getenv("POD_CIDR"), "The pod CIDR to use for the webmesh cluster.")
 	flag.StringVar(&clusterDomain, "cluster-domain", os.Getenv("CLUSTER_DOMAIN"), "The cluster domain to use for the webmesh cluster.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -113,20 +114,20 @@ func Main(build version.BuildInfo) {
 		clusterDomain = "cluster.local"
 	}
 	if podCIDR == "" {
-		setupLog.Error(errors.New("invalid options"), "pod CIDR must be specified")
+		mainLog.Error(errors.New("no pod cidr"), "Pod CIDR must be specified")
 		os.Exit(1)
 	}
-	if nodeID == "" {
-		setupLog.Error(errors.New("invalid options"), "node ID must be specified")
+	if nodeName == "" {
+		mainLog.Error(errors.New("no node name"), "Node name must be specified")
 		os.Exit(1)
 	}
 	podcidr, err := netip.ParsePrefix(podCIDR)
 	if err != nil {
-		setupLog.Error(err, "Unable to parse pod CIDR")
+		mainLog.Error(err, "Unable to parse pod CIDR")
 		os.Exit(1)
 	}
 
-	setupLog.Info("Starting webmesh-cni node", "version", build)
+	mainLog.Info("Starting webmesh-cni node", "version", build)
 
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()
@@ -150,13 +151,13 @@ func Main(build version.BuildInfo) {
 		},
 	})
 	if err != nil {
-		setupLog.Error(err, "Unable to create manager")
+		mainLog.Error(err, "Failed to create controller manager")
 		os.Exit(1)
 	}
 
 	// Create the storage provider.
 	storageOpts := storageprovider.Options{
-		NodeID:                      nodeID,
+		NodeID:                      nodeName,
 		Namespace:                   namespace,
 		ListenPort:                  grpcListenPort,
 		LeaderElectionLeaseDuration: leaderElectLeaseDuration,
@@ -164,20 +165,20 @@ func Main(build version.BuildInfo) {
 		LeaderElectionRetryPeriod:   leaderElectRetryPeriod,
 		ShutdownTimeout:             shutdownTimeout,
 	}
-	setupLog.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
+	mainLog.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageOpts)
 	if err != nil {
-		setupLog.Error(err, "Unable to create webmesh storage provider")
+		mainLog.Error(err, "Failed to create webmesh storage provider")
 		os.Exit(1)
 	}
 
 	// Register the peer container controller.
-	setupLog.V(1).Info("Registering peer container controller")
+	mainLog.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:                  mgr.GetClient(),
 		Scheme:                  mgr.GetScheme(),
 		Provider:                storageProvider,
-		NodeName:                nodeID,
+		NodeName:                nodeName,
 		ReconcileTimeout:        reconcileTimeout,
 		RemoteEndpointDetection: remoteEndpointDetection,
 		MTU:                     hostNodeMTU,
@@ -188,7 +189,18 @@ func Main(build version.BuildInfo) {
 		HostNodeLogLevel:        hostNodeLogLevel,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Unable to create controller", "controller", "PeerContainer")
+		mainLog.Error(err, "Failed to setup controller with manager", "controller", "PeerContainer")
+		os.Exit(1)
+	}
+	// Register a node reconciler to make sure edges exist across the cluster.
+	mainLog.V(1).Info("Registering node reconciler")
+	nodeReconciler := &controller.NodeReconciler{
+		Client:   mgr.GetClient(),
+		Provider: storageProvider,
+		NodeName: nodeName,
+	}
+	if err = nodeReconciler.SetupWithManager(mgr); err != nil {
+		mainLog.Error(err, "Failed to setup controller with manager", "controller", "Node")
 		os.Exit(1)
 	}
 
@@ -196,13 +208,13 @@ func Main(build version.BuildInfo) {
 	// consensus group.
 
 	// Register the health and ready checks.
-	setupLog.V(1).Info("Registering health and ready checks")
+	mainLog.V(1).Info("Registering health and ready checks")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "Unable to set up health check")
+		mainLog.Error(err, "Failed to set up health check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "Unable to set up ready check")
+		mainLog.Error(err, "Failed to set up ready check")
 		os.Exit(1)
 	}
 
@@ -213,69 +225,68 @@ func Main(build version.BuildInfo) {
 	donec := make(chan struct{})
 	go func() {
 		defer close(donec)
-		setupLog.Info("Starting peer container manager")
+		mainLog.Info("Starting peer container manager")
 		if err := mgr.Start(ctx); err != nil {
-			setupLog.Error(err, "Problem running manager")
+			mainLog.Error(err, "Problem running manager")
 			os.Exit(1)
 		}
 	}()
 
 	// Start the storage provider in unmanaged mode.
-	setupLog.Info("Starting webmesh storage provider")
+	mainLog.Info("Starting webmesh storage provider")
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
-		setupLog.Error(err, "Unable to start webmesh storage provider")
+		mainLog.Error(err, "Failed to start webmesh storage provider")
 		os.Exit(1)
 	}
 	defer storageProvider.Close()
 
 	// Wait for the manager cache to sync and then get ready to handle requests
 
-	setupLog.Info("Waiting for manager cache to sync", "timeout", cacheSyncTimeout)
+	mainLog.Info("Waiting for manager cache to sync", "timeout", cacheSyncTimeout)
 	cacheCtx, cancel := context.WithTimeout(ctx, cacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
 		cancel()
-		setupLog.Error(err, "Timed out waiting for caches to sync")
+		mainLog.Error(err, "Timed out waiting for caches to sync")
 		os.Exit(1)
 	}
 	cancel()
-	setupLog.V(1).Info("Caches synced, bootstrapping network state")
+	mainLog.V(1).Info("Caches synced, bootstrapping network state")
 
-	setupLog.Info("Starting host node for routing traffic")
-	results, err := tryBootstrap(ctx, storageProvider, podcidr, clusterDomain)
+	mainLog.Info("Starting host node for routing traffic")
+	results, err := tryBootstrap(log.IntoContext(ctx, mainLog), storageProvider, podcidr, clusterDomain)
 	if err != nil {
-		setupLog.Error(err, "Unable to bootstrap network state")
+		mainLog.Error(err, "Failed to bootstrap network state")
 		os.Exit(1)
 	}
 	err = containerReconciler.StartHostNode(ctx, results)
 	if err != nil {
-		setupLog.Error(err, "Unable to start host node")
+		mainLog.Error(err, "Failed to start host webmesh node")
 		os.Exit(1)
 	}
-	defer func() {
-		if err := containerReconciler.StopHostNode(context.Background()); err != nil {
-			setupLog.Error(err, "Unable to stop host node")
-		}
-	}()
 
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
 
-	setupLog.Info("Webmesh CNI node started")
+	mainLog.Info("Webmesh CNI node started")
 
 	// Wait for the manager to exit.
 	<-ctx.Done()
 
+	// Go ahead and stop the host node.
+	containerReconciler.StopHostNode(log.IntoContext(context.Background(), mainLog))
+
+	// Wait for the manager to exit.
 	select {
 	case <-donec:
-		setupLog.Info("Finished running manager")
+		mainLog.Info("Finished running manager")
 	case <-time.After(shutdownTimeout):
-		setupLog.Info("Shutdown timeout reached, exiting")
+		mainLog.Info("Shutdown timeout reached, exiting")
 	}
 }
 
 func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, podcidr netip.Prefix, clusterDomain string) (meshstorage.BootstrapResults, error) {
-	log := ctrl.Log.WithName("bootstrap")
+	log := log.FromContext(ctx).WithName("bootstrap")
 	log.Info("Checking that webmesh network is bootstrapped")
 	// Try to bootstrap the storage provider.
 	log.V(1).Info("Attempting to bootstrap storage provider")

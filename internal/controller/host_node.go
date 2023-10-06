@@ -38,26 +38,30 @@ import (
 )
 
 // StopHostNode stops the host node.
-func (r *PeerContainerReconciler) StopHostNode(ctx context.Context) error {
+func (r *PeerContainerReconciler) StopHostNode(ctx context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	log := log.FromContext(ctx)
+	log := log.FromContext(ctx).WithName("host-node")
 	log.Info("Stopping host node")
 	r.ready.Store(false)
 	if r.host != nil {
 		err := r.host.Close(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to stop host node: %w", err)
+			log.Error(err, "Failed to close host webmesh node")
+		}
+		// Try to remove our peer from the mesh.
+		err = r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(r.NodeName))
+		if err != nil {
+			log.Error(err, "Failed to remove host webmesh node from network")
 		}
 	}
-	return nil
 }
 
 // SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
 func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results storage.BootstrapResults) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	log := log.FromContext(ctx)
+	log := log.FromContext(ctx).WithName("host-node")
 	log.Info("Setting up host node")
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
