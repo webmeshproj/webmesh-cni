@@ -192,14 +192,6 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 		defer hostNode.Close(ctx)
 		return fmt.Errorf("failed to register default gateway route: %w", err)
 	}
-	ifName := hostNode.Network().WireGuard().Name()
-	// _, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/forwarding", ifName), "1")
-	// _, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv4/conf/%s/forwarding", ifName), "1")
-	err = hostNode.Network().Firewall().AddMasquerade(ctx, ifName)
-	if err != nil {
-		defer hostNode.Close(ctx)
-		return fmt.Errorf("failed to add masquerade rule: %w", err)
-	}
 	r.host = hostNode
 	r.ready.Store(true)
 	return nil
