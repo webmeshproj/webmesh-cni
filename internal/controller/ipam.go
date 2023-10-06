@@ -39,7 +39,10 @@ type IPAMLocker interface {
 	// Acquire attempts to acquire the lock. If a lock is already acquired, the
 	// lock count is incremented. When the lock is released, the lock count is
 	// decremented. When the lock count reaches 0, the lock is released.
-	Acquire(ctx context.Context) (Lock, error)
+	Acquire(ctx context.Context) error
+	// Release releases the lock. This decrements the lock count. When the lock
+	// count reaches 0, the lock is released.
+	Release(ctx context.Context)
 }
 
 // Lock is the interface for a lock.
@@ -87,7 +90,7 @@ type ipamLock struct {
 }
 
 // Acquire attempts to acquire the lock.
-func (l *ipamLock) Acquire(ctx context.Context) (Lock, error) {
+func (l *ipamLock) Acquire(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	log := log.FromContext(ctx).WithName("ipam-lock")
@@ -100,15 +103,15 @@ func (l *ipamLock) Acquire(ctx context.Context) (Lock, error) {
 			err = l.rlock.Update(ctx, *lock)
 			if err == nil {
 				l.lockCount.Add(1)
-				return l, nil
+				return nil
 			}
 			log.Error(err, "Failed to renew IPAM lock")
 			l.lockCount.Store(0)
-			return nil, fmt.Errorf("failed to renew IPAM lock: %w", err)
+			return fmt.Errorf("failed to renew IPAM lock: %w", err)
 		}
 		log.Error(err, "Failed to get IPAM lock")
 		l.lockCount.Store(0)
-		return nil, fmt.Errorf("failed to acquire IPAM lock: %w", err)
+		return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, l.config.IPAMLockTimeout)
 	defer cancel()
@@ -142,7 +145,7 @@ func (l *ipamLock) Acquire(ctx context.Context) (Lock, error) {
 			if err == nil {
 				// We acquired the lock.
 				l.lockCount.Add(1)
-				return l, nil
+				return nil
 			}
 			log.Error(err, "Failed to acquire IPAM lock, retrying...")
 			goto Retry
@@ -155,13 +158,13 @@ func (l *ipamLock) Acquire(ctx context.Context) (Lock, error) {
 		err = l.rlock.Create(ctx, *lock)
 		if err == nil {
 			l.lockCount.Add(1)
-			return l, nil
+			return nil
 		}
 		log.Error(err, "Failed to acquire IPAM lock, retrying...")
 	Retry:
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("failed to acquire IPAM lock: %w", ctx.Err())
+			return fmt.Errorf("failed to acquire IPAM lock: %w", ctx.Err())
 		default:
 			time.Sleep(time.Second)
 		}

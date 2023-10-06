@@ -170,15 +170,15 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if !container.Spec.DisableIPv4 && container.Status.IPv4Address == "" {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
-			lock, err := r.ipamlock.Acquire(ctx)
+			err := r.ipamlock.Acquire(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 			}
+			defer r.ipamlock.Release(ctx)
 			alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
 				NodeID: nodeID.String(),
 				Subnet: r.networkV4.String(),
 			})
-			lock.Release(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}
