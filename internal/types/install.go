@@ -202,8 +202,8 @@ func (i *InstallOptions) RunInstall() error {
 		}
 	}
 	// Clear any local host IPAM allocations that already exist.
-	log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
 	if !i.DryRun && i.HostLocalNetDir != "" {
+		log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
 		err = i.ClearHostLocalIPAMAllocations()
 		if err != nil {
 			log.Println("error clearing host-local IPAM allocations:", err)
