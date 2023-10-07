@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: webmesh-debug
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-debug
+spec:
+  selector:
+    matchLabels:
+      k8s-app: webmesh-debug
+  template:
+    metadata:
+      labels:
+        k8s-app: webmesh-debug
+    spec:
+      containers:
+        - name: debug
+          image: ghcr.io/webmeshproj/webmesh-cni:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 100Mi
+          securityContext:
+            privileged: true

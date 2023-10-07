@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   containers:
-    - name: alpine
+    - name: debug
       image: ghcr.io/webmeshproj/webmesh-cni:latest
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c", "sleep infinity"]
