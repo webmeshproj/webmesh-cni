@@ -21,15 +21,12 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"time"
 
 	"github.com/spf13/pflag"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
-	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
-	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -45,6 +42,7 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
+	"github.com/webmeshproj/webmesh-cni/internal/node"
 	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
@@ -118,9 +116,9 @@ func Main(build version.BuildInfo) {
 
 	// Create the storage provider.
 	storageOpts := storageprovider.Options{
-		NodeID:                      cniopts.Manager.NodeName,
-		Namespace:                   cniopts.Manager.Namespace,
-		ListenPort:                  cniopts.HostNode.GRPCListenPort,
+		NodeID:                      cniopts.Host.NodeID,
+		Namespace:                   cniopts.Host.Namespace,
+		ListenPort:                  cniopts.Host.Services.ListenPort,
 		LeaderElectionLeaseDuration: cniopts.Storage.LeaderElectLeaseDuration,
 		LeaderElectionRenewDeadline: cniopts.Storage.LeaderElectRenewDeadline,
 		LeaderElectionRetryPeriod:   cniopts.Storage.LeaderElectRetryPeriod,
@@ -137,6 +135,7 @@ func Main(build version.BuildInfo) {
 	mainLog.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
+		Host:     node.NewHostNode(storageProvider, cniopts.Host),
 		Provider: storageProvider,
 		Config:   cniopts,
 	}
@@ -149,7 +148,7 @@ func Main(build version.BuildInfo) {
 	nodeReconciler := &controller.NodeReconciler{
 		Client:   mgr.GetClient(),
 		Provider: storageProvider,
-		NodeName: cniopts.Manager.NodeName,
+		NodeName: cniopts.Host.NodeID,
 	}
 	if err = nodeReconciler.SetupWithManager(mgr); err != nil {
 		mainLog.Error(err, "Failed to setup controller with manager", "controller", "Node")
@@ -205,14 +204,9 @@ func Main(build version.BuildInfo) {
 	mainLog.V(1).Info("Caches synced, bootstrapping network state")
 
 	mainLog.Info("Starting host node for routing traffic")
-	results, err := tryBootstrap(log.IntoContext(ctx, mainLog), storageProvider, cniopts.Network)
+	err = containerReconciler.Host.Start(ctx, mgr.GetConfig())
 	if err != nil {
-		mainLog.Error(err, "Failed to bootstrap network state")
-		os.Exit(1)
-	}
-	err = containerReconciler.StartHostNode(ctx, mgr.GetConfig(), results)
-	if err != nil {
-		mainLog.Error(err, "Failed to start host webmesh node")
+		mainLog.Error(err, "Failed to start host node")
 		os.Exit(1)
 	}
 
@@ -225,7 +219,12 @@ func Main(build version.BuildInfo) {
 	<-ctx.Done()
 
 	// Go ahead and stop the host node.
-	containerReconciler.StopHostNode(log.IntoContext(context.Background(), mainLog))
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cniopts.Manager.ShutdownTimeout)
+	defer cancel()
+	err = containerReconciler.Host.Stop(log.IntoContext(shutdownCtx, mainLog))
+	if err != nil {
+		mainLog.Error(err, "Failed to stop host node")
+	}
 
 	// Wait for the manager to exit.
 	select {
@@ -234,39 +233,4 @@ func Main(build version.BuildInfo) {
 	case <-time.After(cniopts.Manager.ShutdownTimeout):
 		mainLog.Info("Shutdown timeout reached, exiting")
 	}
-}
-
-func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, config config.NetworkConfig) (meshstorage.BootstrapResults, error) {
-	log := log.FromContext(ctx).WithName("bootstrap")
-	log.Info("Checking that webmesh network is bootstrapped")
-	// Try to bootstrap the storage provider.
-	log.V(1).Info("Attempting to bootstrap storage provider")
-	var networkState meshstorage.BootstrapResults
-	err := provider.Bootstrap(ctx)
-	if err != nil {
-		if !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-			log.Error(err, "Unable to bootstrap storage provider")
-			return networkState, fmt.Errorf("failed to bootstrap storage provider: %w", err)
-		}
-		log.V(1).Info("Storage provider already bootstrapped, making sure network state is boostrapped")
-	}
-	// Make sure the network state is boostrapped.
-	bootstrapOpts := meshstorage.BootstrapOptions{
-		MeshDomain:           config.ClusterDomain,
-		IPv4Network:          config.PodCIDR,
-		Admin:                meshstorage.DefaultMeshAdmin,
-		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
-	}
-	log.V(1).Info("Attempting to bootstrap network state", "options", bootstrapOpts)
-	networkState, err = meshstorage.Bootstrap(ctx, provider.MeshDB(), bootstrapOpts)
-	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		log.Error(err, "Unable to bootstrap network state")
-		return networkState, fmt.Errorf("failed to bootstrap network state: %w", err)
-	} else if mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
-		log.Info("Network already bootstrapped")
-	} else {
-		log.Info("Network state bootstrapped for the first time")
-	}
-	return networkState, nil
 }

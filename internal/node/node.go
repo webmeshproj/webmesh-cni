@@ -47,6 +47,8 @@ import (
 // containers on the system peer with for access to the rest of the
 // cluster and/or the internet.
 type Host interface {
+	// ID returns the ID of the host node.
+	ID() meshtypes.NodeID
 	// Start starts the host node.
 	Start(ctx context.Context, cfg *rest.Config) error
 	// Started returns true if the host node has been started.
@@ -87,6 +89,11 @@ type hostNode struct {
 	node       meshnode.Node
 	ipam       ipam.Allocator
 	mu         sync.Mutex
+}
+
+// ID returns the ID of the host node.
+func (h *hostNode) ID() meshtypes.NodeID {
+	return h.nodeID
 }
 
 // Started returns true if the host node has been started.
@@ -285,14 +292,13 @@ func (h *hostNode) Stop(ctx context.Context) error {
 	if err != nil {
 		log.Error(err, "Failed to close host webmesh node")
 	}
+	h.started.Store(false)
 	return nil
 }
 
 // bootstrap attempts to bootstrap the underlying storage provider and network state.
 // If the storage is already bootstrapped, it will read in the pre-existing state.
 func (h *hostNode) bootstrap(ctx context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
 	log := log.FromContext(ctx).WithName("network-bootstrap")
 	log.Info("Checking that the webmesh network is bootstrapped")
 	log.V(1).Info("Attempting to bootstrap storage provider")

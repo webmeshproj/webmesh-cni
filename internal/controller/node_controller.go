@@ -18,9 +18,11 @@ package controller
 
 import (
 	"context"
+	"errors"
 
 	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
+	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -57,7 +59,15 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			log.Error(err, "Failed to lookup node")
 			return ctrl.Result{}, err
 		}
-		log.Info("Node not found, it was probably deleted")
+		log.Info("Node not found, it was probably deleted, ensuring its gone from the consensus group")
+		err := r.Provider.Consensus().RemovePeer(ctx, &v1.StoragePeer{
+			Id: req.Name,
+		}, false)
+		if err != nil {
+			if !errors.Is(err, mesherrors.ErrNotLeader) {
+				log.Error(err, "Failed to remove node from consensus group")
+			}
+		}
 		return ctrl.Result{}, nil
 	}
 	if node.GetName() == r.NodeName {
@@ -74,6 +84,16 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	})
 	if err != nil {
 		log.Error(err, "Failed to add edge to node")
+		return ctrl.Result{}, err
+	}
+	log.Info("Ensuring node in consensus group")
+	err = r.Provider.Consensus().AddVoter(ctx, &v1.StoragePeer{
+		Id:            node.GetName(),
+		Address:       node.Status.Addresses[0].Address,
+		ClusterStatus: v1.ClusterStatus_CLUSTER_VOTER,
+	})
+	if err != nil && !errors.Is(err, mesherrors.ErrNotLeader) {
+		log.Error(err, "Failed to add node to consensus group")
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil

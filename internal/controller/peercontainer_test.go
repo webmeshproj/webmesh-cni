@@ -25,9 +25,7 @@ import (
 	"github.com/google/uuid"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
-	"github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
-	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	"github.com/webmeshproj/webmesh/pkg/storage/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,10 +42,12 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
+	"github.com/webmeshproj/webmesh-cni/internal/node"
 )
 
 func TestReconciler(t *testing.T) {
 	NewNode = meshnode.NewTestNodeWithLogger
+	node.NewNode = meshnode.NewTestNodeWithLogger
 
 	t.Run("SingleNode", func(t *testing.T) {
 		rs := newTestReconcilers(t, 1)
@@ -139,7 +139,7 @@ func newTestContainerFor(r *PeerContainerReconciler) cniv1.PeerContainer {
 			NodeID:   containerID,
 			Netns:    "/proc/1/ns/net",
 			IfName:   containerID[:min(9, len(containerID))] + "0",
-			NodeName: r.Manager.NodeName,
+			NodeName: r.Host.ID().String(),
 			MTU:      1500,
 		},
 	}
@@ -150,21 +150,35 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	mgr, provider := newTestManager(t)
 	var out []*PeerContainerReconciler
 	for i := 0; i < count; i++ {
+		id := uuid.NewString()
+		host := node.NewHostNode(provider, node.Config{
+			NodeID:             id,
+			Namespace:          "default",
+			LockDuration:       time.Second * 10,
+			LockAcquireTimeout: time.Second * 5,
+			ConnectTimeout:     time.Second * 30,
+			Network: node.NetworkConfig{
+				IPv4CIDR:      "10.42.0.0/16",
+				ClusterDomain: "cluster.local",
+				DisableIPv4:   false,
+				DisableIPv6:   false,
+			},
+			Services: node.ServiceConfig{},
+			LogLevel: "info",
+		})
 		r := &PeerContainerReconciler{
 			Client:   mgr.GetClient(),
 			Provider: provider,
+			Host:     host,
 			Config: config.Config{
 				Manager: config.ManagerConfig{
-					NodeName:         uuid.NewString(),
-					Namespace:        "default",
 					ReconcileTimeout: time.Second * 15,
-					IPAMLockDuration: time.Second * 5,
-					IPAMLockTimeout:  time.Second * 10,
 				},
-				HostNode: config.HostNodeConfig{
-					LogLevel:       "debug",
-					MTU:            system.DefaultMTU,
-					ConnectTimeout: time.Second * 10,
+				Storage: config.StorageConfig{
+					LeaderElectLeaseDuration: time.Second * 15,
+					LeaderElectRenewDeadline: time.Second * 10,
+					LeaderElectRetryPeriod:   time.Second * 2,
+					CacheSyncTimeout:         time.Second * 10,
 				},
 			},
 		}
@@ -187,27 +201,22 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 		t.Fatal("Failed to start storage provider", err)
 	}
 	t.Cleanup(func() {
-		_ = provider.Close()
+		err := provider.Close()
+		if err != nil {
+			t.Log("Failed to stop storage provider", err)
+		}
 	})
-	err = provider.Bootstrap(ctx)
-	if err != nil {
-		t.Fatal("Failed to bootstrap storage provider", err)
-	}
-	networkState, err := meshstorage.Bootstrap(ctx, provider.MeshDB(), meshstorage.BootstrapOptions{
-		MeshDomain:           "cluster.local",
-		IPv4Network:          "10.42.0.0/16",
-		Admin:                meshstorage.DefaultMeshAdmin,
-		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true,
-	})
-	if err != nil {
-		t.Fatal("Failed to bootstrap network state", err)
-	}
 	for _, r := range out {
-		err := r.StartHostNode(ctx, mgr.GetConfig(), networkState)
+		err := r.Host.Start(ctx, mgr.GetConfig())
 		if err != nil {
 			t.Fatal("Failed to start host node", err)
 		}
+		t.Cleanup(func() {
+			err := r.Host.Stop(context.Background())
+			if err != nil {
+				t.Log("Failed to stop host node", err)
+			}
+		})
 	}
 	return out
 }

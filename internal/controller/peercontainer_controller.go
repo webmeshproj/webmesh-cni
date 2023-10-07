@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
@@ -44,7 +43,7 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
-	"github.com/webmeshproj/webmesh-cni/internal/ipam"
+	"github.com/webmeshproj/webmesh-cni/internal/node"
 )
 
 // PeerContainerReconciler reconciles a PeerContainer object. Reconcile
@@ -53,13 +52,8 @@ type PeerContainerReconciler struct {
 	client.Client
 	config.Config
 	Provider *provider.Provider
+	Host     node.Host
 
-	ready          atomic.Bool
-	host           meshnode.Node
-	networkV4      netip.Prefix
-	networkV6      netip.Prefix
-	meshDomain     string
-	ipam           ipam.Allocator
 	containerNodes map[types.NamespacedName]meshnode.Node
 	mu             sync.Mutex
 }
@@ -85,7 +79,7 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 // Reconcile reconciles a PeerContainer.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	if !r.ready.Load() {
+	if !r.Host.Started() {
 		log.Info("Controller is not ready yet, requeing reconcile request")
 		return ctrl.Result{
 			Requeue:      true,
@@ -106,7 +100,7 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to get container")
 		return ctrl.Result{}, err
 	}
-	if container.Spec.NodeName != r.Manager.NodeName {
+	if container.Spec.NodeName != r.Host.ID().String() {
 		// This container is not for this node, so we don't care about it.
 		return ctrl.Result{}, nil
 	}
@@ -164,12 +158,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if !container.Spec.DisableIPv4 && container.Status.IPv4Address == "" {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
-			err = r.ipam.Locker().Acquire(ctx)
+			err = r.Host.IPAM().Locker().Acquire(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 			}
-			defer r.ipam.Locker().Release(ctx)
-			alloc, err := r.ipam.Allocate(ctx, nodeID)
+			defer r.Host.IPAM().Locker().Release(ctx)
+			alloc, err := r.Host.IPAM().Allocate(ctx, nodeID)
 			if err != nil {
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}
@@ -190,7 +184,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 					if container.Spec.DisableIPv6 {
 						return ""
 					}
-					return netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String()
+					return netutil.AssignToPrefix(r.Host.Node().Network().NetworkV6(), key.PublicKey()).String()
 				}(),
 			},
 		}
@@ -225,10 +219,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				return nil, fmt.Errorf("failed to get registered peer for container: %w", err)
 			}
 			return &v1.JoinResponse{
-				MeshDomain: r.meshDomain,
+				MeshDomain: r.Host.Node().Domain(),
 				// We always return both networks regardless of IP preferences.
-				NetworkIPv4: r.networkV4.String(),
-				NetworkIPv6: r.networkV6.String(),
+				NetworkIPv4: r.Host.Node().Network().NetworkV4().String(),
+				NetworkIPv6: r.Host.Node().Network().NetworkV6().String(),
 				// Addresses as allocated above.
 				AddressIPv4: peer.PrivateIPv4,
 				AddressIPv6: peer.PrivateIPv6,
@@ -338,7 +332,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
 		DetectPrivate:        true, // Required for finding endpoints for other containers on the local node.
 		DetectIPv6:           !container.Spec.DisableIPv6,
-		AllowRemoteDetection: r.HostNode.RemoteEndpointDetection,
+		AllowRemoteDetection: r.Manager.RemoteEndpointDetection,
 		SkipInterfaces: func() []string {
 			var out []string
 			for _, n := range r.containerNodes {
