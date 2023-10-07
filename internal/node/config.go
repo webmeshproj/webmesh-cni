@@ -51,6 +51,8 @@ type Config struct {
 func (o *Config) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&o.NodeID, prefix+"node-id", os.Getenv(types.NodeNameEnvVar), "The ID of the node")
 	fs.StringVar(&o.Namespace, prefix+"namespace", os.Getenv(types.PodNamespaceEnvVar), "The namespace of the node")
+	fs.DurationVar(&o.LockDuration, prefix+"lock-duration", 10*time.Second, "The duration to hold locks for when allocating addresses")
+	fs.DurationVar(&o.LockAcquireTimeout, prefix+"lock-acquire-timeout", 5*time.Second, "The timeout for acquiring locks when allocating addresses")
 	fs.DurationVar(&o.ConnectTimeout, prefix+"connect-timeout", 30*time.Second, "The timeout for connecting the host webmesh node to the network")
 	fs.StringVar(&o.LogLevel, prefix+"log-level", "info", "The log level for the host webmesh node")
 	o.Network.BindFlags(prefix+"network.", fs)
@@ -66,6 +68,12 @@ func (o *Config) Validate() error {
 	}
 	if o.ConnectTimeout <= 0 {
 		return errors.New("connect-timeout must be positive")
+	}
+	if o.LockDuration <= 0 {
+		return errors.New("lock-duration must be positive")
+	}
+	if o.LockAcquireTimeout <= 0 {
+		return errors.New("lock-acquire-timeout must be positive")
 	}
 	if err := o.Network.Validate(); err != nil {
 		return err
