@@ -86,7 +86,7 @@ func (i *InstallOptions) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&i.BinaryDestBin, "binary-dest-bin", i.BinaryDestBin, "destination directory for the CNI binaries")
 	fs.StringVar(&i.ConfDestDir, "conf-dest-dir", i.ConfDestDir, "destination directory for the CNI configuration")
 	fs.StringVar(&i.ConfDestName, "conf-dest-name", i.ConfDestName, "name of the CNI configuration file")
-	fs.StringVar(&i.HostLocalNetDir, "host-local-net-dir", i.HostLocalNetDir, "directory containing host-local IPAM allocations")
+	fs.StringVar(&i.HostLocalNetDir, "host-local-net-dir", i.HostLocalNetDir, "directory containing host-local IPAM allocations to clear, leave this empty to disable")
 	fs.StringVar(&i.NodeName, "node-name", i.NodeName, "name of the node we are running on")
 	fs.StringVar(&i.Namespace, "namespace", i.Namespace, "namespace to use for the plugin")
 	fs.Func("netconf-template", "template file for the CNI configuration", func(fname string) error {
@@ -163,9 +163,6 @@ func (i *InstallOptions) Validate() error {
 	if i.ConfDestName == "" {
 		return fmt.Errorf("configuration destination name not set")
 	}
-	if i.HostLocalNetDir == "" {
-		return fmt.Errorf("host-local IPAM directory not set")
-	}
 	if i.NetConfTemplate == "" {
 		return fmt.Errorf("CNI configuration template not set")
 	}
@@ -209,7 +206,7 @@ func (i *InstallOptions) RunInstall() error {
 	}
 	// Clear any local host IPAM allocations that already exist.
 	log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
-	if !i.DryRun {
+	if !i.DryRun && i.HostLocalNetDir != "" {
 		err = i.ClearHostLocalIPAMAllocations()
 		if err != nil {
 			log.Println("error clearing host-local IPAM allocations:", err)
