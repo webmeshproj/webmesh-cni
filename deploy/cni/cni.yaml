@@ -6,6 +6,7 @@ metadata:
   name: webmesh-config
   namespace: kube-system
 data:
+  # TODO: Allow entire node config via ConfigMap.
   cluster-domain: "cluster.local"
   pod-cidr: "10.42.0.0/16"
   # The network config to install on each node.
@@ -20,7 +21,7 @@ data:
       "plugins": [
         {
           "type": "webmesh",
-          "logLevel": "debug",
+          "logLevel": "info",
           "interface": {
               "mtu": 1420,
               "disableIPv4": false,
