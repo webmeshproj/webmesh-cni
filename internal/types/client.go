@@ -18,7 +18,6 @@ package types
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -33,16 +32,6 @@ import (
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
-
-var (
-	// ErrPeerContainerNotFound is returned when a container is not found.
-	ErrPeerContainerNotFound = fmt.Errorf("peer container not found")
-)
-
-// IsPeerContainerNotFound returns true if the given error is a peer container not found error.
-func IsPeerContainerNotFound(err error) bool {
-	return errors.Is(err, ErrPeerContainerNotFound)
-}
 
 // Client is the client for the CNI plugin.
 type Client struct {

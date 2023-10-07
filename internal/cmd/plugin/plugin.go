@@ -46,9 +46,9 @@ const (
 	// How long we wait to try to ping the API server before giving up.
 	testConnectionTimeout = time.Second * 2
 	// How long we wait to try to create the peer container instance.
-	createPeerContainerTimeout = time.Second * 2
+	createPeerContainerTimeout = time.Second * 3
 	// How long to wait for the controller to setup the container interface.
-	setupContainerInterfaceTimeout = time.Second * 10
+	setupContainerInterfaceTimeout = time.Second * 15
 )
 
 // Main is the entrypoint for the webmesh-cni plugin.

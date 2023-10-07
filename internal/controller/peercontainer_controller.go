@@ -45,13 +45,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	"github.com/webmeshproj/webmesh-cni/internal/config"
 )
 
 // PeerContainerReconciler reconciles a PeerContainer object. Reconcile
 // attempts will fail until SetNetworkState is called.
 type PeerContainerReconciler struct {
 	client.Client
-	Config
+	config.Config
 	Provider *provider.Provider
 
 	ready          atomic.Bool

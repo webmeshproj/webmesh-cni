@@ -38,11 +38,6 @@ import (
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 )
 
-const (
-	// IfacePrefix is the prefix for interface names.
-	IfacePrefix = "wmesh"
-)
-
 // NetConf is the configuration for the CNI plugin.
 type NetConf struct {
 	// NetConf is the typed configuration for the CNI plugin.

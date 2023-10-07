@@ -36,13 +36,14 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/config"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
@@ -62,7 +63,7 @@ func init() {
 func Main(build version.BuildInfo) {
 	// Parse flags and setup logging.
 	var (
-		cniopts = controller.Config{}
+		cniopts = config.Config{}
 		zapopts = zap.Options{Development: true}
 	)
 	zapset := flag.NewFlagSet("zap", flag.ContinueOnError)
@@ -98,7 +99,7 @@ func Main(build version.BuildInfo) {
 		},
 		HealthProbeBindAddress:  cniopts.Manager.ProbeAddress,
 		GracefulShutdownTimeout: &cniopts.Manager.ShutdownTimeout,
-		Controller: config.Controller{
+		Controller: ctrlconfig.Controller{
 			GroupKindConcurrency: map[string]int{
 				"PeerContainer.cni.webmesh.io": 1,
 			},
@@ -168,7 +169,7 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 
-	// TODO: Register a cleanup function to remove  all containers
+	// TODO: Register a cleanup function to remove all containers
 	// when the node itself is shutting down. Otherwise hopefully
 	// a restart will bring things back to the correct state.
 
@@ -235,7 +236,7 @@ func Main(build version.BuildInfo) {
 	}
 }
 
-func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, config controller.NetworkConfig) (meshstorage.BootstrapResults, error) {
+func tryBootstrap(ctx context.Context, provider *storageprovider.Provider, config config.NetworkConfig) (meshstorage.BootstrapResults, error) {
 	log := log.FromContext(ctx).WithName("bootstrap")
 	log.Info("Checking that webmesh network is bootstrapped")
 	// Try to bootstrap the storage provider.

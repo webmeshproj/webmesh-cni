@@ -30,10 +30,10 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-)
 
-// IPAMLockID is the ID used for the IPAM lock.
-const IPAMLockID = "webmesh-cni-ipam"
+	"github.com/webmeshproj/webmesh-cni/internal/config"
+	"github.com/webmeshproj/webmesh-cni/internal/types"
+)
 
 // IPAMLocker is the interface for taking a distributed lock during IPv4 allocations.
 type IPAMLocker interface {
@@ -47,7 +47,7 @@ type IPAMLocker interface {
 }
 
 // NewIPAMLock creates a new IPAM lock.
-func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (IPAMLocker, error) {
+func NewIPAMLock(cfg *rest.Config, config config.ManagerConfig) (IPAMLocker, error) {
 	corev1client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create corev1 client: %w", err)
@@ -56,11 +56,10 @@ func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (IPAMLocker, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create coordinationv1 client: %w", err)
 	}
-	// Create the IPAM lock.
 	rlock, err := resourcelock.New(
 		"leases",
 		config.Namespace,
-		IPAMLockID,
+		types.IPAMLockID,
 		corev1client,
 		coordinationClient,
 		resourcelock.ResourceLockConfig{
@@ -79,7 +78,7 @@ func NewIPAMLock(cfg *rest.Config, config ManagerConfig) (IPAMLocker, error) {
 
 type ipamLock struct {
 	rlock     resourcelock.Interface
-	config    ManagerConfig
+	config    config.ManagerConfig
 	lockCount atomic.Int32
 	mu        sync.Mutex
 }
@@ -146,12 +145,12 @@ func (l *ipamLock) Acquire(ctx context.Context) error {
 			goto Retry
 		}
 		// Try to create the lock.
-		lock = &resourcelock.LeaderElectionRecord{
+		err = l.rlock.Create(ctx, resourcelock.LeaderElectionRecord{
 			HolderIdentity:       l.config.NodeName,
 			LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
-		}
-		err = l.rlock.Create(ctx, *lock)
+		})
 		if err == nil {
+			// We acquired the lock.
 			l.lockCount.Add(1)
 			return nil
 		}

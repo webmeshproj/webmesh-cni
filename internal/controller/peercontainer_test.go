@@ -36,13 +36,14 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/config"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
+	"github.com/webmeshproj/webmesh-cni/internal/config"
 )
 
 func TestReconciler(t *testing.T) {
@@ -152,15 +153,15 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 		r := &PeerContainerReconciler{
 			Client:   mgr.GetClient(),
 			Provider: provider,
-			Config: Config{
-				Manager: ManagerConfig{
+			Config: config.Config{
+				Manager: config.ManagerConfig{
 					NodeName:         uuid.NewString(),
 					Namespace:        "default",
 					ReconcileTimeout: time.Second * 15,
 					IPAMLockDuration: time.Second * 5,
 					IPAMLockTimeout:  time.Second * 10,
 				},
-				HostNode: HostNodeConfig{
+				HostNode: config.HostNodeConfig{
 					LogLevel:       "debug",
 					MTU:            system.DefaultMTU,
 					ConnectTimeout: time.Second * 10,
@@ -227,7 +228,7 @@ func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
 		},
 		HealthProbeBindAddress:  "0",
 		GracefulShutdownTimeout: &shutdownTimeout,
-		Controller: config.Controller{
+		Controller: ctrlconfig.Controller{
 			GroupKindConcurrency: map[string]int{
 				"PeerContainer.cni.webmesh.io": 1,
 			},
