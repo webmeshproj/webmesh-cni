@@ -113,10 +113,6 @@ spec:
               name: cni-net-dir
           securityContext:
             privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
       containers:
         - name: webmesh-node
           image: ghcr.io/webmeshproj/webmesh-cni:latest
@@ -181,10 +177,6 @@ spec:
               mountPropagation: Bidirectional
           securityContext:
             privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
           resources:
             requests:
               cpu: 250m
