@@ -160,5 +160,5 @@ remove-cluster: ## Remove the test kind cluster.
 debug-box:
 	$(KUBECTL) --context $(KIND_CONTEXT) run -it --rm --restart=Never --image=alpine -- sh
 
-clean: remove-kind ## Remove all local binaries, test clusters, and release assets.
+clean: remove-cluster ## Remove all local binaries, test clusters, and release assets.
 	rm -rf dist cover.out
