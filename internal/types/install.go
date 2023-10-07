@@ -141,9 +141,6 @@ func (i *InstallOptions) Default() {
 	if i.ConfDestName == "" {
 		i.ConfDestName = DefaultDestConfFilename
 	}
-	if i.HostLocalNetDir == "" {
-		i.HostLocalNetDir = DefaultHostLocalNetDir
-	}
 	if i.Namespace == "" {
 		i.Namespace, _ = GetInClusterNamespace()
 	}
