@@ -218,6 +218,11 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			if err != nil {
 				return nil, fmt.Errorf("failed to get registered peer for container: %w", err)
 			}
+			// Compute the current topology for the container.
+			peers, err := meshnet.WireGuardPeersFor(ctx, r.Provider.MeshDB(), node.ID())
+			if err != nil {
+				return nil, fmt.Errorf("failed to get peers for container: %w", err)
+			}
 			return &v1.JoinResponse{
 				MeshDomain: r.Host.Node().Domain(),
 				// We always return both networks regardless of IP preferences.
@@ -226,6 +231,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				// Addresses as allocated above.
 				AddressIPv4: peer.PrivateIPv4,
 				AddressIPv6: peer.PrivateIPv6,
+				Peers:       peers,
 			}, nil
 		})
 		err := node.Connect(ctx, meshnode.ConnectOptions{
