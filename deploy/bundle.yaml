@@ -1019,10 +1019,6 @@ spec:
               value: "/host/opt/cni/bin"
             - name: WEBMESH_CNI_CONF_DIR
               value: "/host/etc/cni/net.d"
-            # The path to clear IPAM allocations from when upgrading from
-            # host-local plugins.
-            - name: WEBMESH_CNI_HOSTNET_DIR
-              value: "/var/lib/cni/networks"
             # Name of the CNI config file to create.
             - name: WEBMESH_CNI_CONF_NAME
               value: "10-webmesh.conflist"
@@ -1047,8 +1043,6 @@ spec:
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
-            - mountPath: /var/lib/cni/networks
-              name: host-local-net-dir
           securityContext:
             privileged: true
             capabilities:
@@ -1142,12 +1136,6 @@ spec:
         - name: host-netns
           hostPath:
             path: /var/run/netns
-        # Mount in the directory for host-local IPAM allocations. This is
-        # used when upgrading from host-local to calico-ipam, and can be removed
-        # if not using the upgrade-ipam init container.
-        - name: host-local-net-dir
-          hostPath:
-            path: /var/lib/cni/networks
 ---
 # Source: deploy/crds/cni.webmesh.io_peercontainers.yaml
 apiVersion: apiextensions.k8s.io/v1
