@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package ipam
 
 import (
 	"context"
@@ -31,12 +31,11 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
-// IPAMLocker is the interface for taking a distributed lock during IPv4 allocations.
-type IPAMLocker interface {
+// Locker is the interface for taking a distributed lock during IPv4 allocations.
+type Locker interface {
 	// Acquire attempts to acquire the lock. If a lock is already acquired, the
 	// lock count is incremented. When the lock is released, the lock count is
 	// decremented. When the lock count reaches 0, the lock is released.
@@ -46,8 +45,16 @@ type IPAMLocker interface {
 	Release(ctx context.Context)
 }
 
-// NewIPAMLock creates a new IPAM lock.
-func NewIPAMLock(cfg *rest.Config, config config.ManagerConfig) (IPAMLocker, error) {
+// LockConfig is the configuration for a lock.
+type LockConfig struct {
+	ID                 string
+	Namespace          string
+	LockDuration       time.Duration
+	LockAcquireTimeout time.Duration
+}
+
+// NewLock creates a new IPAM lock.
+func NewLock(cfg *rest.Config, config LockConfig) (Locker, error) {
 	corev1client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create corev1 client: %w", err)
@@ -63,7 +70,7 @@ func NewIPAMLock(cfg *rest.Config, config config.ManagerConfig) (IPAMLocker, err
 		corev1client,
 		coordinationClient,
 		resourcelock.ResourceLockConfig{
-			Identity: config.NodeName,
+			Identity: config.ID,
 		},
 	)
 	if err != nil {
@@ -78,7 +85,7 @@ func NewIPAMLock(cfg *rest.Config, config config.ManagerConfig) (IPAMLocker, err
 
 type ipamLock struct {
 	rlock     resourcelock.Interface
-	config    config.ManagerConfig
+	config    LockConfig
 	lockCount atomic.Int32
 	mu        sync.Mutex
 }
@@ -107,7 +114,7 @@ func (l *ipamLock) Acquire(ctx context.Context) error {
 		l.lockCount.Store(0)
 		return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, l.config.IPAMLockTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.config.LockAcquireTimeout)
 	defer cancel()
 	for {
 		// Check if the lock has already been created.
@@ -131,8 +138,8 @@ func (l *ipamLock) Acquire(ctx context.Context) error {
 				}
 			}
 			// Try to update the lock.
-			lock.LeaseDurationSeconds = int(l.config.IPAMLockDuration.Seconds())
-			lock.HolderIdentity = l.config.NodeName
+			lock.LeaseDurationSeconds = int(l.config.LockDuration.Seconds())
+			lock.HolderIdentity = l.config.ID
 			lock.AcquireTime = metav1.NewTime(time.Now().UTC())
 			lock.RenewTime = metav1.NewTime(time.Now().UTC())
 			err = l.rlock.Update(ctx, *lock)
@@ -146,8 +153,8 @@ func (l *ipamLock) Acquire(ctx context.Context) error {
 		}
 		// Try to create the lock.
 		err = l.rlock.Create(ctx, resourcelock.LeaderElectionRecord{
-			HolderIdentity:       l.config.NodeName,
-			LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
+			HolderIdentity:       l.config.ID,
+			LeaseDurationSeconds: int(l.config.LockDuration.Seconds()),
 		})
 		if err == nil {
 			// We acquired the lock.
@@ -183,7 +190,7 @@ func (l *ipamLock) Release(ctx context.Context) {
 	log.V(1).Info("Releasing IPAM lock")
 	err := l.rlock.Update(ctx, resourcelock.LeaderElectionRecord{
 		HolderIdentity:       "",
-		LeaseDurationSeconds: int(l.config.IPAMLockDuration.Seconds()),
+		LeaseDurationSeconds: int(l.config.LockDuration.Seconds()),
 	})
 	if err != nil {
 		log.Error(err, "Failed to release IPAM lock")

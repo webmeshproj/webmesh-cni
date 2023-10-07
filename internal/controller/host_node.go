@@ -31,8 +31,10 @@ import (
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	"github.com/webmeshproj/webmesh/pkg/storage"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/webmeshproj/webmesh-cni/internal/ipam"
 	cnitypes "github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
@@ -57,7 +59,7 @@ func (r *PeerContainerReconciler) StopHostNode(ctx context.Context) {
 }
 
 // SetNetworkState sets the network configuration to the reconciler to make it ready to reconcile requests.
-func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results storage.BootstrapResults) error {
+func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, cfg *rest.Config, results storage.BootstrapResults) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	log := log.FromContext(ctx).WithName("host-node")
@@ -66,7 +68,22 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 	r.meshDomain = results.MeshDomain
 	r.networkV4 = results.NetworkV4
 	r.networkV6 = results.NetworkV6
-	r.ipam = meshplugins.NewBuiltinIPAM(meshplugins.IPAMConfig{Storage: r.Provider.MeshDB()})
+	var err error
+	r.ipam, err = ipam.NewAllocator(cfg, ipam.Config{
+		IPAM: meshplugins.IPAMConfig{
+			Storage: r.Provider.MeshDB(),
+		},
+		Lock: ipam.LockConfig{
+			ID:                 r.Manager.NodeName,
+			Namespace:          r.Manager.Namespace,
+			LockDuration:       r.Manager.IPAMLockDuration,
+			LockAcquireTimeout: r.Manager.IPAMLockTimeout,
+		},
+		Network: r.networkV4,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create IPAM allocator: %w", err)
+	}
 	// Detect the current endpoints on the machine.
 	log.V(1).Info("Detecting host endpoints")
 	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
@@ -89,21 +106,18 @@ func (r *PeerContainerReconciler) StartHostNode(ctx context.Context, results sto
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
 	// We always allocate addresses for ourselves, even if we won't use them.
-	err = r.ipamlock.Acquire(ctx)
+	log.Info("Allocating a mesh IPv4 address")
+	err = r.ipam.Locker().Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 	}
-	defer r.ipamlock.Release(ctx)
+	defer r.ipam.Locker().Release(ctx)
 	var ipv4Addr, ipv6Addr string
-	log.Info("Allocating a mesh IPv4 address")
-	alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
-		NodeID: nodeID.String(),
-		Subnet: r.networkV4.String(),
-	})
+	alloc, err := r.ipam.Allocate(ctx, nodeID)
 	if err != nil {
 		return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 	}
-	ipv4Addr = alloc.GetIp()
+	ipv4Addr = alloc.String()
 	log.Info("Allocating a mesh IPv6 address")
 	ipv6Addr = netutil.AssignToPrefix(r.networkV6, key.PublicKey()).String()
 	log.Info("Joining the mesh")

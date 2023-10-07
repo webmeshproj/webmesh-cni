@@ -33,12 +33,10 @@ import (
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
-	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -46,6 +44,7 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
+	"github.com/webmeshproj/webmesh-cni/internal/ipam"
 )
 
 // PeerContainerReconciler reconciles a PeerContainer object. Reconcile
@@ -60,8 +59,7 @@ type PeerContainerReconciler struct {
 	networkV4      netip.Prefix
 	networkV6      netip.Prefix
 	meshDomain     string
-	ipamlock       IPAMLocker
-	ipam           *meshplugins.BuiltinIPAM
+	ipam           ipam.Allocator
 	containerNodes map[types.NamespacedName]meshnode.Node
 	mu             sync.Mutex
 }
@@ -79,11 +77,6 @@ var NewNode = meshnode.NewWithLogger
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	// Create clients for IPAM locking
 	r.containerNodes = make(map[types.NamespacedName]meshnode.Node)
-	r.ipamlock, err = NewIPAMLock(rest.CopyConfig(mgr.GetConfig()), r.Manager)
-	if err != nil {
-		err = fmt.Errorf("failed to create IPAM lock: %w", err)
-		return
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
@@ -171,19 +164,16 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if !container.Spec.DisableIPv4 && container.Status.IPv4Address == "" {
 			// If the container does not have an IPv4 address and we are not disabling
 			// IPv4, use the default plugin to allocate one.
-			err := r.ipamlock.Acquire(ctx)
+			err = r.ipam.Locker().Acquire(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 			}
-			defer r.ipamlock.Release(ctx)
-			alloc, err := r.ipam.Allocate(ctx, &v1.AllocateIPRequest{
-				NodeID: nodeID.String(),
-				Subnet: r.networkV4.String(),
-			})
+			defer r.ipam.Locker().Release(ctx)
+			alloc, err := r.ipam.Allocate(ctx, nodeID)
 			if err != nil {
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}
-			ipv4addr = alloc.GetIp()
+			ipv4addr = alloc.String()
 		}
 		// Go ahead and register a Peer for this node.
 		encoded, err := key.PublicKey().Encode()

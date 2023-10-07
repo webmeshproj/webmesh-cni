@@ -148,35 +148,46 @@ func (c *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 }
 
 func (c *Config) Validate() error {
-	if c.Manager.Namespace == "" {
+	if err := c.Manager.Validate(); err != nil {
+		return fmt.Errorf("manager config: %w", err)
+	}
+	if err := c.Network.Validate(); err != nil {
+		return fmt.Errorf("network config: %w", err)
+	}
+	return nil
+}
+
+func (c *ManagerConfig) Validate() error {
+	if c.Namespace == "" {
 		var err error
-		c.Manager.Namespace, err = types.GetInClusterNamespace()
+		c.Namespace, err = types.GetInClusterNamespace()
 		if err != nil {
 			return fmt.Errorf("namespace not set and unable to get in-cluster namespace: %w", err)
 		}
 	}
-	if c.Manager.NodeName == "" {
+	if c.NodeName == "" {
 		return fmt.Errorf("node name not set")
 	}
-	if c.Manager.IPAMLockDuration <= 0 {
+	if c.IPAMLockDuration <= 0 {
 		return fmt.Errorf("ipam lock duration must be positive")
 	}
-	if c.Manager.IPAMLockTimeout <= 0 {
+	if c.IPAMLockTimeout <= 0 {
 		return fmt.Errorf("ipam lock timeout must be positive")
 	}
-	if c.Manager.ReconcileTimeout <= 0 {
+	if c.ReconcileTimeout <= 0 {
 		return fmt.Errorf("reconcile timeout must be positive")
 	}
-	if c.Manager.IPAMLockTimeout >= c.Manager.ReconcileTimeout {
+	if c.IPAMLockTimeout >= c.ReconcileTimeout {
 		return fmt.Errorf("ipam lock timeout must be less than reconcile timeout")
 	}
-	if c.Network.ClusterDomain == "" {
-		c.Network.ClusterDomain = "cluster.local"
-	}
-	if c.Network.PodCIDR == "" {
+	return nil
+}
+
+func (c *NetworkConfig) Validate() error {
+	if c.PodCIDR == "" {
 		return fmt.Errorf("pod cidr not set")
 	}
-	_, err := netip.ParsePrefix(c.Network.PodCIDR)
+	_, err := netip.ParsePrefix(c.PodCIDR)
 	if err != nil {
 		return fmt.Errorf("invalid pod cidr: %w", err)
 	}

@@ -210,7 +210,7 @@ func Main(build version.BuildInfo) {
 		mainLog.Error(err, "Failed to bootstrap network state")
 		os.Exit(1)
 	}
-	err = containerReconciler.StartHostNode(ctx, results)
+	err = containerReconciler.StartHostNode(ctx, mgr.GetConfig(), results)
 	if err != nil {
 		mainLog.Error(err, "Failed to start host webmesh node")
 		os.Exit(1)

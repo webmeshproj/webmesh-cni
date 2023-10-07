@@ -204,7 +204,7 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 		t.Fatal("Failed to bootstrap network state", err)
 	}
 	for _, r := range out {
-		err := r.StartHostNode(ctx, networkState)
+		err := r.StartHostNode(ctx, mgr.GetConfig(), networkState)
 		if err != nil {
 			t.Fatal("Failed to start host node", err)
 		}
