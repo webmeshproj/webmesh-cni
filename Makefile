@@ -144,17 +144,17 @@ CNI_NAMESPACE ?= kube-system
 KIND_CONFIG   ?= deploy/kindconfig.yaml
 KIND_CONTEXT  := kind-$(CLUSTER_NAME)
 
-test-kind: ## Create a test cluster using kind.
+test-cluster: ## Create a test cluster using kind.
 	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
 	$(KUBECTL) config set-context $(KIND_CONTEXT) --namespace=$(CNI_NAMESPACE)
 
-load-kind: docker ## Load the docker image into the test kind cluster.
+load: docker ## Load the docker image into the test kind cluster.
 	$(KIND) load docker-image $(IMG) --name $(CLUSTER_NAME)
 
-install-kind: bundle ## Install the WebMesh CNI into the test kind cluster.
+install: bundle ## Install the WebMesh CNI into the test kind cluster.
 	$(KUBECTL) --context $(KIND_CONTEXT) apply -f $(BUNDLE)
 
-remove-kind: ## Remove the test kind cluster.
+remove-cluster: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
 debug-box:
