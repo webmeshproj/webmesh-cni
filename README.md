@@ -55,7 +55,7 @@ docker run ghcr.io/webmeshproj/webmesh-cni:latest --help
 ## Development
 
 A [Makefile](Makefile) is provided to build and test the CNI plugin.
-A [Kind configuration](deploy/kindconfig.yaml) is also provided for creating test clusters locally capable of running the CNI.
+A [Kind configuration](examples/single-cluster/kindconfig.yaml) is also provided for creating test clusters locally capable of running the CNI.
 
 To see all available options in the Makefile, run:
 
