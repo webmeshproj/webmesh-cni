@@ -92,6 +92,11 @@ type NetworkConfig struct {
 	MTU int `koanf:"mtu,omitempty"`
 	// WireGuardPort is the port to use for the host wireguard interface.
 	WireGuardPort int `koanf:"wireguard-port,omitempty"`
+	// KeyFile is a file to save our wireguard private key to. If it does not exist
+	// it will be generated.
+	KeyFile string `koanf:"key-file,omitempty"`
+	// KeyRotationInterval is the interval to rotate the wireguard private key.
+	KeyRotationInterval time.Duration `koanf:"key-rotation-interval,omitempty"`
 	// IPv4CIDR is the IPv4 CIDR to use for the network.
 	IPv4CIDR string `koanf:"ipv4-cidr,omitempty"`
 	// ClusterDomain is the cluster domain to use for the network.
@@ -106,6 +111,8 @@ func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.BoolVar(&n.RemoteEndpointDetection, prefix+"remote-endpoint-detection", false, "Enable remote endpoint detection for wireguard endpoints")
 	fs.IntVar(&n.MTU, prefix+"mtu", system.DefaultMTU, "The MTU of the host wireguard interface")
 	fs.IntVar(&n.WireGuardPort, prefix+"wireguard-port", wireguard.DefaultListenPort, "The port to use for the host wireguard interface")
+	fs.StringVar(&n.KeyFile, prefix+"key-file", "", "A file to save our wireguard private key to. If it does not exist it will be generated")
+	fs.DurationVar(&n.KeyRotationInterval, prefix+"key-rotation-interval", 0, "The interval to rotate the wireguard private key")
 	fs.StringVar(&n.IPv4CIDR, prefix+"ipv4-cidr", os.Getenv(types.PodCIDREnvVar), "The IPv4 CIDR to use for the network")
 	fs.StringVar(&n.ClusterDomain, prefix+"cluster-domain", os.Getenv(types.ClusterDomainEnvVar), "The cluster domain to use for the network")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", false, "Disable IPv4 on the host webmesh node")

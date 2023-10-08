@@ -141,7 +141,7 @@ KUBECTL ?= kubectl
 
 CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
-KIND_CONFIG   ?= deploy/kindconfig.yaml
+KIND_CONFIG   ?= examples/single-cluster/kindconfig.yaml
 KIND_CONTEXT  := kind-$(CLUSTER_NAME)
 
 test-cluster: ## Create a test cluster using kind.

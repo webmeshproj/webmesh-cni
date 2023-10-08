@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
@@ -153,11 +155,11 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to detect endpoints: %w", err)
 	}
-	key, err := crypto.GenerateKey()
+	key, err := h.loadKey(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to generate key: %w", err)
 	}
-	encoded, err := key.PublicKey().Encode()
+	encodedPubKey, err := key.PublicKey().Encode()
 	if err != nil {
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
@@ -238,7 +240,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:                 h.nodeID.String(),
-			PublicKey:          encoded,
+			PublicKey:          encodedPubKey,
 			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 			WireguardEndpoints: wgeps,
 			ZoneAwarenessID:    h.nodeID.String(),
@@ -250,6 +252,17 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	if err != nil {
 		defer hostNode.Close(ctx)
 		return fmt.Errorf("failed to register with mesh: %w", err)
+	}
+	// Update our consensus record with our public key.
+	err = h.storage.Consensus().AddVoter(ctx, &v1.StoragePeer{
+		Id:            h.nodeID.String(),
+		PublicKey:     encodedPubKey,
+		Address:       fmt.Sprintf("%s:%d", h.nodeID, h.config.Services.ListenPort),
+		ClusterStatus: v1.ClusterStatus_CLUSTER_VOTER,
+	})
+	if err != nil {
+		defer hostNode.Close(ctx)
+		return fmt.Errorf("failed to register with consensus: %w", err)
 	}
 	// Put a default gateway route for ourselves.
 	err = h.storage.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
@@ -332,4 +345,63 @@ func (h *hostNode) bootstrap(ctx context.Context) error {
 	h.networkV6 = networkState.NetworkV6
 	h.meshDomain = networkState.MeshDomain
 	return nil
+}
+
+// loadKey attempts to load our wireguard key from any configured file.
+// If the file does not exist, one will be generated and written to it.
+// If no file is configured, a key will be generated and returned. If the
+// file exists and its last modification time is older than the configured
+// key rotation interval, the key will be rotated and written to the file.
+func (h *hostNode) loadKey(ctx context.Context) (crypto.PrivateKey, error) {
+	log := log.FromContext(ctx).WithName("key-loader")
+	if h.config.Network.KeyFile == "" {
+		log.Info("No key file configured, generating an ephemeral key")
+		return crypto.GenerateKey()
+	}
+	finfo, err := os.Stat(h.config.Network.KeyFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Info("Key file does not exist, generating a new key")
+			key, err := crypto.GenerateKey()
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate key: %w", err)
+			}
+			encoded, err := key.Encode()
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode key: %w", err)
+			}
+			log.V(1).Info("Saving key to file", "file", h.config.Network.KeyFile)
+			err = os.WriteFile(h.config.Network.KeyFile, []byte(encoded), 0600)
+			if err != nil {
+				return nil, fmt.Errorf("failed to write key file: %w", err)
+			}
+			return key, nil
+		}
+		return nil, fmt.Errorf("failed to stat key file: %w", err)
+	}
+	if h.config.Network.KeyRotationInterval > 0 {
+		modtime := finfo.ModTime()
+		if time.Since(modtime) > h.config.Network.KeyRotationInterval {
+			log.Info("Key file is older than key rotation interval, generating a new key")
+			key, err := crypto.GenerateKey()
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate key: %w", err)
+			}
+			encoded, err := key.Encode()
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode key: %w", err)
+			}
+			err = os.WriteFile(h.config.Network.KeyFile, []byte(encoded), 0600)
+			if err != nil {
+				return nil, fmt.Errorf("failed to write key file: %w", err)
+			}
+			return key, nil
+		}
+	}
+	log.Info("Loading key from file", "file", h.config.Network.KeyFile)
+	encoded, err := os.ReadFile(h.config.Network.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key file: %w", err)
+	}
+	return crypto.DecodePrivateKey(string(encoded))
 }

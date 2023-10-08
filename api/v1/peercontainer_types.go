@@ -160,6 +160,9 @@ func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.status",description="Status of the interface"
+//+kubebuilder:printcolumn:name="IPv4",type="string",JSONPath=".status.ipv4Address",description="IPv4 address of the interface"
+//+kubebuilder:printcolumn:name="IPv6",type="string",JSONPath=".status.ipv6Address",description="IPv6 address of the interface"
 
 // PeerContainer is the Schema for the peercontainers API
 type PeerContainer struct {

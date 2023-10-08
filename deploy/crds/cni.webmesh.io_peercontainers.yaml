@@ -14,7 +14,20 @@ spec:
     singular: peercontainer
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Status of the interface
+      jsonPath: .status.status
+      name: Status
+      type: string
+    - description: IPv4 address of the interface
+      jsonPath: .status.ipv4Address
+      name: IPv4
+      type: string
+    - description: IPv6 address of the interface
+      jsonPath: .status.ipv6Address
+      name: IPv6
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: PeerContainer is the Schema for the peercontainers API
