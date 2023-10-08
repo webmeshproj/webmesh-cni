@@ -604,21 +604,22 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          ipv4Prefix:
-            description: IPv4Prefix is the IPv4 prefix for the mesh.
-            type: string
-          ipv6Prefix:
-            description: IPv6Prefix is the IPv6 prefix for the mesh.
-            type: string
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
-          meshDomain:
-            description: MeshDomain is the domain name for the mesh.
-            type: string
           metadata:
+            type: object
+          networkState:
+            description: NetworkState is the network state.
+            properties:
+              domain:
+                type: string
+              networkV4:
+                type: string
+              networkV6:
+                type: string
             type: object
         type: object
     served: true
