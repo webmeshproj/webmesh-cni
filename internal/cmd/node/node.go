@@ -45,7 +45,7 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
-	"github.com/webmeshproj/webmesh-cni/internal/node"
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
@@ -138,7 +138,7 @@ func Main(build version.BuildInfo) {
 	log.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
-		Host:     node.NewHostNode(storageProvider, cniopts.Host),
+		Host:     host.NewNode(storageProvider, cniopts.Host),
 		Provider: storageProvider,
 		Config:   cniopts,
 	}

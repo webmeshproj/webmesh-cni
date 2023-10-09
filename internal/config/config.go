@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/webmeshproj/webmesh-cni/internal/node"
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
 // Config is the configuration for the the webmesh-cni controllers.
@@ -31,8 +31,8 @@ type Config struct {
 	Manager ManagerConfig `koanf:"manager"`
 	// Storage is the configuration for the storage provider.
 	Storage StorageConfig `koanf:"storage"`
-	// HostNode is the configuration for the host webmesh node.
-	Host node.Config `koanf:"host"`
+	// Host is the configuration for the host webmesh node.
+	Host host.Config `koanf:"host"`
 }
 
 // ManagerConfig is the configuration for the controller manager.
@@ -81,7 +81,7 @@ func NewDefaultConfig() Config {
 			LeaderElectRetryPeriod:   2 * time.Second,
 			CacheSyncTimeout:         10 * time.Second,
 		},
-		Host: node.NewDefaultConfig(),
+		Host: host.NewDefaultConfig(),
 	}
 }
 

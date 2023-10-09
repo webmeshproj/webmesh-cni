@@ -43,7 +43,7 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
-	"github.com/webmeshproj/webmesh-cni/internal/node"
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
 // PeerContainerReconciler reconciles a PeerContainer object. Reconcile
@@ -52,7 +52,7 @@ type PeerContainerReconciler struct {
 	client.Client
 	config.Config
 	Provider *provider.Provider
-	Host     node.Host
+	Host     host.Node
 
 	containerNodes map[types.NamespacedName]meshnode.Node
 	mu             sync.Mutex

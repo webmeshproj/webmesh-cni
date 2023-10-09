@@ -43,12 +43,12 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
-	"github.com/webmeshproj/webmesh-cni/internal/node"
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
 func TestReconciler(t *testing.T) {
 	NewNode = meshnode.NewTestNodeWithLogger
-	node.NewNode = meshnode.NewTestNodeWithLogger
+	host.NewMeshNode = meshnode.NewTestNodeWithLogger
 
 	t.Run("SingleNode", func(t *testing.T) {
 		rs := newTestReconcilers(t, 1)
@@ -152,13 +152,13 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	var out []*PeerContainerReconciler
 	for i := 0; i < count; i++ {
 		id := uuid.NewString()
-		host := node.NewHostNode(provider, node.Config{
+		host := host.NewNode(provider, host.Config{
 			NodeID:             id,
 			Namespace:          "default",
 			LockDuration:       time.Second * 10,
 			LockAcquireTimeout: time.Second * 5,
 			ConnectTimeout:     time.Second * 30,
-			Network: node.NetworkConfig{
+			Network: host.NetworkConfig{
 				IPv4CIDR:      "10.42.0.0/16",
 				ClusterDomain: "cluster.local",
 				DisableIPv4:   false,

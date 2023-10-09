@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package node
+package host
 
 import (
 	"context"
@@ -43,11 +43,11 @@ import (
 	cnitypes "github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
-// Host is a representation of the host node running the CNI plugin
+// Node is a representation of the host node running the CNI plugin
 // and allocating addresses for containers. This is the node that all
 // containers on the system peer with for access to the rest of the
 // cluster and/or the internet.
-type Host interface {
+type Node interface {
 	// ID returns the ID of the host node.
 	ID() meshtypes.NodeID
 	// Start starts the host node.
@@ -68,10 +68,10 @@ type Host interface {
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
-var NewNode = meshnode.NewWithLogger
+var NewMeshNode = meshnode.NewWithLogger
 
-// NewHostNode creates a new host node.
-func NewHostNode(storage meshstorage.Provider, opts Config) Host {
+// NewNode creates a new host node.
+func NewNode(storage meshstorage.Provider, opts Config) Node {
 	node := &hostNode{
 		nodeID:  meshtypes.NodeID(opts.NodeID),
 		storage: storage,
@@ -187,7 +187,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	ipv6Addr = netutil.AssignToPrefix(h.networkV6, key.PublicKey()).String()
 	log.Info("Connecting to the webmesh network")
 	h.nodeLog = logging.NewLogger(h.config.LogLevel, "json")
-	hostNode := NewNode(h.nodeLog, meshnode.Config{
+	hostNode := NewMeshNode(h.nodeLog, meshnode.Config{
 		Key:             key,
 		NodeID:          h.nodeID.String(),
 		ZoneAwarenessID: h.nodeID.String(),
