@@ -39,10 +39,14 @@ type Config struct {
 	LockAcquireTimeout time.Duration `koanf:"lock-acquire-timeout,omitempty"`
 	// ConnectTimeout is the timeout for connecting the host webmesh node to the network.
 	ConnectTimeout time.Duration `koanf:"connect-timeout,omitempty"`
+	// Auth are configuration options for authenticating with other nodes.
+	Auth config.AuthOptions `koanf:"auth,omitempty"`
 	// WireGuard are configurations for the WireGuard interface.
 	WireGuard config.WireGuardOptions `koanf:"wireguard,omitempty"`
 	// Services is the service options for the host webmesh node.
 	Services config.ServiceOptions `koanf:"services,omitempty"`
+	// Plugins is the plugin options for the host webmesh node.
+	Plugins config.PluginOptions `koanf:"plugins,omitempty"`
 	// Network is the network options for the host webmesh node.
 	Network NetworkConfig `koanf:"network,omitempty"`
 	// LogLevel is the log level for the host webmesh node.
@@ -57,8 +61,10 @@ func NewDefaultConfig() Config {
 		LockDuration:       time.Second * 10,
 		LockAcquireTimeout: time.Second * 5,
 		ConnectTimeout:     time.Second * 30,
+		Auth:               config.NewAuthOptions(),
 		WireGuard:          config.NewWireGuardOptions(),
 		Services:           config.NewServiceOptions(true),
+		Plugins:            config.NewPluginOptions(),
 		Network:            NewNetworkConfig(),
 		LogLevel:           "info",
 	}
@@ -71,9 +77,11 @@ func (o *Config) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.DurationVar(&o.LockAcquireTimeout, prefix+"lock-acquire-timeout", o.LockAcquireTimeout, "The timeout for acquiring locks when allocating addresses")
 	fs.DurationVar(&o.ConnectTimeout, prefix+"connect-timeout", o.ConnectTimeout, "The timeout for connecting the host webmesh node to the network")
 	fs.StringVar(&o.LogLevel, prefix+"log-level", o.LogLevel, "The log level for the host webmesh node")
+	o.Auth.BindFlags(prefix+"auth.", fs)
 	o.WireGuard.BindFlags(prefix+"wireguard.", fs)
 	o.Network.BindFlags(prefix+"network.", fs)
 	o.Services.BindFlags(prefix+"services.", fs)
+	o.Plugins.BindFlags(prefix+"plugins.", fs)
 }
 
 func (o *Config) Validate() error {
