@@ -5,13 +5,9 @@ networking:
   ipFamily: dual
   disableDefaultCNI: true
   kubeProxyMode: "ipvs"
-  podSubnet: "10.42.0.0/16"
+  podSubnet: "10.43.0.0/16"
 nodes:
 - role: control-plane
-  extraMounts:
-  - hostPath: /dev/net/tun
-    containerPath: /dev/net/tun
-- role: worker
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun

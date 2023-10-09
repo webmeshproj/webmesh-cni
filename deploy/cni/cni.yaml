@@ -5,6 +5,8 @@ apiVersion: v1
 metadata:
   name: webmesh-config
   namespace: kube-system
+  labels:
+    k8s-app: webmesh-cni
 data:
   # TODO: Allow entire node config via ConfigMap.
   cluster-domain: "cluster.local"
@@ -29,7 +31,7 @@ data:
           },
           "kubernetes": {
               "kubeconfig": "__KUBECONFIG_FILEPATH__",
-              "nodeName": "__KUBERNETES_NODE_NAME__",
+              "nodeName": "__KUBERNETES_NODE_NAME__", 
               "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__",
               "namespace": "__KUBERNETES_POD_NAMESPACE__"
           }
@@ -47,11 +49,11 @@ metadata:
   name: webmesh-node
   namespace: kube-system
   labels:
-    k8s-app: webmesh-node
+    k8s-app: webmesh-cni
 spec:
   selector:
     matchLabels:
-      k8s-app: webmesh-node
+      k8s-app: webmesh-cni
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -59,7 +61,7 @@ spec:
   template:
     metadata:
       labels:
-        k8s-app: webmesh-node
+        k8s-app: webmesh-cni
     spec:
       serviceAccountName: webmesh-cni-sa
       terminationGracePeriodSeconds: 0
@@ -117,8 +119,8 @@ spec:
         - name: webmesh-node
           image: ghcr.io/webmeshproj/webmesh-cni:latest
           imagePullPolicy: IfNotPresent
-          command:
-            - /webmesh-cni-node
+          command: ["/webmesh-cni-node"]
+          args:
             - --manager.reconcile-timeout=15s
             - --manager.shutdown-timeout=10s
             - --storage.cache-sync-timeout=10s

@@ -11,7 +11,3 @@ nodes:
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
-- role: worker
-  extraMounts:
-  - hostPath: /dev/net/tun
-    containerPath: /dev/net/tun
