@@ -18,6 +18,7 @@ package v1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // RemoteAuthMethod is a method for authenticating with a remote network.
@@ -39,7 +40,11 @@ const (
 // RemoteNetworkSpec defines the configuration for peering with another
 // webmesh network.
 type RemoteNetworkSpec struct {
-	// Peers are the peers in the remote network.
+	// AuthMethod is the authentication method to use for peering with
+	// the remote network.
+	// +kubebuilder:validation:Enum=none;native;kubernetes
+	AuthMethod RemoteAuthMethod `json:"authMethod"`
+	// Peers are one or more peers in the remote network.
 	Peers []Peer `json:"peers,omitempty"`
 	// Credentials are a reference to a secret containing credentials
 	// for authenticating with the remote network. The objects in the
@@ -59,4 +64,20 @@ type Peer struct {
 	// authentication, these are remote wireguard endpoints. When
 	// performing authentication, these are remote gRPC endpoints.
 	Endpoints []string `json:"endpoints"`
+}
+
+// RemoteNetworkStatus will contain the status of the peering with
+// the remote network.
+type RemoteNetworkStatus struct{}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+
+// RemoteNetwork is the Schema for the remotenetworks API
+type RemoteNetwork struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   RemoteNetworkSpec   `json:"spec,omitempty"`
+	Status RemoteNetworkStatus `json:"status,omitempty"`
 }
