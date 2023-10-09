@@ -102,6 +102,7 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	if container.Spec.NodeName != r.Host.ID().String() {
 		// This container is not for this node, so we don't care about it.
+		log.V(1).Info("Ignoring container for another node", "container", container)
 		return ctrl.Result{}, nil
 	}
 	if container.GetDeletionTimestamp() != nil {
