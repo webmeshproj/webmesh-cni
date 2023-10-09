@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -48,7 +48,7 @@ import (
 
 var (
 	scheme  = runtime.NewScheme()
-	mainLog = ctrl.Log.WithName("webmesh-cni")
+	log     = ctrl.Log.WithName("webmesh-cni")
 	cniopts = config.NewDefaultConfig()
 	zapopts = zap.Options{Development: true}
 )
@@ -80,15 +80,15 @@ func Main(build version.BuildInfo) {
 	// Validate the configuration.
 	err = cniopts.Validate()
 	if err != nil {
-		mainLog.Error(err, "Invalid CNI configuration")
+		log.Error(err, "Invalid CNI configuration")
 		os.Exit(1)
 	}
 
-	mainLog.Info("Starting webmesh-cni node", "version", build)
+	log.Info("Starting webmesh-cni node", "version", build)
 
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()
-	ctx = log.IntoContext(ctx, mainLog)
+	ctx = ctrllog.IntoContext(ctx, log)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
@@ -110,7 +110,7 @@ func Main(build version.BuildInfo) {
 		},
 	})
 	if err != nil {
-		mainLog.Error(err, "Failed to create controller manager")
+		log.Error(err, "Failed to create controller manager")
 		os.Exit(1)
 	}
 
@@ -124,15 +124,15 @@ func Main(build version.BuildInfo) {
 		LeaderElectionRetryPeriod:   cniopts.Storage.LeaderElectRetryPeriod,
 		ShutdownTimeout:             cniopts.Manager.ShutdownTimeout,
 	}
-	mainLog.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
+	log.V(1).Info("Creating webmesh storage provider", "options", storageOpts)
 	storageProvider, err := storageprovider.NewWithManager(mgr, storageOpts)
 	if err != nil {
-		mainLog.Error(err, "Failed to create webmesh storage provider")
+		log.Error(err, "Failed to create webmesh storage provider")
 		os.Exit(1)
 	}
 
 	// Register the peer container controller.
-	mainLog.V(1).Info("Registering peer container controller")
+	log.V(1).Info("Registering peer container controller")
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Host:     node.NewHostNode(storageProvider, cniopts.Host),
@@ -140,75 +140,75 @@ func Main(build version.BuildInfo) {
 		Config:   cniopts,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
-		mainLog.Error(err, "Failed to setup controller with manager", "controller", "PeerContainer")
+		log.Error(err, "Failed to setup controller with manager", "controller", "PeerContainer")
 		os.Exit(1)
 	}
 	// Register a node reconciler to make sure edges exist across the cluster.
-	mainLog.V(1).Info("Registering node reconciler")
+	log.V(1).Info("Registering node reconciler")
 	nodeReconciler := &controller.NodeReconciler{
 		Client:   mgr.GetClient(),
 		Provider: storageProvider,
 		NodeName: cniopts.Host.NodeID,
 	}
 	if err = nodeReconciler.SetupWithManager(mgr); err != nil {
-		mainLog.Error(err, "Failed to setup controller with manager", "controller", "Node")
+		log.Error(err, "Failed to setup controller with manager", "controller", "Node")
 		os.Exit(1)
 	}
 
 	// Register the health and ready checks.
-	mainLog.V(1).Info("Registering health and ready checks")
+	log.V(1).Info("Registering health and ready checks")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		mainLog.Error(err, "Failed to set up health check")
+		log.Error(err, "Failed to set up health check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		mainLog.Error(err, "Failed to set up ready check")
+		log.Error(err, "Failed to set up ready check")
 		os.Exit(1)
 	}
 
 	donec := make(chan struct{})
 	go func() {
 		defer close(donec)
-		mainLog.Info("Starting peer container manager")
+		log.Info("Starting peer container manager")
 		if err := mgr.Start(ctx); err != nil {
-			mainLog.Error(err, "Problem running manager")
+			log.Error(err, "Problem running manager")
 			os.Exit(1)
 		}
-		mainLog.Info("Peer container manager finished")
+		log.Info("Peer container manager finished")
 		ctx, cancel := context.WithTimeout(
-			log.IntoContext(context.Background(), mainLog),
+			ctrllog.IntoContext(context.Background(), log),
 			cniopts.Manager.ShutdownTimeout,
 		)
 		defer cancel()
-		mainLog.Info("Shutting down managed container nodes")
+		log.Info("Shutting down managed container nodes")
 		containerReconciler.Shutdown(ctx)
 	}()
 
 	// Start the storage provider in unmanaged mode.
-	mainLog.Info("Starting webmesh storage provider")
+	log.Info("Starting webmesh storage provider")
 	err = storageProvider.StartUnmanaged(ctx)
 	if err != nil {
-		mainLog.Error(err, "Failed to start webmesh storage provider")
+		log.Error(err, "Failed to start webmesh storage provider")
 		os.Exit(1)
 	}
 	defer storageProvider.Close()
 
 	// Wait for the manager cache to sync and then get ready to handle requests
 
-	mainLog.Info("Waiting for manager cache to sync", "timeout", cniopts.Storage.CacheSyncTimeout)
+	log.Info("Waiting for manager cache to sync", "timeout", cniopts.Storage.CacheSyncTimeout)
 	cacheCtx, cancel := context.WithTimeout(ctx, cniopts.Storage.CacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
 		cancel()
-		mainLog.Error(err, "Timed out waiting for caches to sync")
+		log.Error(err, "Timed out waiting for caches to sync")
 		os.Exit(1)
 	}
 	cancel()
-	mainLog.V(1).Info("Caches synced, bootstrapping network state")
+	log.V(1).Info("Caches synced, bootstrapping network state")
 
-	mainLog.Info("Starting host node for routing traffic")
+	log.Info("Starting host node for routing traffic")
 	err = containerReconciler.Host.Start(ctx, mgr.GetConfig())
 	if err != nil {
-		mainLog.Error(err, "Failed to start host node")
+		log.Error(err, "Failed to start host node")
 		os.Exit(1)
 	}
 
@@ -218,24 +218,27 @@ func Main(build version.BuildInfo) {
 
 	// }
 
-	mainLog.Info("Webmesh CNI node started")
+	log.Info("Webmesh CNI node started")
 
 	// Wait for the manager to exit.
 	<-ctx.Done()
 
 	// Go ahead and stop the host node.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cniopts.Manager.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(
+		ctrllog.IntoContext(context.Background(), log),
+		cniopts.Manager.ShutdownTimeout,
+	)
 	defer cancel()
-	err = containerReconciler.Host.Stop(log.IntoContext(shutdownCtx, mainLog))
+	err = containerReconciler.Host.Stop(shutdownCtx)
 	if err != nil {
-		mainLog.Error(err, "Failed to stop host node")
+		log.Error(err, "Failed to stop host node")
 	}
 
 	// Wait for the manager to exit.
 	select {
 	case <-donec:
-		mainLog.Info("Finished running manager")
+		log.Info("Finished running manager")
 	case <-time.After(cniopts.Manager.ShutdownTimeout):
-		mainLog.Info("Shutdown timeout reached, exiting")
+		log.Info("Shutdown timeout reached, exiting")
 	}
 }
