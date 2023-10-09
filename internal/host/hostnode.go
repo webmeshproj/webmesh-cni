@@ -197,6 +197,9 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	connectCtx, cancel := context.WithTimeout(ctx, h.config.ConnectTimeout)
 	defer cancel()
 	plugins, err := h.config.Plugins.NewPluginSet(connectCtx)
+	if err != nil {
+		return fmt.Errorf("failed to create plugin set: %w", err)
+	}
 	connectOpts := meshnode.ConnectOptions{
 		StorageProvider: h.storage,
 		MaxJoinRetries:  10,
