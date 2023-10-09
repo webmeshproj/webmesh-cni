@@ -102,16 +102,16 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	if container.Spec.NodeName != r.Host.ID().String() {
 		// This container is not for this node, so we don't care about it.
-		log.V(1).Info("Ignoring container for another node", "container", container)
+		log.V(1).Info("Ignoring container for another node")
 		return ctrl.Result{}, nil
 	}
 	if container.GetDeletionTimestamp() != nil {
 		// Stop the mesh node for this container.
-		log.Info("Tearing down mesh node for container", "container", req.NamespacedName)
+		log.Info("Tearing down mesh node for container")
 		return ctrl.Result{}, r.teardownPeerContainer(ctx, req, &container)
 	}
 	// Reconcile the mesh node for this container.
-	log.Info("Reconciling mesh node for container", "container", req.NamespacedName)
+	log.Info("Reconciling mesh node for container")
 	return ctrl.Result{}, r.reconcilePeerContainer(ctx, req, &container)
 }
 
@@ -136,7 +136,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	if !controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
 		updated := controllerutil.AddFinalizer(container, cniv1.PeerContainerFinalizer)
 		if updated {
-			log.Info("Adding finalizer to container", "container", container)
+			log.V(1).Info("Adding finalizer to container")
 			if err := r.Update(ctx, container); err != nil {
 				return fmt.Errorf("failed to add finalizer: %w", err)
 			}
@@ -145,12 +145,11 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	}
 
 	// Check if we have registered the node yet
-	id := req.NamespacedName
-	nodeID := meshtypes.NodeID(container.Spec.NodeID)
-	node, ok := r.containerNodes[id]
+	node, ok := r.containerNodes[req.NamespacedName]
 	if !ok {
 		// We need to create the node.
-		log.Info("Mesh node for container not found, we must need to create it", "container", id)
+		nodeID := container.Spec.NodeID
+		log.Info("Webmesh node for container not found, we must need to create it")
 		key, err := crypto.GenerateKey()
 		if err != nil {
 			return fmt.Errorf("failed to generate key: %w", err)
@@ -164,7 +163,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				return fmt.Errorf("failed to acquire IPAM lock: %w", err)
 			}
 			defer r.Host.IPAM().Locker().Release(ctx)
-			alloc, err := r.Host.IPAM().Allocate(ctx, nodeID)
+			alloc, err := r.Host.IPAM().Allocate(ctx, meshtypes.NodeID(nodeID))
 			if err != nil {
 				return fmt.Errorf("failed to allocate IPv4 address: %w", err)
 			}
@@ -177,7 +176,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		}
 		peer := meshtypes.MeshNode{
 			MeshNode: &v1.MeshNode{
-				Id:              nodeID.String(),
+				Id:              nodeID,
 				PublicKey:       encoded,
 				ZoneAwarenessID: container.Spec.NodeName,
 				PrivateIPv4:     ipv4addr,
@@ -189,20 +188,20 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 				}(),
 			},
 		}
-		log.Info("Registering peer", "peer", peer.MeshNode)
+		log.Info("Registering peer with meshdb", "peer", peer.MeshNode)
 		if err := r.Provider.MeshDB().Peers().Put(ctx, peer); err != nil {
 			return fmt.Errorf("failed to register peer: %w", err)
 		}
 		// Create the mesh node.
-		r.containerNodes[id] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
+		r.containerNodes[req.NamespacedName] = NewNode(logging.NewLogger(container.Spec.LogLevel, "json"), meshnode.Config{
 			Key:             key,
-			NodeID:          nodeID.String(),
+			NodeID:          nodeID,
 			ZoneAwarenessID: container.Spec.NodeName,
 			DisableIPv4:     container.Spec.DisableIPv4,
 			DisableIPv6:     container.Spec.DisableIPv6,
 		})
 		// Update the status to created.
-		log.Info("Updating container status to created")
+		log.Info("Updating container interface status to created")
 		container.Status.InterfaceStatus = cniv1.InterfaceStatusCreated
 		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
@@ -210,9 +209,11 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		return nil
 	}
 
+	log = log.WithValues("nodeID", node.ID())
+
 	// If the node is not started, start it.
 	if !node.Started() {
-		log.Info("Starting mesh node for container", "container", container)
+		log.Info("Starting webmesh node for container")
 		rtt := meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 			// Retrieve the peer we created earlier
 			peer, err := r.Provider.MeshDB().Peers().Get(ctx, node.ID())
@@ -268,14 +269,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			PreferIPv6: !container.Spec.DisableIPv6,
 		})
 		if err != nil {
-			log.Error(err, "Failed to connect meshnode", "container", container)
+			log.Error(err, "Failed to connect meshnode to network")
 			r.setFailedStatus(ctx, container, err)
 			// Create a new node on the next reconcile.
-			delete(r.containerNodes, id)
+			delete(r.containerNodes, req.NamespacedName)
 			return fmt.Errorf("failed to connect node: %w", err)
 		}
 		// Update the status to starting.
-		log.Info("Updating container status to starting")
+		log.Info("Updating container interface status to starting")
 		container.Status.InterfaceStatus = cniv1.InterfaceStatusStarting
 		if err := r.updateContainerStatus(ctx, container); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
@@ -283,13 +284,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		return nil
 	}
 
-	log.Info("Waiting for mesh node to be ready", "container", container)
+	log.Info("Waiting for container webmesh node to be ready")
 
 	select {
 	case <-node.Ready():
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
-		log.Info("Node is running",
-			"container", container,
+		log.Info("Webmesh node for container is running",
 			"interfaceName", node.Network().WireGuard().Name(),
 			"macAddress", hwaddr.String(),
 			"ipv4Address", validOrNone(node.Network().WireGuard().AddressV4()),
@@ -299,12 +299,12 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		)
 		err := r.ensureInterfaceReadyStatus(ctx, container, node)
 		if err != nil {
-			log.Error(err, "Failed to update container status", "container", container)
+			log.Error(err, "Failed to update container status")
 			return fmt.Errorf("failed to update container status: %w", err)
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
-		log.Error(ctx.Err(), "Timed out waiting for mesh node to start", "container", container)
+		log.Error(ctx.Err(), "Timed out waiting for mesh node to start")
 		// Don't delete the node or set it to failed yet, maybe it'll be ready on the next reconcile.
 		return ctx.Err()
 	}
@@ -316,10 +316,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		// Something went terribly wrong, we need to recreate the node.
 		defer func() {
 			if err := node.Close(ctx); err != nil {
-				log.Error(err, "Failed to stop mesh node for container", "container", container)
+				log.Error(err, "Failed to stop mesh node for container")
 			}
 		}()
-		delete(r.containerNodes, id)
+		delete(r.containerNodes, req.NamespacedName)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to get wireguard port: %w", err)
 	}
@@ -328,10 +328,10 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		// Something went terribly wrong, we need to recreate the node.
 		defer func() {
 			if err := node.Close(ctx); err != nil {
-				log.Error(err, "Failed to stop mesh node for container", "container", container)
+				log.Error(err, "Failed to stop mesh node for container")
 			}
 		}()
-		delete(r.containerNodes, id)
+		delete(r.containerNodes, req.NamespacedName)
 		r.setFailedStatus(ctx, container, err)
 		return fmt.Errorf("failed to encode public key: %w", err)
 	}
@@ -360,14 +360,13 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	}
 	// Register the peer's endpoints.
 	log.Info("Registering peer endpoints",
-		"nodeID", nodeID,
 		"wireguardPort", wireguardPort,
 		"primaryEndpoint", eps.FirstPublicAddr().String(),
 		"wireguardEndpoints", wgeps,
 	)
 	err = r.Provider.MeshDB().Peers().Put(ctx, meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
-			Id:                 nodeID.String(),
+			Id:                 node.ID().String(),
 			PublicKey:          encoded,
 			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 			WireguardEndpoints: wgeps,
@@ -378,35 +377,35 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	})
 	if err != nil {
 		// Try again on the next reconcile.
-		log.Error(err, "Failed to register peer", "container", container)
+		log.Error(err, "Failed to register peer")
 		return fmt.Errorf("failed to register peer: %w", err)
 	}
 	// Make sure all MeshEdges are up to date for this node.
 	log.Info("Forcing sync of peers and topology")
 	peers, err := r.Provider.MeshDB().Peers().List(
 		ctx,
-		meshstorage.FilterAgainstNode(nodeID),
+		meshstorage.FilterAgainstNode(node.ID()),
 		meshstorage.FilterByZoneID(container.Spec.NodeName),
 	)
 	if err != nil {
 		// Try again on the next reconcile.
-		log.Error(err, "Failed to list peers", "container", container)
+		log.Error(err, "Failed to list peers")
 		return fmt.Errorf("failed to list peers: %w", err)
 	}
 	for _, peer := range peers {
 		if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
-			Source: nodeID.String(),
+			Source: node.ID().String(),
 			Target: peer.NodeID().String(),
 		}}); err != nil {
 			// Try again on the next reconcile.
-			log.Error(err, "Failed to create edge", "container", container)
+			log.Error(err, "Failed to create edge", "targetNode", peer.NodeID())
 			return fmt.Errorf("failed to create edge: %w", err)
 		}
 	}
 	// Force a sync of the node.
 	err = node.Network().Peers().Sync(ctx)
 	if err != nil {
-		log.Error(err, "Failed to sync peers", "container", container)
+		log.Error(err, "Failed to sync peers")
 		// We don't return an error because the peer will eventually sync on its own.
 	}
 	return nil
@@ -417,27 +416,26 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 	log := log.FromContext(ctx)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	name := req.NamespacedName
-	node, ok := r.containerNodes[name]
+	node, ok := r.containerNodes[req.NamespacedName]
 	if !ok {
-		log.Info("Mesh node for container not found, we must have already deleted", "container", name)
+		log.Info("Mesh node for container not found, we must have already deleted")
 	} else {
 		if err := node.Close(ctx); err != nil {
-			log.Error(err, "Failed to stop mesh node for container", "container", name)
+			log.Error(err, "Failed to stop mesh node for container")
 		}
-		delete(r.containerNodes, name)
+		delete(r.containerNodes, req.NamespacedName)
 	}
 	// Make sure we've deleted the mesh peer from the database.
-	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(name.Name)); err != nil {
+	if err := r.Provider.MeshDB().Peers().Delete(ctx, meshtypes.NodeID(req.Name)); err != nil {
 		if !mesherrors.Is(err, mesherrors.ErrNodeNotFound) {
-			log.Error(err, "Failed to delete peer", "container", name)
+			log.Error(err, "Failed to delete peer from meshdb")
 			return fmt.Errorf("failed to delete peer: %w", err)
 		}
 	}
 	if controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
 		updated := controllerutil.RemoveFinalizer(container, cniv1.PeerContainerFinalizer)
 		if updated {
-			log.Info("Removing finalizer from container", "container", container)
+			log.Info("Removing finalizer from container")
 			if err := r.Update(ctx, container); err != nil {
 				return fmt.Errorf("failed to remove finalizer: %w", err)
 			}
@@ -506,7 +504,7 @@ func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container
 	container.Status.Error = reason.Error()
 	err := r.updateContainerStatus(ctx, container)
 	if err != nil {
-		log.FromContext(ctx).Error(err, "Failed to update container status", "container", container)
+		log.FromContext(ctx).Error(err, "Failed to update container status")
 	}
 }
 
