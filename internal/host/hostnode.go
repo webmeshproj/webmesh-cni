@@ -196,9 +196,11 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	})
 	connectCtx, cancel := context.WithTimeout(ctx, h.config.ConnectTimeout)
 	defer cancel()
+	plugins, err := h.config.Plugins.NewPluginSet(connectCtx)
 	connectOpts := meshnode.ConnectOptions{
 		StorageProvider: h.storage,
 		MaxJoinRetries:  10,
+		Plugins:         plugins,
 		JoinRoundTripper: meshtransport.JoinRoundTripperFunc(func(ctx context.Context, req *v1.JoinRequest) (*v1.JoinResponse, error) {
 			// TODO: Check for pre-existing peers and return them.
 			return &v1.JoinResponse{
@@ -228,7 +230,9 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	if h.config.Services.API.MTLS {
 		// Add the MTLS plugin.
 		mtlsPlug, _ := meshbuiltins.NewClient("mtls")
-		connectOpts.Plugins = make(map[string]meshplugins.Plugin)
+		if connectOpts.Plugins == nil {
+			connectOpts.Plugins = make(map[string]meshplugins.Plugin)
+		}
 		connectOpts.Plugins["mtls"] = meshplugins.Plugin{
 			Client: mtlsPlug,
 			Config: map[string]any{
