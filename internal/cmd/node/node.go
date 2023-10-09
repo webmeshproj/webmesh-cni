@@ -210,6 +210,9 @@ func Main(build version.BuildInfo) {
 
 	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
 	// to join the network.
+	// if !cniopts.Host.Services.API.Disabled {
+
+	// }
 
 	mainLog.Info("Webmesh CNI node started")
 
