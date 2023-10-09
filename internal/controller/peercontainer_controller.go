@@ -150,6 +150,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		// We need to create the node.
 		nodeID := container.Spec.NodeID
 		log.Info("Webmesh node for container not found, we must need to create it")
+		log.V(1).Info("Creating new webmesh node with container spec", "spec", container.Spec)
 		key, err := crypto.GenerateKey()
 		if err != nil {
 			return fmt.Errorf("failed to generate key: %w", err)
