@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/webmeshproj/webmesh/pkg/config"
 
 	"github.com/webmeshproj/webmesh-cni/internal/node"
 )
@@ -33,6 +34,8 @@ type Config struct {
 	Storage StorageConfig `koanf:"storage"`
 	// HostNode is the configuration for the host webmesh node.
 	Host node.Config `koanf:"host"`
+	// Services are configurations for exposing Webmesh APIs from the CNI node.
+	Services config.ServiceOptions `koanf:"services"`
 }
 
 // ManagerConfig is the configuration for the controller manager.
@@ -69,6 +72,7 @@ func (c *Config) BindFlags(fs *pflag.FlagSet) {
 	c.Manager.BindFlags("manager.", fs)
 	c.Storage.BindFlags("storage.", fs)
 	c.Host.BindFlags("host.", fs)
+	c.Services.BindFlags("services.", fs)
 }
 
 func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
