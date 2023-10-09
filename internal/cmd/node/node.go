@@ -49,6 +49,8 @@ import (
 var (
 	scheme  = runtime.NewScheme()
 	mainLog = ctrl.Log.WithName("webmesh-cni")
+	cniopts = config.NewDefaultConfig()
+	zapopts = zap.Options{Development: true}
 )
 
 func init() {
@@ -60,10 +62,6 @@ func init() {
 // Main runs the webmesh-cni daemon.
 func Main(build version.BuildInfo) {
 	// Parse flags and setup logging.
-	var (
-		cniopts = config.Config{}
-		zapopts = zap.Options{Development: true}
-	)
 	zapset := flag.NewFlagSet("zap", flag.ContinueOnError)
 	fs := pflag.NewFlagSet("webmesh-cni", pflag.ContinueOnError)
 	cniopts.BindFlags(fs)
@@ -118,7 +116,7 @@ func Main(build version.BuildInfo) {
 	storageOpts := storageprovider.Options{
 		NodeID:                      cniopts.Host.NodeID,
 		Namespace:                   cniopts.Host.Namespace,
-		ListenPort:                  cniopts.Host.Services.ListenPort,
+		ListenPort:                  int(cniopts.Host.Services.API.ListenPort()),
 		LeaderElectionLeaseDuration: cniopts.Storage.LeaderElectLeaseDuration,
 		LeaderElectionRenewDeadline: cniopts.Storage.LeaderElectRenewDeadline,
 		LeaderElectionRetryPeriod:   cniopts.Storage.LeaderElectRetryPeriod,

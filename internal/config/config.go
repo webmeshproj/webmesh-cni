@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
-	"github.com/webmeshproj/webmesh/pkg/config"
 
 	"github.com/webmeshproj/webmesh-cni/internal/node"
 )
@@ -34,8 +33,6 @@ type Config struct {
 	Storage StorageConfig `koanf:"storage"`
 	// HostNode is the configuration for the host webmesh node.
 	Host node.Config `koanf:"host"`
-	// Services are configurations for exposing Webmesh APIs from the CNI node.
-	Services config.ServiceOptions `koanf:"services"`
 }
 
 // ManagerConfig is the configuration for the controller manager.
@@ -68,26 +65,45 @@ type StorageConfig struct {
 	CacheSyncTimeout time.Duration `koanf:"cache-sync-timeout"`
 }
 
+// NewDefaultConfig returns a new default configuration for the webmesh-cni controllers.
+func NewDefaultConfig() Config {
+	return Config{
+		Manager: ManagerConfig{
+			RemoteEndpointDetection: false,
+			MetricsAddress:          ":8080",
+			ProbeAddress:            ":8081",
+			ReconcileTimeout:        15 * time.Second,
+			ShutdownTimeout:         10 * time.Second,
+		},
+		Storage: StorageConfig{
+			LeaderElectLeaseDuration: 15 * time.Second,
+			LeaderElectRenewDeadline: 10 * time.Second,
+			LeaderElectRetryPeriod:   2 * time.Second,
+			CacheSyncTimeout:         10 * time.Second,
+		},
+		Host: node.NewDefaultConfig(),
+	}
+}
+
 func (c *Config) BindFlags(fs *pflag.FlagSet) {
 	c.Manager.BindFlags("manager.", fs)
 	c.Storage.BindFlags("storage.", fs)
 	c.Host.BindFlags("host.", fs)
-	c.Services.BindFlags("services.", fs)
 }
 
 func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
-	fs.BoolVar(&c.RemoteEndpointDetection, prefix+"remote-endpoint-detection", false, "Enable remote endpoint detection for peer containers.")
-	fs.DurationVar(&c.ReconcileTimeout, prefix+"reconcile-timeout", 15*time.Second, "The timeout for reconciling a container's interface.")
-	fs.StringVar(&c.MetricsAddress, prefix+"metrics-address", ":8080", "The address the metric endpoint binds to.")
-	fs.StringVar(&c.ProbeAddress, prefix+"probe-address", ":8081", "The address the probe endpoint binds to.")
-	fs.DurationVar(&c.ShutdownTimeout, prefix+"shutdown-timeout", 10*time.Second, "The timeout for shutting down the node.")
+	fs.BoolVar(&c.RemoteEndpointDetection, prefix+"remote-endpoint-detection", c.RemoteEndpointDetection, "Enable remote endpoint detection for peer containers.")
+	fs.DurationVar(&c.ReconcileTimeout, prefix+"reconcile-timeout", c.ReconcileTimeout, "The timeout for reconciling a container's interface.")
+	fs.StringVar(&c.MetricsAddress, prefix+"metrics-address", c.MetricsAddress, "The address the metric endpoint binds to.")
+	fs.StringVar(&c.ProbeAddress, prefix+"probe-address", c.ProbeAddress, "The address the probe endpoint binds to.")
+	fs.DurationVar(&c.ShutdownTimeout, prefix+"shutdown-timeout", c.ShutdownTimeout, "The timeout for shutting down the node.")
 }
 
 func (c *StorageConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
-	fs.DurationVar(&c.LeaderElectLeaseDuration, prefix+"leader-elect-lease-duration", 15*time.Second, "The duration that non-leader candidates will wait to force acquire leadership.")
-	fs.DurationVar(&c.LeaderElectRenewDeadline, prefix+"leader-elect-renew-deadline", 10*time.Second, "The duration that the acting master will retry refreshing leadership before giving up.")
-	fs.DurationVar(&c.LeaderElectRetryPeriod, prefix+"leader-elect-retry-period", 2*time.Second, "The duration the LeaderElector clients should wait between tries of actions.")
-	fs.DurationVar(&c.CacheSyncTimeout, prefix+"cache-sync-timeout", 10*time.Second, "The amount of time to wait for the client cache to sync before starting the controller.")
+	fs.DurationVar(&c.LeaderElectLeaseDuration, prefix+"leader-elect-lease-duration", c.LeaderElectLeaseDuration, "The duration that non-leader candidates will wait to force acquire leadership.")
+	fs.DurationVar(&c.LeaderElectRenewDeadline, prefix+"leader-elect-renew-deadline", c.LeaderElectRenewDeadline, "The duration that the acting master will retry refreshing leadership before giving up.")
+	fs.DurationVar(&c.LeaderElectRetryPeriod, prefix+"leader-elect-retry-period", c.LeaderElectRetryPeriod, "The duration the LeaderElector clients should wait between tries of actions.")
+	fs.DurationVar(&c.CacheSyncTimeout, prefix+"cache-sync-timeout", c.CacheSyncTimeout, "The amount of time to wait for the client cache to sync before starting the controller.")
 }
 
 func (c *Config) Validate() error {

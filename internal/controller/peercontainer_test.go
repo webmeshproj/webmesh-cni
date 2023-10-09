@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	meshconfig "github.com/webmeshproj/webmesh/pkg/config"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	"github.com/webmeshproj/webmesh/pkg/storage/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -163,7 +164,7 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 				DisableIPv4:   false,
 				DisableIPv6:   false,
 			},
-			Services: node.ServiceConfig{},
+			Services: meshconfig.NewServiceOptions(true),
 			LogLevel: "info",
 		})
 		r := &PeerContainerReconciler{
