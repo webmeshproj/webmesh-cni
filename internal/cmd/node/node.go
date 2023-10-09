@@ -27,6 +27,8 @@ import (
 	"github.com/spf13/pflag"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
+	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -206,24 +208,42 @@ func Main(build version.BuildInfo) {
 	log.V(1).Info("Caches synced, bootstrapping network state")
 
 	log.Info("Starting host node for routing traffic")
-	err = containerReconciler.Host.Start(ctx, mgr.GetConfig())
+	host := containerReconciler.Host
+	err = host.Start(ctx, mgr.GetConfig())
 	if err != nil {
 		log.Error(err, "Failed to start host node")
 		os.Exit(1)
 	}
 
-	// TODO: We can optionally expose the Webmesh API to allow people outside the cluster
-	// to join the network.
-	// if !cniopts.Host.Services.API.Disabled {
-
-	// }
-
 	log.Info("Webmesh CNI node started")
+
+	// Start any configured services.
+
+	hostCtx := meshcontext.WithLogger(context.Background(), host.NodeLogger())
+	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())
+	if err != nil {
+		log.Error(err, "Failed to create webmesh service options")
+		os.Exit(1)
+	}
+	srv, err := meshservices.NewServer(hostCtx, srvOpts)
+	if err != nil {
+		log.Error(err, "Failed to create webmesh services server")
+		os.Exit(1)
+	}
+	go func() {
+		log.Info("Starting webmesh services")
+		err := srv.ListenAndServe()
+		if err != nil {
+			log.Error(err, "Failed to start webmesh services server")
+			os.Exit(1)
+		}
+	}()
 
 	// Wait for the manager to exit.
 	<-ctx.Done()
 
-	// Go ahead and stop the host node.
+	log.Info("Shutting down webmesh node and services")
+
 	shutdownCtx, cancel := context.WithTimeout(
 		ctrllog.IntoContext(context.Background(), log),
 		cniopts.Manager.ShutdownTimeout,
@@ -233,6 +253,7 @@ func Main(build version.BuildInfo) {
 	if err != nil {
 		log.Error(err, "Failed to stop host node")
 	}
+	srv.Shutdown(hostCtx)
 
 	// Wait for the manager to exit.
 	select {

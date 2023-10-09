@@ -19,6 +19,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ import (
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/util"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
+	meshbuiltins "github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
@@ -61,6 +63,8 @@ type Host interface {
 	// Node returns the underlying mesh node. This will be nil until
 	// Start is called.
 	Node() meshnode.Node
+	// NodeLogger returns the node's logger.
+	NodeLogger() *slog.Logger
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
@@ -86,6 +90,7 @@ type hostNode struct {
 	networkV6  netip.Prefix
 	meshDomain string
 	node       meshnode.Node
+	nodeLog    *slog.Logger
 	ipam       ipam.Allocator
 	mu         sync.Mutex
 }
@@ -108,6 +113,11 @@ func (h *hostNode) Node() meshnode.Node {
 // IPAM returns the IPv4 address allocator.
 func (h *hostNode) IPAM() ipam.Allocator {
 	return h.ipam
+}
+
+// NodeLogger returns the node's logger.
+func (h *hostNode) NodeLogger() *slog.Logger {
+	return h.nodeLog
 }
 
 // Start starts the host node.
@@ -176,7 +186,8 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	log.Info("Allocating a mesh IPv6 address")
 	ipv6Addr = netutil.AssignToPrefix(h.networkV6, key.PublicKey()).String()
 	log.Info("Connecting to the webmesh network")
-	hostNode := NewNode(logging.NewLogger(h.config.LogLevel, "json"), meshnode.Config{
+	h.nodeLog = logging.NewLogger(h.config.LogLevel, "json")
+	hostNode := NewNode(h.nodeLog, meshnode.Config{
 		Key:             key,
 		NodeID:          h.nodeID.String(),
 		ZoneAwarenessID: h.nodeID.String(),
@@ -185,7 +196,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	})
 	connectCtx, cancel := context.WithTimeout(ctx, h.config.ConnectTimeout)
 	defer cancel()
-	err = hostNode.Connect(connectCtx, meshnode.ConnectOptions{
+	connectOpts := meshnode.ConnectOptions{
 		StorageProvider: h.storage,
 		MaxJoinRetries:  10,
 		JoinRoundTripper: meshtransport.JoinRoundTripperFunc(func(ctx context.Context, req *v1.JoinRequest) (*v1.JoinResponse, error) {
@@ -213,7 +224,19 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			RecordMetrics:         h.config.WireGuard.RecordMetrics,
 			RecordMetricsInterval: h.config.WireGuard.RecordMetricsInterval,
 		},
-	})
+	}
+	if h.config.Services.API.MTLS {
+		// Add the MTLS plugin.
+		mtlsPlug, _ := meshbuiltins.NewClient("mtls")
+		connectOpts.Plugins = make(map[string]meshplugins.Plugin)
+		connectOpts.Plugins["mtls"] = meshplugins.Plugin{
+			Client: mtlsPlug,
+			Config: map[string]any{
+				"ca-file": h.config.Services.API.MTLSClientCAFile,
+			},
+		}
+	}
+	err = hostNode.Connect(connectCtx, connectOpts)
 	if err != nil {
 		return fmt.Errorf("failed to connect to webmesh network: %w", err)
 	}
