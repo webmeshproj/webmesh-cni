@@ -88,6 +88,8 @@ func Main(build version.BuildInfo) {
 
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()
+	ctx = log.IntoContext(ctx, mainLog)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -153,8 +155,6 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 
-	// TODO: Register another Node reconciler that maintains the consensus group.
-
 	// Register the health and ready checks.
 	mainLog.V(1).Info("Registering health and ready checks")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -166,10 +166,6 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 
-	// TODO: Register a cleanup function to remove all containers
-	// when the node itself is shutting down. Otherwise hopefully
-	// a restart will bring things back to the correct state.
-
 	donec := make(chan struct{})
 	go func() {
 		defer close(donec)
@@ -178,6 +174,14 @@ func Main(build version.BuildInfo) {
 			mainLog.Error(err, "Problem running manager")
 			os.Exit(1)
 		}
+		mainLog.Info("Peer container manager finished")
+		ctx, cancel := context.WithTimeout(
+			log.IntoContext(context.Background(), mainLog),
+			cniopts.Manager.ShutdownTimeout,
+		)
+		defer cancel()
+		mainLog.Info("Shutting down managed container nodes")
+		containerReconciler.Shutdown(ctx)
 	}()
 
 	// Start the storage provider in unmanaged mode.

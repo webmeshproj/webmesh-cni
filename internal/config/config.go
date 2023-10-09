@@ -73,7 +73,7 @@ func NewDefaultConfig() Config {
 			MetricsAddress:          ":8080",
 			ProbeAddress:            ":8081",
 			ReconcileTimeout:        15 * time.Second,
-			ShutdownTimeout:         10 * time.Second,
+			ShutdownTimeout:         30 * time.Second,
 		},
 		Storage: StorageConfig{
 			LeaderElectLeaseDuration: 15 * time.Second,

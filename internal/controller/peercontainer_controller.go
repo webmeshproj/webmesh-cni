@@ -76,6 +76,19 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 		Complete(r)
 }
 
+// Shutdown shuts down the controller and all running mesh nodes.
+func (r *PeerContainerReconciler) Shutdown(ctx context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, node := range r.containerNodes {
+		log.FromContext(ctx).V(1).Info("Stopping mesh node for container", "container", id)
+		if err := node.Close(ctx); err != nil {
+			log.FromContext(ctx).Error(err, "Failed to stop mesh node for container")
+		}
+		delete(r.containerNodes, id)
+	}
+}
+
 // Reconcile reconciles a PeerContainer.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
