@@ -44,34 +44,54 @@ type RemoteNetworkSpec struct {
 	// the remote network.
 	// +kubebuilder:validation:Enum=none;native;kubernetes
 	AuthMethod RemoteAuthMethod `json:"authMethod"`
-	// Peers are one or more peers in the remote network.
+	// Peers are one or more peers in the remote network. Endpoints
+	// must be supplied for one or more peers in the list if not
+	// using peer-discovery.
 	Peers []Peer `json:"peers,omitempty"`
-	// Credentials are a reference to a secret containing credentials
-	// for authenticating with the remote network. The objects in the
-	// secret depend on the authentication method used.
-	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
+	// TLSCredentials are a reference to a secret containing mTLS credentials
+	// for authenticating with the remote network. When not present, ID based
+	// authentication will be tried.
+	TLSCredentials *corev1.ObjectReference `json:"tlsCredentials,omitempty"`
 	// PreSharedKey is a pre-shared key for seeding address space allocation
 	// in the bridge network.
 	PreSharedKey string `json:"preSharedKey,omitempty"`
+	// Rendezvous are DHT rendezvous points for the peer. These are used
+	// for peer discovery.
+	Rendezvous []string `json:"rendezvous,omitempty"`
 }
 
 // Peer is a CNI node in the remote network.
 type Peer struct {
-	// PublicKey is the public key of the peer. This is only required
-	// when not performing authentication.
+	// ID is the ID of the peer. If provided, the native authentication
+	// will attempt ID based authentication. If not provided, an ID will
+	// be extracted from the public key and used for authentication.
+	ID string `json:"id"`
+	// PublicKey is the public key of the peer. This must be provided if no
+	// ID is provided.
 	PublicKey string `json:"publicKey"`
 	// Endpoints are the endpoints of the peer. When not performing
-	// authentication, these are remote wireguard endpoints. When
-	// performing authentication, these are remote gRPC endpoints.
+	// authentication and not using peer-discovery, these are remote
+	// wireguard endpoints. When performing authentication without
+	// peer-discovery, these are remote gRPC endpoints.
 	Endpoints []string `json:"endpoints"`
 }
 
 // RemoteNetworkStatus will contain the status of the peering with
 // the remote network.
-type RemoteNetworkStatus struct{}
+type RemoteNetworkStatus struct {
+	// Peered is true when the remote network has been successfully
+	// peered with.
+	Peered bool `json:"peered"`
+	// Peers are the peers in the remote network.
+	Peers []Peer `json:"peers,omitempty"`
+	// Error is the last error encountered when peering with the remote
+	// network.
+	Error string `json:"error,omitempty"`
+}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Peered",type=boolean,JSONPath=`.status.peered`,description="Whether the remote network has been peered with"
 
 // RemoteNetwork is the Schema for the remotenetworks API
 type RemoteNetwork struct {

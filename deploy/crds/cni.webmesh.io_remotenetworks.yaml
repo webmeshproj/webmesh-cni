@@ -14,7 +14,12 @@ spec:
     singular: remotenetwork
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Whether the remote network has been peered with
+      jsonPath: .status.peered
+      name: Peered
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
         description: RemoteNetwork is the Schema for the remotenetworks API
@@ -43,10 +48,51 @@ spec:
                 - native
                 - kubernetes
                 type: string
-              credentials:
-                description: Credentials are a reference to a secret containing credentials
-                  for authenticating with the remote network. The objects in the secret
-                  depend on the authentication method used.
+              peers:
+                description: Peers are one or more peers in the remote network. Endpoints
+                  must be supplied for one or more peers in the list if not using
+                  peer-discovery.
+                items:
+                  description: Peer is a CNI node in the remote network.
+                  properties:
+                    endpoints:
+                      description: Endpoints are the endpoints of the peer. When not
+                        performing authentication and not using peer-discovery, these
+                        are remote wireguard endpoints. When performing authentication
+                        without peer-discovery, these are remote gRPC endpoints.
+                      items:
+                        type: string
+                      type: array
+                    id:
+                      description: ID is the ID of the peer. If provided, the native
+                        authentication will attempt ID based authentication. If not
+                        provided, an ID will be extracted from the public key and
+                        used for authentication.
+                      type: string
+                    publicKey:
+                      description: PublicKey is the public key of the peer. This must
+                        be provided if no ID is provided.
+                      type: string
+                  required:
+                  - endpoints
+                  - id
+                  - publicKey
+                  type: object
+                type: array
+              preSharedKey:
+                description: PreSharedKey is a pre-shared key for seeding address
+                  space allocation in the bridge network.
+                type: string
+              rendezvous:
+                description: Rendezvous are DHT rendezvous points for the peer. These
+                  are used for peer discovery.
+                items:
+                  type: string
+                type: array
+              tlsCredentials:
+                description: TLSCredentials are a reference to a secret containing
+                  mTLS credentials for authenticating with the remote network. When
+                  not present, ID based authentication will be tried.
                 properties:
                   apiVersion:
                     description: API version of the referent.
@@ -82,37 +128,52 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
-              peers:
-                description: Peers are one or more peers in the remote network.
-                items:
-                  description: Peer is a CNI node in the remote network.
-                  properties:
-                    endpoints:
-                      description: Endpoints are the endpoints of the peer. When not
-                        performing authentication, these are remote wireguard endpoints.
-                        When performing authentication, these are remote gRPC endpoints.
-                      items:
-                        type: string
-                      type: array
-                    publicKey:
-                      description: PublicKey is the public key of the peer. This is
-                        only required when not performing authentication.
-                      type: string
-                  required:
-                  - endpoints
-                  - publicKey
-                  type: object
-                type: array
-              preSharedKey:
-                description: PreSharedKey is a pre-shared key for seeding address
-                  space allocation in the bridge network.
-                type: string
             required:
             - authMethod
             type: object
           status:
             description: RemoteNetworkStatus will contain the status of the peering
               with the remote network.
+            properties:
+              error:
+                description: Error is the last error encountered when peering with
+                  the remote network.
+                type: string
+              peered:
+                description: Peered is true when the remote network has been successfully
+                  peered with.
+                type: boolean
+              peers:
+                description: Peers are the peers in the remote network.
+                items:
+                  description: Peer is a CNI node in the remote network.
+                  properties:
+                    endpoints:
+                      description: Endpoints are the endpoints of the peer. When not
+                        performing authentication and not using peer-discovery, these
+                        are remote wireguard endpoints. When performing authentication
+                        without peer-discovery, these are remote gRPC endpoints.
+                      items:
+                        type: string
+                      type: array
+                    id:
+                      description: ID is the ID of the peer. If provided, the native
+                        authentication will attempt ID based authentication. If not
+                        provided, an ID will be extracted from the public key and
+                        used for authentication.
+                      type: string
+                    publicKey:
+                      description: PublicKey is the public key of the peer. This must
+                        be provided if no ID is provided.
+                      type: string
+                  required:
+                  - endpoints
+                  - id
+                  - publicKey
+                  type: object
+                type: array
+            required:
+            - peered
             type: object
         type: object
     served: true
