@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -69,13 +70,13 @@ func Main(build version.BuildInfo) {
 	cniopts.BindFlags(fs)
 	zapopts.BindFlags(zapset)
 	fs.AddGoFlagSet(zapset)
-	if len(os.Args) < 2 {
-		fs.PrintDefaults()
-		os.Exit(0)
-	}
 	err := fs.Parse(os.Args[1:])
-	if errors.Is(err, pflag.ErrHelp) {
-		os.Exit(0)
+	if err != nil {
+		if errors.Is(err, pflag.ErrHelp) {
+			os.Exit(0)
+		}
+		fmt.Println("ERROR: Failed to parse flags:", err)
+		os.Exit(1)
 	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
 

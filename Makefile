@@ -143,6 +143,7 @@ CLUSTER_NAME  ?= webmesh-cni
 CNI_NAMESPACE ?= kube-system
 KIND_CONFIG   ?= examples/single-cluster/kindconfig.yaml
 KIND_CONTEXT  := kind-$(CLUSTER_NAME)
+KUSTOMIZE_DIR ?= deploy/
 
 test-cluster: ## Create a test cluster using kind.
 	$(KIND) create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG)
@@ -151,8 +152,11 @@ test-cluster: ## Create a test cluster using kind.
 load: docker ## Load the docker image into the test kind cluster.
 	$(KIND) load docker-image $(IMG) --name $(CLUSTER_NAME)
 
-install: bundle ## Install the WebMesh CNI into the test kind cluster.
-	$(KUBECTL) --context $(KIND_CONTEXT) apply -f $(BUNDLE)
+kustomize: ## Run kustomize on the deploy directory.
+	$(KUBECTL) kustomize $(KUSTOMIZE_DIR)
+
+install: ## Install the WebMesh CNI into the test kind cluster. Uses kustomize.
+	$(KUBECTL) kustomize $(KUSTOMIZE_DIR) | $(KUBECTL) --context $(KIND_CONTEXT) apply -f -
 
 remove-cluster: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)

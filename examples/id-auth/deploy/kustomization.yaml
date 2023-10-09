@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+resources:
+- ../../../deploy
+- allowed-ids.yaml
+labels:
+- includeSelectors: true
+  pairs:
+    k8s-app: webmesh-cni
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: webmesh-node
+      namespace: kube-system
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: webmesh-cni-etc
+            secret:
+              secretName: webmesh-cni-etc
+          containers:
+            - name: webmesh-node
+              volumeMounts:
+              - name: allowed-ids
+                mountPath: /etc/webmesh/

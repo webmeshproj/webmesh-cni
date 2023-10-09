@@ -120,13 +120,6 @@ spec:
           image: ghcr.io/webmeshproj/webmesh-cni:latest
           imagePullPolicy: IfNotPresent
           command: ["/webmesh-cni-node"]
-          args:
-            - --manager.reconcile-timeout=15s
-            - --manager.shutdown-timeout=10s
-            - --storage.cache-sync-timeout=10s
-            - --storage.leader-elect-lease-duration=15s
-            - --storage.leader-elect-renew-deadline=10s
-            - --storage.leader-elect-retry-period=2s
           env:
             # Use the kubernetes storage provider. This is the only
             # supported storage provider at the moment for k8s.
