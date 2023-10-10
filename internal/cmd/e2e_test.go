@@ -144,84 +144,90 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 			}
 			// Expect an e2e.yaml file in the test directory.
 			e2eFile := filepath.Join(dir, "e2e.yaml")
-			t.Logf("Reading e2e file: %s", e2eFile)
+			t.Logf("Reading e2e spec from file: %s", e2eFile)
 			data, err := os.ReadFile(e2eFile)
 			if err != nil {
-				t.Fatalf("Failed to read e2e file: %v", err)
+				t.Fatalf("Failed to read e2e spec: %v", err)
 			}
 			var e2eSpec E2ESpec
 			err = yaml.Unmarshal(data, &e2eSpec)
 			if err != nil {
-				t.Fatalf("Failed to unmarshal e2e file: %v", err)
+				t.Fatalf("Failed to unmarshal e2e spec: %v", err)
 			}
 			e2eSpec.Default()
-			t.Logf("Using e2e spec: %+v", e2eSpec)
-
-			// Create the clusters for the test.
-			// kindConfigs := findKindConfigs(t, dir)
 			kubeConfigs := make(map[string]string, len(e2eSpec.Clusters))
-			for _, cfg := range e2eSpec.Clusters {
-				t.Logf("Creating cluster for test: %s", cfg.Name)
-				// Create a kind clusterfor the kind config.
-				kindConfig := cfg.KindConfig
-				if kindConfig == "" {
-					configs := findKindConfigs(t, dir)
-					if len(configs) == 0 {
-						t.Fatal("No kind configs found")
+			clusters := make(map[string]struct{}, len(e2eSpec.Clusters))
+			t.Cleanup(func() {
+				for _, kubeconf := range kubeConfigs {
+					t.Log("Deleting kubeconf: ", kubeconf)
+					err := os.Remove(kubeconf)
+					if err != nil {
+						t.Logf("Failed to remove kubeconf %s: %v", kubeconf, err)
 					}
-					kindConfig = configs[0]
 				}
-				clusterName := fmt.Sprintf("cni-e2e-%s", filepath.Base(filepath.Dir(kindConfig)))
-				kubeconf, err := os.CreateTemp("", "webmesh-cni-e2e-*")
-				if err != nil {
-					t.Fatalf("Failed to create kubeconf: %v", err)
+				for cluster := range clusters {
+					t.Log("Deleting kind cluster: ", cluster)
+					execCmd(t, kindExec, "delete", "cluster", "--name", cluster)
 				}
-				kubeConfigs[cfg.Name] = kubeconf.Name()
-				t.Logf("Using temporary kubeconf: %s", kubeconf.Name())
-				t.Cleanup(func() {
-					t.Log("Deleting kubeconf: ", kubeconf.Name())
-					os.Remove(kubeconf.Name())
-				})
-				err = kubeconf.Close()
-				if err != nil {
-					t.Fatalf("Failed to close kubeconf: %v", err)
-				}
-				t.Logf("Creating kind cluster %q for config: %s", clusterName, kindConfig)
-				execCmd(t,
-					kindExec, "create", "cluster",
-					"--config", kindConfig,
-					"--name", clusterName,
-					"--kubeconfig", kubeconf.Name(),
-				)
-				t.Cleanup(func() {
-					t.Log("Deleting kind cluster: ", clusterName)
-					execCmd(t, kindExec, "delete", "cluster", "--name", clusterName)
-				})
-				t.Logf("Importing image %q into kind cluster %q", testImage, clusterName)
-				execCmd(t,
-					kindExec, "load", "docker-image",
-					"--name", clusterName,
-					testImage,
-				)
-				kustomization, err := filepath.Abs(cfg.Kustomization)
-				if err != nil {
-					t.Fatalf("Failed to get absolute path for %s: %v", cfg.Kustomization, err)
-				}
-				kustomizationDir := filepath.Dir(kustomization)
-				// Edit the kustomization to use the test image.
-				t.Logf("Editing kustomization %s to use image %s", kustomization, testImage)
-				doInDir(t, kustomizationDir, func() {
+			})
+			t.Logf("Parsed E2E spec: %+v", e2eSpec)
+
+			t.Run("Setup", func(t *testing.T) {
+				// Create the clusters for the test.
+				// kindConfigs := findKindConfigs(t, dir)
+				for _, cfg := range e2eSpec.Clusters {
+					t.Logf("Creating cluster for test: %s", cfg.Name)
+					// Create a kind clusterfor the kind config.
+					kindConfig := cfg.KindConfig
+					if kindConfig == "" {
+						configs := findKindConfigs(t, dir)
+						if len(configs) == 0 {
+							t.Fatal("No kind configs found")
+						}
+						kindConfig = configs[0]
+					}
+					clusterName := fmt.Sprintf("cni-e2e-%s", filepath.Base(filepath.Dir(kindConfig)))
+					clusters[clusterName] = struct{}{}
+					kubeconfDir, err := os.MkdirTemp("", "webmesh-cni-e2e-*")
+					if err != nil {
+						t.Fatalf("Failed to create kubeconf: %v", err)
+					}
+					kubeConf := filepath.Join(kubeconfDir, "kubeconfig")
+					kubeConfigs[cfg.Name] = kubeConf
+					t.Logf("Using temporary kubeconf: %s", kubeConf)
+					t.Logf("Creating kind cluster %q for config: %s", clusterName, kindConfig)
 					execCmd(t,
-						kustomizeExec, "edit", "set", "image", kustomizeImageName+"="+testImage,
+						kindExec, "create", "cluster",
+						"--config", kindConfig,
+						"--name", clusterName,
+						"--kubeconfig", kubeConf,
 					)
-				})
-				t.Logf("Installing webmesh-cni using kustomization %s", kustomization)
-				execCmd(t,
-					kubectlExec,
-					"--kubeconfig", kubeconf.Name(),
-					"apply", "-k", kustomizationDir,
-				)
-			}
+					t.Logf("Importing image %q into kind cluster %q", testImage, clusterName)
+					execCmd(t,
+						kindExec, "load", "docker-image",
+						"--name", clusterName,
+						testImage,
+					)
+					kustomization, err := filepath.Abs(cfg.Kustomization)
+					if err != nil {
+						t.Fatalf("Failed to get absolute path for %s: %v", cfg.Kustomization, err)
+					}
+					kustomizationDir := filepath.Dir(kustomization)
+					// Edit the kustomization to use the test image.
+					t.Logf("Editing kustomization %s to use image %s", kustomization, testImage)
+					doInDir(t, kustomizationDir, func() {
+						execCmd(t,
+							kustomizeExec, "edit", "set", "image", kustomizeImageName+"="+testImage,
+						)
+					})
+					t.Logf("Installing webmesh-cni using kustomization %s", kustomization)
+					execCmd(t,
+						kubectlExec,
+						"--kubeconfig", kubeConf,
+						"apply", "-k", kustomizationDir,
+					)
+				}
+			})
 
 			// Run the test specs.
 
