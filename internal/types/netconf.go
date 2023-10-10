@@ -22,6 +22,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -50,6 +51,8 @@ type NetConf struct {
 	Kubernetes Kubernetes `json:"kubernetes"`
 	// LogLevel is the log level for the plugin and managed interfaces.
 	LogLevel string `json:"logLevel"`
+	// LogFile is the file to write logs to.
+	LogFile string `json:"logFile"`
 }
 
 // SetDefaults sets the default values for the configuration.
@@ -204,12 +207,24 @@ func (n *NetConf) SlogLevel() slog.Level {
 
 // LogWriter reteurns the io.Writer for the plugin logger.
 func (n *NetConf) LogWriter() io.Writer {
-	var writer io.Writer = os.Stderr
 	switch strings.ToLower(n.LogLevel) {
 	case "silent", "off":
-		writer = io.Discard
+		return io.Discard
 	}
-	return writer
+	if n.LogFile != "" {
+		err := os.MkdirAll(filepath.Dir(n.LogFile), 0755)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create log directory, falling back to stderr: %v", err)
+			return os.Stderr
+		}
+		f, err := os.OpenFile(n.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open log file, falling back to stderr: %v", err)
+			return os.Stderr
+		}
+		return f
+	}
+	return os.Stderr
 }
 
 // ObjectKeyFromArgs creates a new object key for the given container ID.
@@ -235,7 +250,12 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			NodeID:      meshtypes.TruncateID(args.ContainerID),
 			ContainerID: args.ContainerID,
 			Netns:       args.Netns,
-			IfName:      n.GetIfName(args),
+			IfName: func() string {
+				if args.IfName != "" {
+					return args.IfName
+				}
+				return IfNameFromID(meshtypes.TruncateID(args.ContainerID))
+			}(),
 			NodeName:    n.Kubernetes.NodeName,
 			MTU:         n.Interface.MTU,
 			DisableIPv4: n.Interface.DisableIPv4,
@@ -243,11 +263,6 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			LogLevel:    n.LogLevel,
 		},
 	}
-}
-
-// GetIfName returns the interface name for the given container ID.
-func (n *NetConf) GetIfName(args *skel.CmdArgs) string {
-	return IfNameFromID(meshtypes.TruncateID(args.ContainerID))
 }
 
 // IfNameFromID returns a suitable interface name for the given identifier.

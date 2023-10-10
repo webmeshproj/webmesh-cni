@@ -388,8 +388,9 @@ func EnsureContainerEqualsTestConf(t *testing.T, conf *NetConf, container *v1.Pe
 	if container.Spec.Netns != args.Netns {
 		t.Errorf("expected container netns to be %s, got %s", args.Netns, container.Spec.Netns)
 	}
-	if container.Spec.IfName != conf.GetIfName(args) {
-		t.Errorf("expected container ifname to be %s, got %s", conf.GetIfName(args), container.Spec.IfName)
+	expectedIfName := IfNameFromID(meshtypes.TruncateID(args.ContainerID))
+	if container.Spec.IfName != expectedIfName {
+		t.Errorf("expected container ifname to be %s, got %s", expectedIfName, container.Spec.IfName)
 	}
 	if container.Spec.NodeName != conf.Kubernetes.NodeName {
 		t.Errorf("expected container node name to be %s, got %s", conf.Kubernetes.NodeName, container.Spec.NodeName)

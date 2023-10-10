@@ -202,12 +202,14 @@ func (i *InstallOptions) RunInstall() error {
 		}
 	}
 	// Clear any local host IPAM allocations that already exist.
-	if !i.DryRun && i.HostLocalNetDir != "" {
+	if i.HostLocalNetDir != "" {
 		log.Println("clearing host-local IPAM allocations from", i.HostLocalNetDir)
-		err = i.ClearHostLocalIPAMAllocations()
-		if err != nil {
-			log.Println("error clearing host-local IPAM allocations:", err)
-			return err
+		if !i.DryRun {
+			err = i.ClearHostLocalIPAMAllocations()
+			if err != nil {
+				log.Println("error clearing host-local IPAM allocations:", err)
+				return err
+			}
 		}
 	}
 	pluginBin := filepath.Join(i.BinaryDestBin, PluginBinaryName)
