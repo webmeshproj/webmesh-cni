@@ -134,7 +134,7 @@ jobs:
       - name: Run E2E Tests
         shell: bash
         env:
-          IMG: "${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+          IMG: "${{ env.IMAGE_NAME }}@${{ steps.build.outputs.imageid }}"
         run: make e2e
 
   build:
