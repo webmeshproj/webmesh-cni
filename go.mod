@@ -11,7 +11,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.8.1
 	github.com/webmeshproj/storage-provider-k8s v0.0.7
-	github.com/webmeshproj/webmesh v0.12.2
+	github.com/webmeshproj/webmesh v0.12.3-0.20231010170158-398d576b0e9d
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0

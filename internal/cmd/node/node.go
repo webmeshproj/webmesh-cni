@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/pflag"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	"github.com/webmeshproj/webmesh/pkg/cmd/cmdutil"
 	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,6 +71,22 @@ func Main(build version.BuildInfo) {
 	cniopts.BindFlags(fs)
 	zapopts.BindFlags(zapset)
 	fs.AddGoFlagSet(zapset)
+
+	fs.Usage = cmdutil.NewUsageFunc(cmdutil.UsageConfig{
+		Name:        "webmesh-cni-node",
+		Description: "The webmesh-cni node component.",
+		Prefixes: []string{
+			"manager",
+			"host",
+			"host.auth",
+			"host.network",
+			"host.services",
+			"host.wireguard",
+			"storage",
+		},
+		Flagset: fs,
+	})
+
 	err := fs.Parse(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, pflag.ErrHelp) {
