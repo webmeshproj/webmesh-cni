@@ -159,6 +159,8 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 			// kindConfigs := findKindConfigs(t, dir)
 			kubeConfigs := make(map[string]string, len(e2eSpec.Clusters))
 			for _, cfg := range e2eSpec.Clusters {
+				cfg.Default()
+				t.Logf("Creating cluster for spec: %+v", cfg)
 				// Create a kind clusterfor the kind config.
 				kindConfig := cfg.KindConfig
 				if kindConfig == "" {
