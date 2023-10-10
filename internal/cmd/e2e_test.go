@@ -61,7 +61,7 @@ var (
 // E2ESpec is the spec for an end-to-end test.
 type E2ESpec struct {
 	// Clusters is the list of clusters to create for the test.
-	Clusters []*E2ECluster `yaml:"clusters,omitempty"`
+	Clusters []E2ECluster `yaml:"clusters,omitempty"`
 }
 
 func (e *E2ESpec) Default() {
@@ -685,7 +685,6 @@ type testLogWriter struct {
 }
 
 func (w *testLogWriter) Write(p []byte) (n int, err error) {
-	w.t.Helper()
 	n = len(p)
 	data := bytes.TrimSpace(p)
 	if len(data) == 0 {
