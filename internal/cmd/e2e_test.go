@@ -42,6 +42,22 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
+var (
+	testImageEnvVar      = "E2E_TEST_IMAGE"
+	kindExec             = os.Getenv("E2E_KIND_EXEC")
+	kustomizeExec        = os.Getenv("E2E_KUSTOMIZE_EXEC")
+	kubectlExec          = os.Getenv("E2E_KUBECTL_EXEC")
+	defaultKindExec      = "kind"
+	defaultKustomizeExec = "kustomize"
+	defaultKubectlExec   = "kubectl"
+	testImage            = "ghcr.io/webmeshproj/webmesh-cni:latest"
+	defaultKustomization = mustAbsolute("../../deploy/kustomization.yaml")
+	kustomizeImageName   = "ghcr.io/webmeshproj/webmesh-cni"
+	testDirs             = []string{
+		mustAbsolute("../../examples/single-cluster"),
+	}
+)
+
 // E2ESpec is the spec for an end-to-end test.
 type E2ESpec struct {
 	// Clusters is the list of clusters to create for the test.
@@ -532,22 +548,6 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 		})
 	}
 }
-
-var (
-	testImageEnvVar      = "E2E_TEST_IMAGE"
-	kindExec             = os.Getenv("E2E_KIND_EXEC")
-	kustomizeExec        = os.Getenv("E2E_KUSTOMIZE_EXEC")
-	kubectlExec          = os.Getenv("E2E_KUBECTL_EXEC")
-	defaultKindExec      = "kind"
-	defaultKustomizeExec = "kustomize"
-	defaultKubectlExec   = "kubectl"
-	testImage            = "ghcr.io/webmeshproj/webmesh-cni:latest"
-	defaultKustomization = mustAbsolute("../../deploy/kustomization.yaml")
-	kustomizeImageName   = "ghcr.io/webmeshproj/webmesh-cni"
-	testDirs             = []string{
-		mustAbsolute("../../examples/single-cluster"),
-	}
-)
 
 // Init initializes the end-to-end test.
 func Init(t *testing.T) {
