@@ -9,9 +9,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.2.1-beta.2
-	github.com/webmeshproj/api v0.8.0
+	github.com/webmeshproj/api v0.8.1
 	github.com/webmeshproj/storage-provider-k8s v0.0.7
-	github.com/webmeshproj/webmesh v0.12.2-0.20231009234332-ac9edc268897
+	github.com/webmeshproj/webmesh v0.12.2
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0
@@ -213,7 +213,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231009173412-8bfb1ae86b6c // indirect
 	google.golang.org/grpc v1.58.2 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
