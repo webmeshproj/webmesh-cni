@@ -45,14 +45,14 @@ type NetConf struct {
 	cnitypes.NetConf `json:",inline"`
 
 	// Interface is the configuration for container interfaces.
-	Interface Interface `json:"interface"`
+	Interface Interface `json:"interface,omitempty"`
 	// Kubernetes is the configuration for the Kubernetes API server and
 	// information about the node we are running on.
-	Kubernetes Kubernetes `json:"kubernetes"`
+	Kubernetes Kubernetes `json:"kubernetes,omitempty"`
 	// LogLevel is the log level for the plugin and managed interfaces.
-	LogLevel string `json:"logLevel"`
+	LogLevel string `json:"logLevel,omitempty"`
 	// LogFile is the file to write logs to.
-	LogFile string `json:"logFile"`
+	LogFile string `json:"logFile,omitempty"`
 }
 
 // SetDefaults sets the default values for the configuration.
@@ -85,11 +85,11 @@ func (n *NetConf) DeepEqual(other *NetConf) bool {
 // Interface is the configuration for a single interface.
 type Interface struct {
 	// MTU is the MTU to set on interfaces.
-	MTU int `json:"mtu"`
+	MTU int `json:"mtu,omitempty"`
 	// DisableIPv4 is whether to disable IPv4 on the interface.
-	DisableIPv4 bool `json:"disableIPv4"`
+	DisableIPv4 bool `json:"disableIPv4,omitempty"`
 	// DisableIPv6 is whether to disable IPv6 on the interface.
-	DisableIPv6 bool `json:"disableIPv6"`
+	DisableIPv6 bool `json:"disableIPv6,omitempty"`
 }
 
 // Default sets the default values for the interface configuration.
@@ -116,13 +116,13 @@ func (i *Interface) DeepEqual(other *Interface) bool {
 // information about the node we are running on.
 type Kubernetes struct {
 	// Kubeconfig is the path to the kubeconfig file.
-	Kubeconfig string `json:"kubeconfig"`
+	Kubeconfig string `json:"kubeconfig,omitempty"`
 	// NodeName is the name of the node we are running on.
-	NodeName string `json:"nodeName"`
+	NodeName string `json:"nodeName,omitempty"`
 	// K8sAPIRoot is the root URL of the Kubernetes API server.
-	K8sAPIRoot string `json:"k8sAPIRoot"`
+	K8sAPIRoot string `json:"k8sAPIRoot,omitempty"`
 	// Namespace is the namespace to use for the plugin.
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // Default sets the default values for the Kubernetes configuration.
@@ -250,12 +250,7 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 			NodeID:      meshtypes.TruncateID(args.ContainerID),
 			ContainerID: args.ContainerID,
 			Netns:       args.Netns,
-			IfName: func() string {
-				if args.IfName != "" {
-					return args.IfName
-				}
-				return IfNameFromID(meshtypes.TruncateID(args.ContainerID))
-			}(),
+			IfName:      IfNameFromID(meshtypes.TruncateID(args.ContainerID)),
 			NodeName:    n.Kubernetes.NodeName,
 			MTU:         n.Interface.MTU,
 			DisableIPv4: n.Interface.DisableIPv4,
