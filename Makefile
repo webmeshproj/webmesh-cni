@@ -87,6 +87,14 @@ ifeq ($(CI),true)
 endif
 ci-test: $(CI_TARGETS) ## Run all CI tests.
 
+KIND      ?= kind
+KUSTOMIZE ?= kustomize
+export E2E_KIND_EXEC=$(KIND)
+export E2E_KUSTOMIZE_EXEC=$(KUSTOMIZE)
+export E2E_TEST_IMAGE=$(IMG)
+e2e: ## Run e2e tests.
+	$(RICHGO) test -v -timeout=$(TEST_TIMEOUT) -tags=e2e ./internal/cmd
+
 ##@ Build
 
 PARALLEL   ?= $(shell nproc)
@@ -136,7 +144,6 @@ bundle: generate ## Bundle creates a distribution bundle manifest.
 
 ##@ Local Development
 
-KIND    ?= kind
 KUBECTL ?= kubectl
 
 CLUSTER_NAME  ?= webmesh-cni

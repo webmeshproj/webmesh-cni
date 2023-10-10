@@ -7,3 +7,7 @@ labels:
 - includeSelectors: true
   pairs:
     k8s-app: webmesh-cni
+images:
+- name: ghcr.io/webmeshproj/webmesh-cni
+  newName: ghcr.io/webmeshproj/webmesh-cni
+  newTag: latest

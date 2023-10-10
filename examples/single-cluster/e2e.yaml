@@ -1,0 +1,5 @@
+clusters:
+- name: webmesh-cni
+  kustomization: default
+  nodeCount: 2
+  podCIDR: "10.42.0.0/16"
