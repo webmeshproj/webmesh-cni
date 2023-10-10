@@ -551,6 +551,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 
 // Init initializes the end-to-end test.
 func Init(t *testing.T) {
+	t.Helper()
 	// Set the controller-runtime logger.
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 	// Set the path to the kind binary.
@@ -617,6 +618,7 @@ func findKindConfigs(t *testing.T, path string) []string {
 }
 
 func getClient(t *testing.T, kubeconfig string) client.Client {
+	t.Helper()
 	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
 		conf, err := clientcmd.LoadFromFile(kubeconfig)
 		if err != nil {
@@ -683,6 +685,7 @@ type testLogWriter struct {
 }
 
 func (w *testLogWriter) Write(p []byte) (n int, err error) {
+	w.t.Helper()
 	n = len(p)
 	data := bytes.TrimSpace(p)
 	if len(data) == 0 {
