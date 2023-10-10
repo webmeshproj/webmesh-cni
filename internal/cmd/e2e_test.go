@@ -65,8 +65,9 @@ type E2ESpec struct {
 }
 
 func (e *E2ESpec) Default() {
-	for _, cfg := range e.Clusters {
-		cfg.Default()
+	for i, cfg := range e.Clusters {
+		c := cfg.Default()
+		e.Clusters[i] = c
 	}
 }
 
@@ -99,7 +100,7 @@ type E2ECluster struct {
 	PodCount int `yaml:"podCount,omitempty"`
 }
 
-func (e *E2ECluster) Default() {
+func (e *E2ECluster) Default() E2ECluster {
 	if e.CNINamespace == "" {
 		e.CNINamespace = "kube-system"
 	}
@@ -109,6 +110,7 @@ func (e *E2ECluster) Default() {
 	if e.PodCount == 0 {
 		e.PodCount = e.NodeCount + 1
 	}
+	return *e
 }
 
 type Prefix struct{ netip.Prefix }
@@ -233,6 +235,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// We should have a ready webmesh-node for each node in the cluster.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
+					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						kubeconf := kubeConfigs[cfg.Name]
 						cli := getClient(t, kubeconf)
@@ -306,6 +309,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// should eventually be assigned an IP address from the pod CIDR.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
+					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						kubeconf := kubeConfigs[cfg.Name]
 						cli := getClient(t, kubeconf)
@@ -409,6 +413,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// We should have a ready webmesh-node for each node in the cluster.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
+					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						if cfg.PodCount <= 0 {
 							t.Skip("No pod count specified for cluster")
