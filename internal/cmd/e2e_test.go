@@ -104,7 +104,7 @@ func (e *E2ECluster) Default() E2ECluster {
 	if e.CNINamespace == "" {
 		e.CNINamespace = "kube-system"
 	}
-	if e.Kustomization == "" {
+	if e.Kustomization == "" || e.Kustomization == "default" {
 		e.Kustomization = defaultKustomization
 	}
 	if e.PodCount == 0 {
@@ -204,14 +204,9 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 					"--name", clusterName,
 					testImage,
 				)
-				var kustomization string
-				if cfg.Kustomization == "" || cfg.Kustomization == "default" {
-					kustomization = defaultKustomization
-				} else {
-					kustomization, err = filepath.Abs(cfg.Kustomization)
-					if err != nil {
-						t.Fatalf("Failed to get absolute path for %s: %v", cfg.Kustomization, err)
-					}
+				kustomization, err := filepath.Abs(cfg.Kustomization)
+				if err != nil {
+					t.Fatalf("Failed to get absolute path for %s: %v", cfg.Kustomization, err)
 				}
 				kustomizationDir := filepath.Dir(kustomization)
 				// Edit the kustomization to use the test image.
