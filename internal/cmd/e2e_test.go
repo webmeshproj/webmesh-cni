@@ -161,8 +161,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 			// kindConfigs := findKindConfigs(t, dir)
 			kubeConfigs := make(map[string]string, len(e2eSpec.Clusters))
 			for _, cfg := range e2eSpec.Clusters {
-				cfg.Default()
-				t.Logf("Creating cluster for spec: %+v", cfg)
+				t.Logf("Creating cluster for test: %s", cfg.Name)
 				// Create a kind clusterfor the kind config.
 				kindConfig := cfg.KindConfig
 				if kindConfig == "" {
@@ -230,7 +229,6 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// We should have a ready webmesh-node for each node in the cluster.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
-					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						kubeconf := kubeConfigs[cfg.Name]
 						cli := getClient(t, kubeconf)
@@ -304,7 +302,6 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// should eventually be assigned an IP address from the pod CIDR.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
-					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						kubeconf := kubeConfigs[cfg.Name]
 						cli := getClient(t, kubeconf)
@@ -408,7 +405,6 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 				// We should have a ready webmesh-node for each node in the cluster.
 				ctx := context.Background()
 				for _, cfg := range e2eSpec.Clusters {
-					cfg.Default()
 					t.Run(cfg.Name, func(t *testing.T) {
 						if cfg.PodCount <= 0 {
 							t.Skip("No pod count specified for cluster")
