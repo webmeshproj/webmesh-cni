@@ -9,7 +9,7 @@ labels:
   pairs:
     k8s-app: webmesh-cni
 patches:
-- patch: |-
+- patch: |
     apiVersion: apps/v1
     kind: DaemonSet
     metadata:
@@ -27,6 +27,7 @@ patches:
               volumeMounts:
               - name: etc
                 mountPath: /etc/webmesh/
-          args:
-            - --host.plugins.id-auth.id-files=/etc/webmesh/allowed-ids.txt
-            - --host.plugins.id-auth.watch-id-files=true
+              args:
+                - --host.auth.id-auth=true
+                - --host.plugins.id-auth.id-files=/etc/webmesh/allowed-ids.txt
+                - --host.plugins.id-auth.watch-id-files=true
