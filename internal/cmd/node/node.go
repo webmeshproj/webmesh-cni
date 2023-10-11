@@ -23,15 +23,18 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/cmd/cmdutil"
+	meshconfig "github.com/webmeshproj/webmesh/pkg/config"
 	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
+	"github.com/webmeshproj/webmesh/pkg/version"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -48,7 +51,6 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 	"github.com/webmeshproj/webmesh-cni/internal/host"
-	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 var (
@@ -64,21 +66,31 @@ func init() {
 	utilruntime.Must(storagev1.AddToScheme(scheme))
 }
 
+func pluginInArgs(pluginName string) bool {
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, fmt.Sprintf("--host.plugins.%s", pluginName)) {
+			return true
+		}
+	}
+	return false
+}
+
 // Main runs the webmesh-cni daemon.
 func Main(build version.BuildInfo) {
 	// Parse flags and setup logging.
 	zapset := flag.NewFlagSet("zap", flag.ContinueOnError)
 	fs := pflag.NewFlagSet("webmesh-cni", pflag.ContinueOnError)
-	usageSet := pflag.NewFlagSet("usage", pflag.ContinueOnError)
 	cniopts.BindFlags(fs)
-	cniopts.BindFlags(usageSet)
 	zapopts.BindFlags(zapset)
 	fs.AddGoFlagSet(zapset)
-	usageSet.AddGoFlagSet(zapset)
-	// Register the builtin plugins for their usage docs.
+	// Create a separate flag set with all plugins for usage.
+	usage := pflag.NewFlagSet("usage", pflag.ContinueOnError)
+	usage.AddFlagSet(fs)
 	pluginConfigs := builtins.NewPluginConfigs()
 	for pluginName, pluginConfig := range pluginConfigs {
-		pluginConfig.BindFlags(fmt.Sprintf("plugins.%s.", pluginName), usageSet)
+		if !pluginInArgs(pluginName) {
+			pluginConfig.BindFlags(fmt.Sprintf("host.plugins.%s.", pluginName), usage)
+		}
 	}
 	fs.Usage = cmdutil.NewUsageFunc(cmdutil.UsageConfig{
 		Name:        "webmesh-cni-node",
@@ -90,10 +102,10 @@ func Main(build version.BuildInfo) {
 			"host.network",
 			"host.services",
 			"host.wireguard",
+			"host.plugins",
 			"storage",
-			"plugins",
 		},
-		Flagset: usageSet,
+		Flagset: usage,
 	})
 
 	err := fs.Parse(os.Args[1:])
@@ -258,7 +270,13 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 	features := cniopts.Host.Services.NewFeatureSet(storageProvider, srv.GRPCListenPort())
-	err = cniopts.Host.Services.RegisterAPIs(hostCtx, host.Node(), srv, features)
+	err = cniopts.Host.Services.RegisterAPIs(hostCtx, meshconfig.APIRegistrationOptions{
+		Node:        host.Node(),
+		Server:      srv,
+		Features:    features,
+		BuildInfo:   build,
+		Description: "webmesh-cni",
+	})
 	if err != nil {
 		log.Error(err, "Failed to register webmesh services APIs")
 		os.Exit(1)

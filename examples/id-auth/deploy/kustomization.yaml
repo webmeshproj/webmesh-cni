@@ -28,7 +28,7 @@ patches:
               - name: etc
                 mountPath: /etc/webmesh/
               args:
-                - --host.auth.id-auth=true
+                - --host.auth.id-auth.enabled=true
                 - --host.plugins.id-auth.id-files=/etc/webmesh/allowed-ids.txt
                 - --host.plugins.id-auth.watch-id-files=true
                 - --host.services.api.disabled=false

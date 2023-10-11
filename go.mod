@@ -9,9 +9,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.2.1-beta.2
-	github.com/webmeshproj/api v0.8.2-0.20231011152520-602b0b8b42a8
-	github.com/webmeshproj/storage-provider-k8s v0.0.8
-	github.com/webmeshproj/webmesh v0.12.4-0.20231011173821-66ca208e20f6
+	github.com/webmeshproj/api v0.9.0
+	github.com/webmeshproj/storage-provider-k8s v0.0.9
+	github.com/webmeshproj/webmesh v0.13.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0

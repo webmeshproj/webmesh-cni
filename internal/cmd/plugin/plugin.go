@@ -31,10 +31,10 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	"github.com/vishvananda/netlink"
+	"github.com/webmeshproj/webmesh/pkg/version"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
-	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete

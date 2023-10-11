@@ -17,7 +17,9 @@ limitations under the License.
 // Package version contains the build-time version information.
 package version
 
-import "encoding/json"
+import (
+	"github.com/webmeshproj/webmesh/pkg/version"
+)
 
 // Compile-time variables set by the build script.
 var (
@@ -26,24 +28,11 @@ var (
 	BuildDate = "unknown"
 )
 
-// BuildInfo contains the build-time version information.
-type BuildInfo struct {
-	Version   string `json:"version"`
-	Commit    string `json:"commit"`
-	BuildDate string `json:"buildDate"`
-}
-
 // GetBuildInfo returns the build-time version information.
-func GetBuildInfo() BuildInfo {
-	return BuildInfo{
+func GetBuildInfo() version.BuildInfo {
+	return version.BuildInfo{
 		Version:   Version,
 		Commit:    Commit,
 		BuildDate: BuildDate,
 	}
-}
-
-// String returns a string representation of the build-time version information.
-func (b BuildInfo) String() string {
-	out, _ := json.Marshal(b)
-	return string(out)
 }

@@ -22,8 +22,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/webmeshproj/webmesh/pkg/version"
+
 	"github.com/webmeshproj/webmesh-cni/internal/types"
-	"github.com/webmeshproj/webmesh-cni/internal/version"
 )
 
 // Main ensures the CNI binaries and configuration are installed on the host system.
@@ -31,7 +32,7 @@ func Main(version version.BuildInfo) {
 	conf := types.LoadInstallOptionsFromEnv()
 	conf.BindFlags(flag.CommandLine)
 	flag.Parse()
-	log.Printf("installing webmesh-cni, version: %s", version.String())
+	log.Printf("installing webmesh-cni, version: %s", version.Version)
 	err := conf.Validate()
 	if err != nil {
 		log.Println("install options are invalid:", err)
