@@ -11,3 +11,12 @@ nodes:
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
+  - hostPath: /dev/shm
+    containerPath: /dev/shm
+  extraPortMappings:
+  - containerPort: 8443
+    hostPort: 8443
+    protocol: TCP
+  - containerPort: 61820
+    hostPort: 61820
+    protocol: UDP

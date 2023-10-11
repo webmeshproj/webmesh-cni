@@ -93,8 +93,8 @@ type E2ECluster struct {
 	// PodCount is the number of pods that the test will create.
 	// This will be used to verify that all containers become ready
 	// and are assigned an IP address from the pod CIDR. Defaults to
-	// the node count + 1 which is the assumed number of coredns pods
-	// and a local path provisioner pod.
+	// 3 which is the assumed number of coredns pods and local-path-provisioners.
+	//
 	// Any provided value must take coredns pods and any local-path-provisioners
 	// into account. This can be set to -1 to skip the test.
 	PodCount int `yaml:"podCount,omitempty"`
@@ -108,7 +108,7 @@ func (e *E2ECluster) Default() E2ECluster {
 		e.Kustomization = defaultKustomization
 	}
 	if e.PodCount == 0 {
-		e.PodCount = e.NodeCount + 1
+		e.PodCount = 3
 	}
 	return *e
 }

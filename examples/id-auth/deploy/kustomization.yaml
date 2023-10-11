@@ -31,3 +31,5 @@ patches:
                 - --host.auth.id-auth=true
                 - --host.plugins.id-auth.id-files=/etc/webmesh/allowed-ids.txt
                 - --host.plugins.id-auth.watch-id-files=true
+                - --host.services.api.disabled=false
+                - --host.wireguard.listen-port=61820
