@@ -30,6 +30,7 @@ import (
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/cmd/cmdutil"
 	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
+	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -68,10 +69,17 @@ func Main(build version.BuildInfo) {
 	// Parse flags and setup logging.
 	zapset := flag.NewFlagSet("zap", flag.ContinueOnError)
 	fs := pflag.NewFlagSet("webmesh-cni", pflag.ContinueOnError)
+	usageSet := pflag.NewFlagSet("usage", pflag.ContinueOnError)
 	cniopts.BindFlags(fs)
+	cniopts.BindFlags(usageSet)
 	zapopts.BindFlags(zapset)
 	fs.AddGoFlagSet(zapset)
-
+	usageSet.AddGoFlagSet(zapset)
+	// Register the builtin plugins for their usage docs.
+	pluginConfigs := builtins.NewPluginConfigs()
+	for pluginName, pluginConfig := range pluginConfigs {
+		pluginConfig.BindFlags(fmt.Sprintf("plugins.%s.", pluginName), usageSet)
+	}
 	fs.Usage = cmdutil.NewUsageFunc(cmdutil.UsageConfig{
 		Name:        "webmesh-cni-node",
 		Description: "The webmesh-cni node component.",
@@ -83,8 +91,9 @@ func Main(build version.BuildInfo) {
 			"host.services",
 			"host.wireguard",
 			"storage",
+			"plugins",
 		},
-		Flagset: fs,
+		Flagset: usageSet,
 	})
 
 	err := fs.Parse(os.Args[1:])
