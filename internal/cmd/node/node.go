@@ -269,17 +269,18 @@ func Main(build version.BuildInfo) {
 		log.Error(err, "Failed to create webmesh services server")
 		os.Exit(1)
 	}
-	features := cniopts.Host.Services.NewFeatureSet(storageProvider, srv.GRPCListenPort())
-	err = cniopts.Host.Services.RegisterAPIs(hostCtx, meshconfig.APIRegistrationOptions{
-		Node:        host.Node(),
-		Server:      srv,
-		Features:    features,
-		BuildInfo:   build,
-		Description: "webmesh-cni",
-	})
-	if err != nil {
-		log.Error(err, "Failed to register webmesh services APIs")
-		os.Exit(1)
+	if !cniopts.Host.Services.API.Disabled {
+		err = cniopts.Host.Services.RegisterAPIs(hostCtx, meshconfig.APIRegistrationOptions{
+			Node:        host.Node(),
+			Server:      srv,
+			Features:    cniopts.Host.Services.NewFeatureSet(storageProvider, srv.GRPCListenPort()),
+			Description: "webmesh-cni",
+			BuildInfo:   build,
+		})
+		if err != nil {
+			log.Error(err, "Failed to register webmesh services APIs")
+			os.Exit(1)
+		}
 	}
 	go func() {
 		log.Info("Starting webmesh services")
