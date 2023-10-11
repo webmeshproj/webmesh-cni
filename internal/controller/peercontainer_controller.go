@@ -311,10 +311,14 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 			"networkV4", validOrNone(node.Network().NetworkV4()),
 			"networkV6", validOrNone(node.Network().NetworkV6()),
 		)
-		err := r.ensureInterfaceReadyStatus(ctx, container, node)
+		updated, err := r.ensureInterfaceReadyStatus(ctx, container, node)
 		if err != nil {
 			log.Error(err, "Failed to update container status")
 			return fmt.Errorf("failed to update container status: %w", err)
+		}
+		if updated {
+			// Return and continue on the next reconcile.
+			return nil
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
@@ -458,7 +462,7 @@ func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req
 	return nil
 }
 
-func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context, container *cniv1.PeerContainer, node meshnode.Node) error {
+func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context, container *cniv1.PeerContainer, node meshnode.Node) (updated bool, err error) {
 	log := log.FromContext(ctx)
 	// Update the status to running and sets its IP address.
 	var updateStatus bool
@@ -508,9 +512,9 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 			"newStatus", container.Status,
 			"oldStatus", origStatus,
 		)
-		return r.updateContainerStatus(ctx, container)
+		return true, r.updateContainerStatus(ctx, container)
 	}
-	return nil
+	return false, nil
 }
 
 func (r *PeerContainerReconciler) setFailedStatus(ctx context.Context, container *cniv1.PeerContainer, reason error) {

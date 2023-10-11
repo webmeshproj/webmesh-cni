@@ -45,17 +45,21 @@ const (
 	FieldOwner = "webmesh-cni"
 	// PeerContainerFinalizer is the PeerContainer finalizer.
 	PeerContainerFinalizer = "peercontainer.cniv1.webmesh.io"
+	// PeerContainerPodNameLabel is the label for the pod name.
+	PeerContainerPodNameLabel = "webmesh.io/pod-name"
+	// PeerContainerPodNamespaceLabel is the label for the pod namespace.
+	PeerContainerPodNamespaceLabel = "webmesh.io/pod-namespace"
 )
 
 // PeerContainerSpec defines the desired state of PeerContainer
 type PeerContainerSpec struct {
 	// NodeID is the ID to use for the container.
 	NodeID string `json:"nodeID"`
-	// ContainerID is the ID of the container to peer with.
+	// ContainerID is the ID of the container being created.
 	ContainerID string `json:"containerID"`
-	// Netns is the network namespace of the container to peer with.
+	// Netns is the network namespace of the container being created.
 	Netns string `json:"netns"`
-	// IfName is the name of the interface to peer with.
+	// IfName is the name of the interface create.
 	IfName string `json:"ifName"`
 	// NodeName is the name of the node the container is running on.
 	NodeName string `json:"nodeName"`

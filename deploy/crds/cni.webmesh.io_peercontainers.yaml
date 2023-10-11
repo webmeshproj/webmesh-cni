@@ -48,7 +48,7 @@ spec:
             description: PeerContainerSpec defines the desired state of PeerContainer
             properties:
               containerID:
-                description: ContainerID is the ID of the container to peer with.
+                description: ContainerID is the ID of the container being created.
                 type: string
               disableIPv4:
                 description: DisableIPv4 is whether to disable IPv4 on the interface.
@@ -57,7 +57,7 @@ spec:
                 description: DisableIPv6 is whether to disable IPv6 on the interface.
                 type: boolean
               ifName:
-                description: IfName is the name of the interface to peer with.
+                description: IfName is the name of the interface create.
                 type: string
               logLevel:
                 description: LogLevel is the log level for the webmesh interface.
@@ -66,8 +66,8 @@ spec:
                 description: MTU is the MTU to set on the interface.
                 type: integer
               netns:
-                description: Netns is the network namespace of the container to peer
-                  with.
+                description: Netns is the network namespace of the container being
+                  created.
                 type: string
               nodeID:
                 description: NodeID is the ID to use for the container.
