@@ -76,7 +76,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.E2E_PLATFORM == '' && 'ubuntu-latest' || vars.E2E_PLATFORM }}
     needs: [lint]
     permissions:
       contents: "read"
@@ -88,6 +88,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
+        if: ${{ vars.E2E_PLATFORM == '' }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
@@ -118,7 +119,7 @@ jobs:
           SNAPSHOT: ${{ startsWith(github.ref, 'refs/tags/v') && '' || '--snapshot' }}
         with:
           version: latest
-          args: build --clean --parallelism=${{ env.BUILD_PARALLELISM }} ${{ env.SNAPSHOT }}
+          args: build --clean --single-target --parallelism=${{ env.BUILD_PARALLELISM }} ${{ env.SNAPSHOT }}
 
       - name: Build Container Image
         uses: docker/build-push-action@v5
@@ -139,7 +140,7 @@ jobs:
 
   build:
     name: Build Release Assets
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.BUILD_PLATFORM == '' && 'ubuntu-latest' || vars.BUILD_PLATFORM }}
     needs: [tests, e2e-tests]
     permissions:
       contents: "write"
@@ -153,6 +154,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
+        if: ${{ vars.BUILD_PLATFORM == '' }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
