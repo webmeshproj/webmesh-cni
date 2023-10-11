@@ -35,6 +35,7 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"github.com/webmeshproj/webmesh/pkg/version"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -146,7 +147,11 @@ func Main(build version.BuildInfo) {
 		},
 		Client: client.Options{
 			Cache: &client.CacheOptions{
-				DisableFor: storagev1.CustomObjects,
+				DisableFor: append(
+					storagev1.CustomObjects,
+					&corev1.Secret{},
+					&corev1.ConfigMap{},
+				),
 			},
 		},
 	})
