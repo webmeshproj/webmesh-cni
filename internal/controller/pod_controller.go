@@ -51,67 +51,10 @@ type PodReconciler struct {
 func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("pod-features").
-		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []ctrl.Request {
-			// Fast path, if the host isn't running there isn't anything we care about
-			if !r.Host.Started() {
-				return nil
-			}
-			pod := o.(*corev1.Pod)
-			// Ignore pods that aren't in the DNS namespace.
-			if pod.GetNamespace() != r.DNSNamespace {
-				return nil
-			}
-			// Ignore pods that don't match the DNS selector.
-			for k, v := range r.DNSSelector {
-				if pod.GetLabels()[k] != v {
-					return nil
-				}
-			}
-			// Ignore host network pods.
-			if pod.Spec.HostNetwork {
-				return nil
-			}
-			// Only match pods that are running.
-			if pod.Status.Phase != corev1.PodRunning {
-				return nil
-			}
-			// Ignore deleted pods.
-			if pod.GetDeletionTimestamp() != nil {
-				return nil
-			}
-			// Return the request if the pod has an in network IP.
-			for _, ip := range pod.Status.PodIPs {
-				if ip.IP == "" {
-					continue
-				}
-				addr, err := netip.ParseAddr(ip.IP)
-				if err != nil {
-					log.FromContext(ctx).Error(err, "Failed to parse pod IP")
-					continue
-				}
-				if addr.Is6() {
-					if r.Host.Node().Network().NetworkV6().Contains(addr) {
-						return []ctrl.Request{{
-							NamespacedName: client.ObjectKey{
-								Namespace: pod.GetNamespace(),
-								Name:      pod.GetName(),
-							},
-						}}
-					}
-				}
-				if addr.Is4() {
-					if r.Host.Node().Network().NetworkV4().Contains(addr) {
-						return []ctrl.Request{{
-							NamespacedName: client.ObjectKey{
-								Namespace: pod.GetNamespace(),
-								Name:      pod.GetName(),
-							},
-						}}
-					}
-				}
-			}
-			return nil
-		})).
+		Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueIfReadyAndInNetwork),
+		).
 		Complete(r)
 }
 
@@ -180,4 +123,54 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *PodReconciler) enqueueIfReadyAndInNetwork(ctx context.Context, o client.Object) []ctrl.Request {
+	// Fast path, if the host isn't running there isn't anything we care about
+	if !r.Host.Started() {
+		return nil
+	}
+	pod := o.(*corev1.Pod)
+	// Ignore deleted pods.
+	if pod.GetDeletionTimestamp() != nil {
+		return nil
+	}
+	// Ignore host network pods.
+	if pod.Spec.HostNetwork {
+		return nil
+	}
+	// Ignore pods that aren't running yet.
+	if pod.Status.Phase != corev1.PodRunning {
+		return nil
+	}
+	// Ignore pods that aren't in the DNS namespace.
+	if pod.GetNamespace() != r.DNSNamespace {
+		return nil
+	}
+	// Ignore pods that don't match the DNS selector.
+	for k, v := range r.DNSSelector {
+		if pod.GetLabels()[k] != v {
+			return nil
+		}
+	}
+	// Match the request if the pod has an in network IP.
+	key := client.ObjectKeyFromObject(pod)
+	req := ctrl.Request{NamespacedName: key}
+	for _, ip := range pod.Status.PodIPs {
+		if ip.IP == "" {
+			continue
+		}
+		addr, err := netip.ParseAddr(ip.IP)
+		if err != nil {
+			log.FromContext(ctx).Error(err, "Failed to parse pod IP")
+			continue
+		}
+		switch {
+		case addr.Is6() && r.Host.Node().Network().NetworkV6().Contains(addr):
+			return []ctrl.Request{req}
+		case addr.Is4() && r.Host.Node().Network().NetworkV4().Contains(addr):
+			return []ctrl.Request{req}
+		}
+	}
+	return nil
 }
