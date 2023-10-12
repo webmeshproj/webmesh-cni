@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/webmeshproj/webmesh-cni
+  DISTROLESS_IMAGE_NAME: ghcr.io/webmeshproj/webmesh-cni-distroless
   VERSION: ${{ startswith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
   GO_VERSION: "1.21"
   GOLANGCI_LINT_VERSION: v1.54.2
@@ -180,9 +181,9 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Generate Bundle Manifest
+      - name: Generate Bundle Manifests
         shell: bash
-        run: make bundle
+        run: make bundle distroless-bundle
 
       - name: Run CNI Build
         uses: goreleaser/goreleaser-action@v5
@@ -209,6 +210,16 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ env.VERSION }}
           platforms: ${{ env.DOCKER_PLATFORMS }}
 
+      - name: Build Distroless Container Images
+        uses: docker/build-push-action@v5
+        id: distroless-build
+        with:
+          context: .
+          file: Dockerfile.distroless
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.VERSION }}
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+
       - name: Sign Release Assets
         if: ${{ github.event_name != 'pull_request' }}
         shell: bash
@@ -217,11 +228,17 @@ jobs:
         run: |
           set -ex
           cosign sign --yes --recursive ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          cosign sign --yes --recursive ${{ env.DISTROLESS_IMAGE_NAME }}@${{ steps.distroless-build.outputs.digest }}
           cosign sign-blob --yes \
             --oidc-issuer=https://token.actions.githubusercontent.com \
             --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
             --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
             ${{ env.BUNDLE_DIR }}/bundle.yaml
+          cosign sign-blob --yes \
+            --oidc-issuer=https://token.actions.githubusercontent.com \
+            --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
+            --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
+            ${{ env.BUNDLE_DIR }}/bundle-distroless.yaml
 
       - name: Run CNI Release
         uses: goreleaser/goreleaser-action@v5

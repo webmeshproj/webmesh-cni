@@ -1,0 +1,194 @@
+---
+# This ConfigMap is used to configure the webmesh-cni installation.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: webmesh-config
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-cni
+data:
+  # TODO: Allow entire node config via ConfigMap.
+  cluster-domain: "cluster.local"
+  pod-cidr: "10.42.0.0/16"
+  # The network config to install on each node.
+  # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
+  # disableIPv4/disableIPv6 fields in the interface section. You can also
+  # set the MTU for the webmesh interface by setting the mtu field. The 
+  # default is 1420.
+  cni-network-config: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "webmesh",
+          "logLevel": "info",
+          "logFile": "/var/log/webmesh-cni.log",
+          "interface": {
+              "mtu": 1420,
+              "disableIPv4": false,
+              "disableIPv6": false
+          },
+          "kubernetes": {
+              "kubeconfig": "__KUBECONFIG_FILEPATH__",
+              "nodeName": "__KUBERNETES_NODE_NAME__", 
+              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__",
+              "namespace": "__KUBERNETES_POD_NAMESPACE__"
+          }
+        }
+      ]
+    }
+---
+# The webmesh-node DaemonSet is used to install the webmesh-cni binaries
+# and configuration on each node in the cluster. It also runs the
+# webmesh-cni-node binary as a privileged container to manage the
+# network interfaces on each node.
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: webmesh-node
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-cni
+spec:
+  selector:
+    matchLabels:
+      k8s-app: webmesh-cni
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: webmesh-cni
+    spec:
+      serviceAccountName: webmesh-cni-sa
+      terminationGracePeriodSeconds: 0
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      initContainers:
+        - name: install-cni
+          image: ghcr.io/webmeshproj/webmesh-cni-distroless:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/webmesh-cni", "install"]
+          env:
+            # Paths to install the CNI binaries and config.
+            - name: WEBMESH_CNI_BIN_DIR
+              value: "/host/opt/cni/bin"
+            - name: WEBMESH_CNI_CONF_DIR
+              value: "/host/etc/cni/net.d"
+            # Name of the CNI config file to create.
+            - name: WEBMESH_CNI_CONF_NAME
+              value: "10-webmesh.conflist"
+            # The CNI network config to install on each node.
+            - name: WEBMESH_CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cni-network-config
+            # Set the hostname based on the k8s node name.
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: KUBERNETES_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
+          securityContext:
+            privileged: true
+      containers:
+        - name: webmesh-node
+          image: ghcr.io/webmeshproj/webmesh-cni-distroless:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/webmesh-cni", "node"]
+          env:
+            # Use the kubernetes storage provider. This is the only
+            # supported storage provider at the moment for k8s.
+            - name: STORAGE_PROVIDER
+              value: "kubernetes"
+            # Set the hostname based on the k8s node name.
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Set the namespace to use based on the one we are running.
+            - name: KUBERNETES_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Set the pod cidr based on the one we are running.
+            - name: WEBMESH_CNI_POD_CIDR
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: pod-cidr
+            # Set the cluster domain based on the one we are running.
+            - name: WEBMESH_CNI_CLUSTER_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: cluster-domain
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /lib/modules
+              name: lib-modules
+              readOnly: true
+            - mountPath: /dev/net/tun
+              name: dev-tun
+            - mountPath: /var/run/netns
+              name: host-netns
+              mountPropagation: Bidirectional
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 250m
+      volumes:
+        - name: dev-tun
+          hostPath:
+            path: /dev/net/tun
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: cni-bin-dir
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni-net-dir
+          hostPath:
+            path: /etc/cni/net.d
+        - name: host-netns
+          hostPath:
+            path: /var/run/netns

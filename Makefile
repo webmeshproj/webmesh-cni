@@ -117,10 +117,16 @@ dist: ## Build cni binaries for all supported architectures.
 snapshot: ## Same as dist, but with running all release steps except for signing.
 	$(GORELEASER) release --snapshot --skip=sign $(BUILD_ARGS)
 
-RAW_REPO_URL ?= https://github.com/webmeshproj/webmesh-cni/raw/main
+RAW_REPO_URL            ?= https://github.com/webmeshproj/webmesh-cni/raw/main
 STORAGE_PROVIDER_BUNDLE := https://github.com/webmeshproj/storage-provider-k8s/raw/main/deploy/bundle.yaml
-BUNDLE_DIR ?= deploy
-BUNDLE ?= $(BUNDLE_DIR)/bundle.yaml
+BUNDLE_DIR              ?= deploy
+BUNDLE                  ?= $(BUNDLE_DIR)/bundle.yaml
+DISTROLESS_BUNDLE       ?= $(BUNDLE_DIR)/bundle-distroless.yaml
+CRDS_SOURCE             ?= deploy/crds
+RBAC_SOURCE             ?= deploy/rbac
+CNI_SOURCE              ?= deploy/cni/cni.yaml
+CNI_DISTROLESS_SOURCE   ?= deploy/cni/cni-distroless.yaml
+
 bundle: generate ## Bundle creates a distribution bundle manifest.
 	mkdir -p $(BUNDLE_DIR)
 	rm -f $(BUNDLE)
@@ -134,13 +140,27 @@ bundle: generate ## Bundle creates a distribution bundle manifest.
 	@echo "+ Appending WebMesh CNI assets to $(BUNDLE)"
 	@echo "---" >> $(BUNDLE)
 	@echo "# Source: $(RAW_REPO_URL)/$(BUNDLE)" >> $(BUNDLE)
-	@for i in `find deploy/ -mindepth 2 -type f -not -name bundle.yaml` ; do \
+	@for i in `find $(CRDS_SOURCE) -type f -not -name bundle.yaml` ; do \
 		echo "---" >> $(BUNDLE) ; \
 		echo "# Source: $$i" >> $(BUNDLE) ; \
 		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
 	done
+	@for i in `find $(RBAC_SOURCE) -type f -not -name bundle.yaml` ; do \
+		echo "---" >> $(BUNDLE) ; \
+		echo "# Source: $$i" >> $(BUNDLE) ; \
+		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
+	done
+	@echo "---" >> $(BUNDLE)
+	@echo "# Source: $(CNI_SOURCE)" >> $(BUNDLE)
+	@cat $(CNI_SOURCE) | sed --posix -s -u 1,1d >> $(BUNDLE)
 	@echo "+ Setting bundle image to $(IMG)"
 	@sed -i 's^$(REPO):latest^$(IMG)^g' $(BUNDLE)
+
+distroless-bundle:
+	$(MAKE) bundle \
+		CNI_SOURCE=$(CNI_DISTROLESS_SOURCE) \
+		BUNDLE=$(DISTROLESS_BUNDLE) \
+		REPO=$(REPO)-distroless
 
 ##@ Local Development
 

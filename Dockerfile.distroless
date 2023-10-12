@@ -1,0 +1,5 @@
+FROM scratch
+
+ARG TARGETOS TARGETARCH
+ADD dist/webmesh-cni_${TARGETOS}_${TARGETARCH}*/webmesh-cni /webmesh-cni
+ENTRYPOINT ["/webmesh-cni"]
