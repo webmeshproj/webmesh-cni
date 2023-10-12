@@ -186,18 +186,32 @@ func Main(build version.BuildInfo) {
 		Config:   cniopts,
 	}
 	if err = containerReconciler.SetupWithManager(mgr); err != nil {
-		log.Error(err, "Failed to setup controller with manager", "controller", "PeerContainer")
+		log.Error(err, "Failed to setup container reconciler with manager", "controller", "PeerContainer")
 		os.Exit(1)
 	}
 	// Register a node reconciler to make sure edges exist across the cluster.
-	log.V(1).Info("Registering node reconciler")
+	log.V(1).Info("Registering node controller")
 	nodeReconciler := &controller.NodeReconciler{
 		Client:   mgr.GetClient(),
 		Provider: storageProvider,
 		NodeName: cniopts.Host.NodeID,
 	}
 	if err = nodeReconciler.SetupWithManager(mgr); err != nil {
-		log.Error(err, "Failed to setup controller with manager", "controller", "Node")
+		log.Error(err, "Failed to setup node reconciler with manager", "controller", "Node")
+		os.Exit(1)
+	}
+	// Register a pod reconciler to check for containers that can broadcast features
+	// to the outside.
+	log.V(1).Info("Registering pod controller")
+	podRecondiler := &controller.PodReconciler{
+		Client:       mgr.GetClient(),
+		Provider:     storageProvider,
+		DNSSelector:  cniopts.Manager.ClusterDNSSelector,
+		DNSNamespace: cniopts.Manager.ClusterDNSNamespace,
+		DNSPort:      cniopts.Manager.ClusterDNSPortSelector,
+	}
+	if err = podRecondiler.SetupWithManager(mgr); err != nil {
+		log.Error(err, "Failed to setup pod reconciler with manager", "controller", "Node")
 		os.Exit(1)
 	}
 

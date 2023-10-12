@@ -37,7 +37,7 @@ type Config struct {
 
 // ManagerConfig is the configuration for the controller manager.
 type ManagerConfig struct {
-	// RemoteEndpointDetection enables remote endpoint detection for peer contains.
+	// RemoteEndpointDetection enables remote endpoint detection for peer containers.
 	RemoteEndpointDetection bool `koanf:"remote-endpoint-detection"`
 	// MetricsAddress is the address to bind the metrics server to.
 	MetricsAddress string `koanf:"metrics-address"`
@@ -47,6 +47,13 @@ type ManagerConfig struct {
 	ReconcileTimeout time.Duration `koanf:"reconcile-timeout"`
 	// ShutdownTimeout is the timeout for shutting down the node.
 	ShutdownTimeout time.Duration `koanf:"shutdown-timeout"`
+	// ClusterDNSSelector is the selector used for trying to find pods that provide DNS
+	// for the cluster.
+	ClusterDNSSelector map[string]string `koanf:"cluster-dns-selector,omitempty"`
+	// ClusterDNSNamespace is the namespace to search for cluster DNS pods.
+	ClusterDNSNamespace string `koanf:"cluster-dns-namespace,omitempty"`
+	// ClusterDNSPortSelector is the name of the port assumed to be the DNS port.
+	ClusterDNSPortSelector string `koanf:"cluster-dns-port-selector,omitempty"`
 }
 
 // StorageConfig is the configuration for the storage provider.
@@ -74,6 +81,11 @@ func NewDefaultConfig() Config {
 			ProbeAddress:            ":8081",
 			ReconcileTimeout:        15 * time.Second,
 			ShutdownTimeout:         30 * time.Second,
+			ClusterDNSSelector: map[string]string{
+				"k8s-app": "kube-dns",
+			},
+			ClusterDNSNamespace:    "kube-system",
+			ClusterDNSPortSelector: "dns",
 		},
 		Storage: StorageConfig{
 			LeaderElectLeaseDuration: 15 * time.Second,
@@ -97,6 +109,9 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&c.MetricsAddress, prefix+"metrics-address", c.MetricsAddress, "The address the metric endpoint binds to.")
 	fs.StringVar(&c.ProbeAddress, prefix+"probe-address", c.ProbeAddress, "The address the probe endpoint binds to.")
 	fs.DurationVar(&c.ShutdownTimeout, prefix+"shutdown-timeout", c.ShutdownTimeout, "The timeout for shutting down the node.")
+	fs.StringToStringVar(&c.ClusterDNSSelector, prefix+"cluster-dns-selector", c.ClusterDNSSelector, "The selector used for trying to find pods that provide DNS for the cluster")
+	fs.StringVar(&c.ClusterDNSNamespace, prefix+"cluster-dns-namespace", c.ClusterDNSNamespace, "The namespace to search for cluster DNS pods")
+	fs.StringVar(&c.ClusterDNSPortSelector, prefix+"cluster-dns-port-selector", c.ClusterDNSPortSelector, "The name of the port assumed to be the DNS port")
 }
 
 func (c *StorageConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
