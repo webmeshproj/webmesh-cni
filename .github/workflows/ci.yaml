@@ -23,7 +23,7 @@ env:
 jobs:
   lint:
     name: Static Analysis
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.E2E_PLATFORM == '' && 'ubuntu-latest' || vars.E2E_PLATFORM }}
     permissions:
       contents: "read"
     steps:
@@ -42,6 +42,7 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout ${{ env.LINT_TIMEOUT }}
+          skip-cache: ${{ vars.E2E_PLATFORM != '' }}
 
   tests:
     name: Unit Tests
