@@ -41,7 +41,10 @@ type ConfigMapProvider struct {
 
 // NewConfigMapProvider returns a new configmap provider.
 func NewConfigMapProvider(cfg *rest.Config, obj client.ObjectKey) koanf.Provider {
-	return &ConfigMapProvider{}
+	return &ConfigMapProvider{
+		cfg: cfg,
+		obj: obj,
+	}
 }
 
 // Read returns the entire configuration as raw []bytes to be parsed.
@@ -75,26 +78,31 @@ func (c *ConfigMapProvider) Read() (map[string]any, error) {
 		default:
 			// Check if its valid JSON
 			if err := json.Unmarshal([]byte(v), &val); err == nil {
-				continue
+				goto Set
 			}
 			// Check if it can be parsed as a number
 			if n, err := strconv.Atoi(v); err == nil {
 				val = n
-				continue
+				goto Set
 			}
 			// Check if it can be parsed as a duration
 			if d, err := time.ParseDuration(v); err == nil {
 				val = d
-				continue
+				goto Set
 			}
+			val = v
 		}
+	Set:
 		fields := strings.Split(k, ".")
 		if len(fields) == 1 {
 			out[k] = val
 			continue
 		}
 		toSet := out
-		for _, f := range fields {
+		for i, f := range fields {
+			if i == len(fields)-1 {
+				break
+			}
 			if _, ok := toSet[f]; !ok {
 				toSet[f] = make(map[string]any)
 			}
