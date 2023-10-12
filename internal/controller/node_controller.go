@@ -31,6 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+
 // NodeReconciler watches for nodes joining and leaving the cluster and ensures
 // we have edges between the host node and them.
 type NodeReconciler struct {
@@ -38,8 +40,6 @@ type NodeReconciler struct {
 	Provider *provider.Provider
 	NodeName string
 }
-
-//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // SetupWithManager sets up the node reconciler with the manager.
 func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {

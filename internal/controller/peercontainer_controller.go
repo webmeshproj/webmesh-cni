@@ -46,6 +46,10 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
+
 // PeerContainerReconciler reconciles a PeerContainer object. Reconcile
 // attempts will fail until SetNetworkState is called.
 type PeerContainerReconciler struct {
@@ -60,12 +64,6 @@ type PeerContainerReconciler struct {
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
 var NewNode = meshnode.NewWithLogger
-
-//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=cni.webmesh.io,resources=peercontainers/finalizers,verbs=update
-
-//go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest rbac:roleName=webmesh-cni-role webhook paths='./...' output:rbac:artifacts:config=../../deploy/rbac"
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {

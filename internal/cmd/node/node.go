@@ -179,9 +179,10 @@ func Main(build version.BuildInfo) {
 
 	// Register the peer container controller.
 	log.V(1).Info("Registering peer container controller")
+	hostnode := host.NewNode(storageProvider, cniopts.Host)
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
-		Host:     host.NewNode(storageProvider, cniopts.Host),
+		Host:     hostnode,
 		Provider: storageProvider,
 		Config:   cniopts,
 	}
@@ -205,6 +206,7 @@ func Main(build version.BuildInfo) {
 	log.V(1).Info("Registering pod controller")
 	podRecondiler := &controller.PodReconciler{
 		Client:       mgr.GetClient(),
+		Host:         hostnode,
 		Provider:     storageProvider,
 		DNSSelector:  cniopts.Manager.ClusterDNSSelector,
 		DNSNamespace: cniopts.Manager.ClusterDNSNamespace,

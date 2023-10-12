@@ -18,9 +18,9 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
+	"net/netip"
+	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
@@ -30,25 +30,32 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
+
+//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 // PodReconciler watches for pods of interest to the outside world
 // that have become ready and ensures their features are advertised.
 type PodReconciler struct {
 	client.Client
+	Host         host.Node
 	Provider     *provider.Provider
 	DNSSelector  map[string]string
 	DNSNamespace string
 	DNSPort      string
 }
 
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
-
 // SetupWithManager sets up the node reconciler with the manager.
 func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("pod-features").
 		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []ctrl.Request {
+			// Fast path, if the host isn't running there isn't anything we care about
+			if !r.Host.Started() {
+				return nil
+			}
 			pod := o.(*corev1.Pod)
 			// Ignore pods that aren't in the DNS namespace.
 			if pod.GetNamespace() != r.DNSNamespace {
@@ -72,21 +79,38 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if pod.GetDeletionTimestamp() != nil {
 				return nil
 			}
-			// Make sure the pod has a container ID
-			var hasContainerID bool
-			for _, container := range pod.Status.ContainerStatuses {
-				if container.ContainerID != "" {
-					hasContainerID = true
-					break
+			// Return the request if the pod has an in network IP.
+			for _, ip := range pod.Status.PodIPs {
+				if ip.IP == "" {
+					continue
+				}
+				addr, err := netip.ParseAddr(ip.IP)
+				if err != nil {
+					log.FromContext(ctx).Error(err, "Failed to parse pod IP")
+					continue
+				}
+				if addr.Is6() {
+					if r.Host.Node().Network().NetworkV6().Contains(addr) {
+						return []ctrl.Request{{
+							NamespacedName: client.ObjectKey{
+								Namespace: pod.GetNamespace(),
+								Name:      pod.GetName(),
+							},
+						}}
+					}
+				}
+				if addr.Is4() {
+					if r.Host.Node().Network().NetworkV4().Contains(addr) {
+						return []ctrl.Request{{
+							NamespacedName: client.ObjectKey{
+								Namespace: pod.GetNamespace(),
+								Name:      pod.GetName(),
+							},
+						}}
+					}
 				}
 			}
-			if !hasContainerID {
-				return nil
-			}
-			// Reconcile the pod.
-			return []ctrl.Request{{
-				NamespacedName: client.ObjectKeyFromObject(pod),
-			}}
+			return nil
 		})).
 		Complete(r)
 }
@@ -94,55 +118,66 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile reconciles a node.
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
+	if !r.Host.Started() {
+		// Requeue until the host is started.
+		log.Info("Host not started, requeuing")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 2}, nil
+	}
 	log.Info("Reconciling available features for pod")
 	var pod corev1.Pod
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	// Check if the pod has a container ID so we can match it to a peer
-	for _, container := range pod.Status.ContainerStatuses {
-		if container.ContainerID != "" {
-			// There should be a peer in the storage provider with the truncated
-			// container ID.
-			log = log.WithValues("containerID", container.ContainerID)
-			log.Info("Found container ID for pod")
-			spl := strings.Split(container.ContainerID, "://")
-			if len(spl) != 2 {
-				log.Error(errors.New("invalid container ID"), "Failed to parse container ID")
-				return ctrl.Result{}, nil
-			}
-			containerID := spl[1]
-			// Get the peer from the storage provider.
-			id := meshtypes.TruncateID(containerID)
-			peer, err := r.Provider.MeshDB().Peers().Get(ctx, meshtypes.NodeID(id))
-			if err != nil {
-				log.Error(err, "Failed to lookup peer for container ID")
-				return ctrl.Result{}, nil
-			}
-			// Ensure the pod has the DNS feature.
-			if !peer.HasFeature(v1.Feature_MESH_DNS) {
-				log.Info("Ensuring pod has DNS feature")
-				peer.Features = append(peer.Features, &v1.FeaturePort{
-					Feature: v1.Feature_MESH_DNS,
-					Port: func() int32 {
-						for _, container := range pod.Spec.Containers {
-							for _, port := range container.Ports {
-								if port.Name == r.DNSPort {
-									return port.ContainerPort
-								}
-							}
+	// Get the peer from the storage provider by their IP address.
+	db := r.Provider.Datastore()
+	var peer meshtypes.MeshNode
+	for _, ip := range pod.Status.PodIPs {
+		if ip.IP == "" {
+			continue
+		}
+		addr, err := netip.ParseAddr(ip.IP)
+		if err != nil {
+			log.Error(err, "Failed to parse pod IP")
+			continue
+		}
+		switch {
+		case addr.Is4():
+			peer, err = db.GetPeerByIPv4Addr(ctx, netip.PrefixFrom(addr, 32))
+		case addr.Is6():
+			peer, err = db.GetPeerByIPv6Addr(ctx, netip.PrefixFrom(addr, 112))
+		default:
+			log.Info("Ignoring invalid IP address", "addr", addr.String())
+			continue
+		}
+		if err != nil {
+			log.Error(err, "Failed to lookup peer by IP address")
+			continue
+		}
+	}
+	if peer.MeshNode == nil {
+		return ctrl.Result{}, fmt.Errorf("failed to find peer for pod")
+	}
+	// Ensure the pod has the DNS feature.
+	if !peer.HasFeature(v1.Feature_MESH_DNS) {
+		log.Info("Ensuring pod has DNS feature")
+		peer.Features = append(peer.Features, &v1.FeaturePort{
+			Feature: v1.Feature_MESH_DNS,
+			Port: func() int32 {
+				for _, container := range pod.Spec.Containers {
+					for _, port := range container.Ports {
+						if port.Name == r.DNSPort {
+							return port.ContainerPort
 						}
-						// Assume the DNS port is 53.
-						return 53
-					}(),
-				})
-				if err := r.Provider.MeshDB().Peers().Put(ctx, peer); err != nil {
-					log.Error(err, "Failed to add DNS feature to peer")
-					return ctrl.Result{}, nil
+					}
 				}
-			}
+				// Assume the DNS port is 53.
+				return 53
+			}(),
+		})
+		if err := r.Provider.MeshDB().Peers().Put(ctx, peer); err != nil {
+			log.Error(err, "Failed to add DNS feature to peer")
 			return ctrl.Result{}, nil
 		}
 	}
-	return ctrl.Result{}, fmt.Errorf("pod has no container ID")
+	return ctrl.Result{}, nil
 }
