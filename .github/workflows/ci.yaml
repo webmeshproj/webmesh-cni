@@ -46,7 +46,7 @@ jobs:
   tests:
     name: Unit Tests
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.E2E_PLATFORM == '' && 'ubuntu-latest' || vars.E2E_PLATFORM }}
     permissions:
       contents: "read"
     steps:
@@ -55,6 +55,7 @@ jobs:
 
       - name: Setup Test Cache
         uses: actions/cache@v3
+        if: ${{ vars.E2E_PLATFORM == '' }}
         with:
           key: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-
