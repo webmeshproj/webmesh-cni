@@ -263,6 +263,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {
 		wgeps = append(wgeps, ep.String())
 	}
+	features := h.config.Services.NewFeatureSet(h.storage, h.config.Services.API.ListenPort())
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:                 h.nodeID.String(),
@@ -272,6 +273,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			ZoneAwarenessID:    h.nodeID.String(),
 			PrivateIPv4:        ipv4Addr,
 			PrivateIPv6:        ipv6Addr,
+			Features:           features,
 		},
 	}
 	err = h.storage.MeshDB().Peers().Put(ctx, peer)
