@@ -182,7 +182,7 @@ jobs:
 
       - name: Generate Bundle Manifests
         shell: bash
-        run: make generate bundle distroless-bundle
+        run: make generate bundle
 
       - name: Run CNI Build
         uses: goreleaser/goreleaser-action@v5
