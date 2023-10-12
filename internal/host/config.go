@@ -55,7 +55,7 @@ type Config struct {
 
 // NewDefaultConfig returns a new default configuration for the host webmesh node.
 func NewDefaultConfig() Config {
-	return Config{
+	c := Config{
 		NodeID:             os.Getenv(types.NodeNameEnvVar),
 		Namespace:          os.Getenv(types.PodNamespaceEnvVar),
 		LockDuration:       time.Second * 10,
@@ -68,6 +68,10 @@ func NewDefaultConfig() Config {
 		Network:            NewNetworkConfig(),
 		LogLevel:           "info",
 	}
+	// Make full-tunnel opt-in on the host node. It would almost certainly
+	// break things if it were enabled by default.
+	c.WireGuard.DisableFullTunnel = true
+	return c
 }
 
 func (o *Config) BindFlags(prefix string, fs *pflag.FlagSet) {
