@@ -159,7 +159,7 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 			LockAcquireTimeout: time.Second * 5,
 			ConnectTimeout:     time.Second * 30,
 			Network: host.NetworkConfig{
-				IPv4CIDR:      "10.42.0.0/16",
+				PodCIDR:       "10.42.0.0/16",
 				ClusterDomain: "cluster.local",
 				DisableIPv4:   false,
 				DisableIPv6:   false,

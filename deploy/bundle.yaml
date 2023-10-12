@@ -1266,7 +1266,10 @@ metadata:
 data:
   # TODO: Allow entire node config via ConfigMap.
   cluster-domain: "cluster.local"
+  # TODO: Currently IPv6 address space is computed at bootstrap,
+  # But we should allow this to be configured with the IPv4 address space.
   pod-cidr: "10.42.0.0/16"
+  service-cidr: "10.96.0.0/12,fd00:10:96::/112"
   # The network config to install on each node.
   # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
   # disableIPv4/disableIPv6 fields in the interface section. You can also
@@ -1399,6 +1402,12 @@ spec:
                 configMapKeyRef:
                   name: webmesh-config
                   key: pod-cidr
+            # Set the pod cidr based on the one we are running.
+            - name: WEBMESH_CNI_SERVICE_CIDR
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: service-cidr
             # Set the cluster domain based on the one we are running.
             - name: WEBMESH_CNI_CLUSTER_DOMAIN
               valueFrom:

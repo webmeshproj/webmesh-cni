@@ -6,6 +6,7 @@ networking:
   disableDefaultCNI: true
   kubeProxyMode: "ipvs"
   podSubnet: "10.42.0.0/16"
+  serviceSubnet: "10.96.0.0/12,fd00:10:96::/112"
 nodes:
 - role: control-plane
   extraMounts:

@@ -102,7 +102,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 	// Ensure the pod has the DNS feature.
 	if !peer.HasFeature(v1.Feature_MESH_DNS) {
-		log.Info("Ensuring pod has DNS feature")
+		log.Info("Ensuring pod has MeshDNS feature")
 		peer.Features = append(peer.Features, &v1.FeaturePort{
 			Feature: v1.Feature_MESH_DNS,
 			Port: func() int32 {

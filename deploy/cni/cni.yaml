@@ -101,6 +101,12 @@ spec:
                 configMapKeyRef:
                   name: webmesh-config
                   key: pod-cidr
+            # Set the pod cidr based on the one we are running.
+            - name: WEBMESH_CNI_SERVICE_CIDR
+              valueFrom:
+                configMapKeyRef:
+                  name: webmesh-config
+                  key: service-cidr
             # Set the cluster domain based on the one we are running.
             - name: WEBMESH_CNI_CLUSTER_DOMAIN
               valueFrom:

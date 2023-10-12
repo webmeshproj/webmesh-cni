@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -303,6 +304,11 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 				for _, ep := range eps {
 					out = append(out, ep.String())
 				}
+				if h.config.Network.ServiceCIDR != "" {
+					for _, addr := range strings.Split(h.config.Network.ServiceCIDR, ",") {
+						out = append(out, strings.TrimSpace(addr))
+					}
+				}
 				return out
 			}(),
 		},
@@ -354,7 +360,7 @@ func (h *hostNode) bootstrap(ctx context.Context) error {
 	// Make sure the network state is boostrapped.
 	bootstrapOpts := meshstorage.BootstrapOptions{
 		MeshDomain:           h.config.Network.ClusterDomain,
-		IPv4Network:          h.config.Network.IPv4CIDR,
+		IPv4Network:          h.config.Network.PodCIDR,
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
 		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.

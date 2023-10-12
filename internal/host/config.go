@@ -18,7 +18,10 @@ package host
 
 import (
 	"errors"
+	"fmt"
+	"net/netip"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -120,8 +123,10 @@ func (o *Config) Validate() error {
 type NetworkConfig struct {
 	// RemoteEndpointDetection enables remote endpoint detection for wireguard endpoints.
 	RemoteEndpointDetection bool `koanf:"remote-endpoint-detection,omitempty"`
-	// IPv4CIDR is the IPv4 CIDR to use for the network.
-	IPv4CIDR string `koanf:"ipv4-cidr,omitempty"`
+	// PodCIDR is the IPv4 CIDR to use for the pod network.
+	PodCIDR string `koanf:"pod-cidr,omitempty"`
+	// ServiceCIDR is a comma-separated list of CIDRs to use for the service network.
+	ServiceCIDR string `koanf:"service-cidr,omitempty"`
 	// ClusterDomain is the cluster domain to use for the network.
 	ClusterDomain string `koanf:"cluster-domain,omitempty"`
 	// DisableIPv4 disables IPv4 on the host webmesh node.
@@ -133,7 +138,8 @@ type NetworkConfig struct {
 func NewNetworkConfig() NetworkConfig {
 	return NetworkConfig{
 		RemoteEndpointDetection: false,
-		IPv4CIDR:                os.Getenv(types.PodCIDREnvVar),
+		PodCIDR:                 os.Getenv(types.PodCIDREnvVar),
+		ServiceCIDR:             os.Getenv(types.ServiceCIDREnvVar),
 		ClusterDomain:           os.Getenv(types.ClusterDomainEnvVar),
 		DisableIPv4:             false,
 		DisableIPv6:             false,
@@ -142,15 +148,28 @@ func NewNetworkConfig() NetworkConfig {
 
 func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.BoolVar(&n.RemoteEndpointDetection, prefix+"remote-endpoint-detection", n.RemoteEndpointDetection, "Enable remote endpoint detection for wireguard endpoints")
-	fs.StringVar(&n.IPv4CIDR, prefix+"ipv4-cidr", n.IPv4CIDR, "The IPv4 CIDR to use for the network")
+	fs.StringVar(&n.PodCIDR, prefix+"pod-cidr", n.PodCIDR, "The IPv4 CIDR to use for the pod network")
+	fs.StringVar(&n.ServiceCIDR, prefix+"service-cidr", n.ServiceCIDR, "The CIDR(s) to use for the service network")
 	fs.StringVar(&n.ClusterDomain, prefix+"cluster-domain", n.ClusterDomain, "The cluster domain to use for the network")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", n.DisableIPv4, "Disable IPv4 on the host webmesh node")
 	fs.BoolVar(&n.DisableIPv6, prefix+"disable-ipv6", n.DisableIPv6, "Disable IPv6 on the host webmesh node")
 }
 
 func (n *NetworkConfig) Validate() error {
-	if n.IPv4CIDR == "" {
+	if n.PodCIDR == "" {
 		return errors.New("ipv4-cidr must be set")
+	}
+	_, err := netip.ParsePrefix(n.PodCIDR)
+	if err != nil {
+		return fmt.Errorf("invalid ipv4-cidr: %w", err)
+	}
+	if n.ServiceCIDR != "" {
+		for _, addr := range strings.Split(n.ServiceCIDR, ",") {
+			_, err := netip.ParsePrefix(addr)
+			if err != nil {
+				return fmt.Errorf("invalid service-cidr: %w", err)
+			}
+		}
 	}
 	if n.ClusterDomain == "" {
 		return errors.New("cluster-domain must be set")
