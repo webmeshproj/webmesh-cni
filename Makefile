@@ -1,8 +1,10 @@
 
 # Image URL to use all building/pushing image targets
-REPO    ?= ghcr.io/webmeshproj/webmesh-cni
-VERSION ?= latest
-IMG     ?= $(REPO):$(VERSION)
+REPO            ?= ghcr.io/webmeshproj/webmesh-cni
+DISTROLESS_REPO ?= $(REPO)-distroless
+VERSION         ?= latest
+IMG             ?= $(REPO):$(VERSION)
+DISTROLESS_IMG  ?= $(DISTROLESS_REPO):$(VERSION)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
@@ -108,6 +110,12 @@ DOCKER ?= docker
 docker: build ## Build docker image for the current architecture.
 	$(DOCKER) build -t $(IMG) .
 
+docker-distroless: build
+	$(DOCKER) build \
+		--build-arg TARGETARCH=$(shell go env GOARCH) \
+		-t $(DISTROLESS_IMG) \
+		-f Dockerfile.distroless .
+
 ##@ Distribution
 
 .PHONY: dist
@@ -126,7 +134,6 @@ CRDS_SOURCE             ?= deploy/crds
 RBAC_SOURCE             ?= deploy/rbac
 CONFIG_SOURCE           ?= deploy/config
 CNI_SOURCE              ?= deploy/cni/cni.yaml
-CNI_DISTROLESS_SOURCE   ?= deploy/cni/cni-distroless.yaml
 
 bundle: ## Bundle creates a distribution bundle manifest.
 	@echo "+ Ensuring bundle directory $(BUNDLE_DIR)"
@@ -162,12 +169,6 @@ bundle: ## Bundle creates a distribution bundle manifest.
 	@cat $(CNI_SOURCE) | sed --posix -s -u 1,1d >> $(BUNDLE)
 	@echo "+ Setting bundle image to $(IMG)"
 	@sed -i 's^$(REPO):latest^$(IMG)^g' $(BUNDLE)
-
-distroless-bundle:
-	$(MAKE) bundle \
-		CNI_SOURCE=$(CNI_DISTROLESS_SOURCE) \
-		BUNDLE=$(DISTROLESS_BUNDLE) \
-		REPO=$(REPO)-distroless
 
 ##@ Local Development
 

@@ -1,6 +1,6 @@
 FROM ghcr.io/webmeshproj/alpine:3.18
 
-ARG TARGETOS TARGETARCH
+ARG TARGETOS=linux TARGETARCH=amd64
 ADD dist/webmesh-cni_${TARGETOS}_${TARGETARCH}*/webmesh-cni /webmesh-cni-node
 
 # Create symlink as install executable
