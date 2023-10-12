@@ -183,7 +183,7 @@ jobs:
 
       - name: Generate Bundle Manifests
         shell: bash
-        run: make bundle distroless-bundle
+        run: make generate bundle distroless-bundle
 
       - name: Run CNI Build
         uses: goreleaser/goreleaser-action@v5
@@ -236,8 +236,8 @@ jobs:
             ${{ env.BUNDLE_DIR }}/bundle.yaml
           cosign sign-blob --yes \
             --oidc-issuer=https://token.actions.githubusercontent.com \
-            --output-signature=${{ env.BUNDLE_DIR }}/bundle.yaml.sig \
-            --output-certificate=${{ env.BUNDLE_DIR }}/bundle.yaml.sig.cert \
+            --output-signature=${{ env.BUNDLE_DIR }}/bundle-distroless.yaml.sig \
+            --output-certificate=${{ env.BUNDLE_DIR }}/bundle-distroless.yaml.sig.cert \
             ${{ env.BUNDLE_DIR }}/bundle-distroless.yaml
 
       - name: Run CNI Release

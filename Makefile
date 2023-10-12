@@ -124,12 +124,14 @@ BUNDLE                  ?= $(BUNDLE_DIR)/bundle.yaml
 DISTROLESS_BUNDLE       ?= $(BUNDLE_DIR)/bundle-distroless.yaml
 CRDS_SOURCE             ?= deploy/crds
 RBAC_SOURCE             ?= deploy/rbac
+CONFIG_SOURCE           ?= deploy/config
 CNI_SOURCE              ?= deploy/cni/cni.yaml
 CNI_DISTROLESS_SOURCE   ?= deploy/cni/cni-distroless.yaml
 
-bundle: generate ## Bundle creates a distribution bundle manifest.
-	mkdir -p $(BUNDLE_DIR)
-	rm -f $(BUNDLE)
+bundle: ## Bundle creates a distribution bundle manifest.
+	@echo "+ Ensuring bundle directory $(BUNDLE_DIR)"
+	@mkdir -p $(BUNDLE_DIR)
+	@rm -f $(BUNDLE)
 	@echo "+ Loading storage provider assets from $(STORAGE_PROVIDER_BUNDLE)"
 	@echo "---" >> $(BUNDLE)
 	@echo "# BEGIN: $(STORAGE_PROVIDER_BUNDLE)" >> $(BUNDLE)
@@ -146,6 +148,11 @@ bundle: generate ## Bundle creates a distribution bundle manifest.
 		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
 	done
 	@for i in `find $(RBAC_SOURCE) -type f -not -name bundle.yaml` ; do \
+		echo "---" >> $(BUNDLE) ; \
+		echo "# Source: $$i" >> $(BUNDLE) ; \
+		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \
+	done
+	@for i in `find $(CONFIG_SOURCE) -type f -not -name bundle.yaml` ; do \
 		echo "---" >> $(BUNDLE) ; \
 		echo "# Source: $$i" >> $(BUNDLE) ; \
 		cat $$i | sed --posix -s -u 1,1d >> $(BUNDLE) ; \

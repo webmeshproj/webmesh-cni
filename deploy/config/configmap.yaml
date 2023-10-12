@@ -1,0 +1,41 @@
+---
+# This ConfigMap is used to configure the webmesh-cni installation.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: webmesh-config
+  namespace: kube-system
+  labels:
+    k8s-app: webmesh-cni
+data:
+  # TODO: Allow entire node config via ConfigMap.
+  cluster-domain: "cluster.local"
+  pod-cidr: "10.42.0.0/16"
+  # The network config to install on each node.
+  # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
+  # disableIPv4/disableIPv6 fields in the interface section. You can also
+  # set the MTU for the webmesh interface by setting the mtu field. The 
+  # default is 1420.
+  cni-network-config: |-
+    {
+      "name": "k8s-pod-network",
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "webmesh",
+          "logLevel": "info",
+          "logFile": "/var/log/webmesh-cni.log",
+          "interface": {
+              "mtu": 1420,
+              "disableIPv4": false,
+              "disableIPv6": false
+          },
+          "kubernetes": {
+              "kubeconfig": "__KUBECONFIG_FILEPATH__",
+              "nodeName": "__KUBERNETES_NODE_NAME__", 
+              "k8sAPIRoot": "__KUBERNETES_API_ENDPOINT__",
+              "namespace": "__KUBERNETES_POD_NAMESPACE__"
+          }
+        }
+      ]
+    }

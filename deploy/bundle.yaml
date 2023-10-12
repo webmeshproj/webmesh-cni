@@ -1246,7 +1246,7 @@ rules:
   - patch
   - update
 ---
-# Source: deploy/cni/cni.yaml
+# Source: deploy/config/configmap.yaml
 # This ConfigMap is used to configure the webmesh-cni installation.
 kind: ConfigMap
 apiVersion: v1
@@ -1288,6 +1288,7 @@ data:
       ]
     }
 ---
+# Source: deploy/cni/cni.yaml
 # The webmesh-node DaemonSet is used to install the webmesh-cni binaries
 # and configuration on each node in the cluster. It also runs the
 # webmesh-cni-node binary as a privileged container to manage the
