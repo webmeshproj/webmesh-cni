@@ -15,7 +15,8 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w 
+      - -s 
+      - -w 
       - -X github.com/webmeshproj/webmesh-cni/internal/version.Version={{ .Version }}
       - -X github.com/webmeshproj/webmesh-cni/internal/version.Commit={{ .Commit }}
       - -X github.com/webmeshproj/webmesh-cni/internal/version.BuildDate={{ .Date }}
