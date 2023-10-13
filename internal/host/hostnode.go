@@ -267,9 +267,14 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	features := h.config.Services.NewFeatureSet(h.storage, h.config.Services.API.ListenPort())
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
-			Id:                 h.nodeID.String(),
-			PublicKey:          encodedPubKey,
-			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
+			Id:        h.nodeID.String(),
+			PublicKey: encodedPubKey,
+			PrimaryEndpoint: func() string {
+				if eps.FirstPublicAddr().IsValid() {
+					return eps.FirstPublicAddr().String()
+				}
+				return eps.PrivateAddrs()[0].String()
+			}(),
 			WireguardEndpoints: wgeps,
 			ZoneAwarenessID:    h.nodeID.String(),
 			PrivateIPv4:        ipv4Addr,

@@ -384,7 +384,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		MeshNode: &v1.MeshNode{
 			Id:                 node.ID().String(),
 			PublicKey:          encoded,
-			PrimaryEndpoint:    eps.FirstPublicAddr().String(),
 			WireguardEndpoints: wgeps,
 			ZoneAwarenessID:    container.Spec.NodeName,
 			PrivateIPv4:        validOrEmpty(node.Network().WireGuard().AddressV4()),
