@@ -1,12 +1,13 @@
+---
 # This is a simple HTTP server that will be deployed into the
 # cluster and will be accessible to webmesh clients on its
 # cluster addresses. This can be replaced with any Kubernetes
 # application.
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: whoami
+  namespace: default
 spec:
   selector:
     matchLabels:
@@ -27,10 +28,14 @@ spec:
         - name: http
           containerPort: 80
 ---
+# The service makes the application accessible at a stable
+# cluster address. In this case it is accessible at
+# http://whoami.default.svc.cluster.local
 apiVersion: v1
 kind: Service
 metadata:
   name: whoami
+  namespace: default
 spec:
   selector:
     app: whoami
