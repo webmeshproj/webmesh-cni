@@ -31,6 +31,13 @@ builds:
     env:
      - CGO_ENABLED=0
 
+upx:
+  - ids: [webmesh-cni]
+    enabled: true
+    compress: best
+    lzma: true
+    goarch: [amd64, arm64, arm, '386', ppc64le]
+
 checksum:
   name_template: 'checksums.txt'
 
