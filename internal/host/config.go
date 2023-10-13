@@ -123,7 +123,8 @@ func (o *Config) Validate() error {
 type NetworkConfig struct {
 	// RemoteEndpointDetection enables remote endpoint detection for wireguard endpoints.
 	RemoteEndpointDetection bool `koanf:"remote-endpoint-detection,omitempty"`
-	// PodCIDR is the IPv4 CIDR to use for the pod network.
+	// PodCIDR is a comma separated list of CIDRs to use for the pod network.
+	// If no IPv6 CIDR is provided, one will be generated.
 	PodCIDR string `koanf:"pod-cidr,omitempty"`
 	// ServiceCIDR is a comma-separated list of CIDRs to use for the service network.
 	ServiceCIDR string `koanf:"service-cidr,omitempty"`
@@ -148,7 +149,7 @@ func NewNetworkConfig() NetworkConfig {
 
 func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.BoolVar(&n.RemoteEndpointDetection, prefix+"remote-endpoint-detection", n.RemoteEndpointDetection, "Enable remote endpoint detection for wireguard endpoints")
-	fs.StringVar(&n.PodCIDR, prefix+"pod-cidr", n.PodCIDR, "The IPv4 CIDR to use for the pod network")
+	fs.StringVar(&n.PodCIDR, prefix+"pod-cidr", n.PodCIDR, "The CIDR(s) to use for the pod network")
 	fs.StringVar(&n.ServiceCIDR, prefix+"service-cidr", n.ServiceCIDR, "The CIDR(s) to use for the service network")
 	fs.StringVar(&n.ClusterDomain, prefix+"cluster-domain", n.ClusterDomain, "The cluster domain to use for the network")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", n.DisableIPv4, "Disable IPv4 on the host webmesh node")
@@ -157,11 +158,13 @@ func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 
 func (n *NetworkConfig) Validate() error {
 	if n.PodCIDR == "" {
-		return errors.New("ipv4-cidr must be set")
+		return errors.New("pod-cidr must be set")
 	}
-	_, err := netip.ParsePrefix(n.PodCIDR)
-	if err != nil {
-		return fmt.Errorf("invalid ipv4-cidr: %w", err)
+	for _, addr := range strings.Split(n.PodCIDR, ",") {
+		_, err := netip.ParsePrefix(addr)
+		if err != nil {
+			return fmt.Errorf("invalid pod-cidr: %w", err)
+		}
 	}
 	if n.ServiceCIDR != "" {
 		for _, addr := range strings.Split(n.ServiceCIDR, ",") {

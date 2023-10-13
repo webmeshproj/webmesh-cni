@@ -8,7 +8,7 @@ networking:
   ipFamily: dual
   disableDefaultCNI: true
   kubeProxyMode: "ipvs"
-  podSubnet: "10.42.0.0/16"
+  podSubnet: "10.42.0.0/16,fd00:10:24::/48"
   serviceSubnet: "10.96.0.0/12,fd00:10:96::/112"
 nodes:
 - role: control-plane

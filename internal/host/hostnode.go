@@ -362,13 +362,29 @@ func (h *hostNode) bootstrap(ctx context.Context) error {
 		}
 		log.V(1).Info("Storage provider already bootstrapped, making sure network state is boostrapped")
 	}
+	var ipv4Cidr, ipv6Cidr string
+	for _, addr := range strings.Split(h.config.Network.PodCIDR, ",") {
+		prefix, err := netip.ParsePrefix(addr)
+		if err != nil {
+			return fmt.Errorf("invalid pod-cidr: %w", err)
+		}
+		if prefix.Addr().Is6() {
+			ipv6Cidr = prefix.String()
+		} else if prefix.Addr().Is4() {
+			ipv4Cidr = prefix.String()
+		}
+	}
+	if ipv4Cidr == "" {
+		ipv4Cidr = meshstorage.DefaultIPv4Network
+	}
 	// Make sure the network state is boostrapped.
 	bootstrapOpts := meshstorage.BootstrapOptions{
 		MeshDomain:           h.config.Network.ClusterDomain,
-		IPv4Network:          h.config.Network.PodCIDR,
+		IPv4Network:          ipv4Cidr,
+		IPv6Network:          ipv6Cidr,
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true, // Make this configurable? But really, just use the RBAC from Kubernetes.
+		DisableRBAC:          true, // Make this configurable?
 	}
 	log.V(1).Info("Attempting to bootstrap network state", "options", bootstrapOpts)
 	networkState, err := meshstorage.Bootstrap(ctx, h.storage.MeshDB(), bootstrapOpts)
