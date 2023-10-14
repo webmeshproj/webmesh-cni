@@ -32,8 +32,7 @@ import (
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=remotenetworks/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=remotenetworks/finalizers,verbs=update
 
-// PeerContainerReconciler reconciles a PeerContainer object. Reconcile
-// attempts will fail until SetNetworkState is called.
+// RemoteNetworkReconciler ensures bridge connections to other clusters.
 type RemoteNetworkReconciler struct {
 	client.Client
 	config.Config
@@ -44,7 +43,6 @@ type RemoteNetworkReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RemoteNetworkReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
-	// Create clients for IPAM locking
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.RemoteNetwork{}).
 		Complete(r)

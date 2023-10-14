@@ -101,3 +101,16 @@ type RemoteNetwork struct {
 	Spec   RemoteNetworkSpec   `json:"spec,omitempty"`
 	Status RemoteNetworkStatus `json:"status,omitempty"`
 }
+
+//+kubebuilder:object:root=true
+
+// RemoteNetworkList contains a list of RemoteNetworks.
+type RemoteNetworkList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []RemoteNetwork `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&RemoteNetwork{}, &RemoteNetworkList{})
+}
