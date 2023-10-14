@@ -27,6 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
+// FieldOwner is the field owner for CNI objects.
+const FieldOwner = "webmesh-cni"
+
 var (
 	// GroupVersion is group version used to register these objects
 	GroupVersion = schema.GroupVersion{Group: "cni.webmesh.io", Version: "v1"}

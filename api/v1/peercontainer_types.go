@@ -41,8 +41,6 @@ const (
 )
 
 const (
-	// FieldOwner is the field owner for CNI objects.
-	FieldOwner = "webmesh-cni"
 	// PeerContainerFinalizer is the PeerContainer finalizer.
 	PeerContainerFinalizer = "peercontainer.cniv1.webmesh.io"
 	// PeerContainerPodNameLabel is the label for the pod name.

@@ -38,6 +38,8 @@ const (
 )
 
 const (
+	// RemoteNetworkFinalizer is the RemoteNetwork finalizer.
+	RemoteNetworkFinalizer = "remotenetwork.cniv1.webmesh.io"
 	// KubeconfigKey is the key in the secret containing the kubeconfig
 	// for the remote network.
 	KubeconfigKey = "kubeconfig"
