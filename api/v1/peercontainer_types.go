@@ -51,6 +51,12 @@ const (
 	PeerContainerPodNamespaceLabel = "webmesh.io/pod-namespace"
 )
 
+// PeerContainerTypeMeta is the type meta for the PeerContainer.
+var PeerContainerTypeMeta = metav1.TypeMeta{
+	APIVersion: GroupVersion.String(),
+	Kind:       "PeerContainer",
+}
+
 // PeerContainerSpec defines the desired state of PeerContainer
 type PeerContainerSpec struct {
 	// NodeID is the ID to use for the container.

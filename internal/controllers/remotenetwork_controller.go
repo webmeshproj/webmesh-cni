@@ -18,10 +18,13 @@ package controllers
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
@@ -38,7 +41,7 @@ type RemoteNetworkReconciler struct {
 	config.Config
 	Provider *provider.Provider
 	Host     host.Node
-	// mu       sync.Mutex
+	mu       sync.Mutex
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -49,5 +52,13 @@ func (r *RemoteNetworkReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 }
 
 func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	log := log.FromContext(ctx)
+	if !r.Host.Started() {
+		// Request a requeue until the host is started.
+		log.Info("Host not started yet, requeuing")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 2}, nil
+	}
 	return ctrl.Result{}, nil
 }

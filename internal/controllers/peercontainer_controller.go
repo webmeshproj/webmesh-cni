@@ -127,6 +127,8 @@ func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.V(1).Info("Ignoring container for another node")
 		return ctrl.Result{}, nil
 	}
+	// Always ensure the type meta is set
+	container.TypeMeta = cniv1.PeerContainerTypeMeta
 	if container.GetDeletionTimestamp() != nil {
 		// Stop the mesh node for this container.
 		log.Info("Tearing down mesh node for container")

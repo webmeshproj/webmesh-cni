@@ -55,6 +55,12 @@ const (
 	PreSharedKeyKey = "pre-shared-key"
 )
 
+// RemoteNetworkTypeMeta is the type meta for the RemoteNetwork.
+var RemoteNetworkTypeMeta = metav1.TypeMeta{
+	APIVersion: GroupVersion.String(),
+	Kind:       "RemoteNetwork",
+}
+
 // RemoteNetworkSpec defines the configuration for peering with another
 // webmesh network.
 type RemoteNetworkSpec struct {
