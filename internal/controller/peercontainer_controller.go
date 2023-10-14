@@ -35,7 +35,6 @@ import (
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -58,7 +57,7 @@ type PeerContainerReconciler struct {
 	Provider *provider.Provider
 	Host     host.Node
 
-	containerNodes map[types.NamespacedName]meshnode.Node
+	containerNodes map[client.ObjectKey]meshnode.Node
 	mu             sync.Mutex
 }
 
@@ -68,7 +67,7 @@ var NewNode = meshnode.NewWithLogger
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	// Create clients for IPAM locking
-	r.containerNodes = make(map[types.NamespacedName]meshnode.Node)
+	r.containerNodes = make(map[client.ObjectKey]meshnode.Node)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)

@@ -54,6 +54,9 @@ type ManagerConfig struct {
 	ClusterDNSNamespace string `koanf:"cluster-dns-namespace,omitempty"`
 	// ClusterDNSPortSelector is the name of the port assumed to be the DNS port.
 	ClusterDNSPortSelector string `koanf:"cluster-dns-port-selector,omitempty"`
+	// EnableMetadataServer enables a metadata server on the node that containers
+	// can use to query information about themselves.
+	EnableMetadataServer bool `koanf:"enable-metadata-server"`
 }
 
 // StorageConfig is the configuration for the storage provider.
@@ -86,6 +89,7 @@ func NewDefaultConfig() Config {
 			},
 			ClusterDNSNamespace:    "kube-system",
 			ClusterDNSPortSelector: "dns",
+			EnableMetadataServer:   true,
 		},
 		Storage: StorageConfig{
 			LeaderElectLeaseDuration: 15 * time.Second,
@@ -112,6 +116,7 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringToStringVar(&c.ClusterDNSSelector, prefix+"cluster-dns-selector", c.ClusterDNSSelector, "The selector used for trying to find pods that provide DNS for the cluster")
 	fs.StringVar(&c.ClusterDNSNamespace, prefix+"cluster-dns-namespace", c.ClusterDNSNamespace, "The namespace to search for cluster DNS pods")
 	fs.StringVar(&c.ClusterDNSPortSelector, prefix+"cluster-dns-port-selector", c.ClusterDNSPortSelector, "The name of the port assumed to be the DNS port")
+	fs.BoolVar(&c.EnableMetadataServer, prefix+"enable-metadata-server", c.EnableMetadataServer, "Enable a metadata server on the node that containers can use to query information about themselves.")
 }
 
 func (c *StorageConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
