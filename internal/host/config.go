@@ -130,6 +130,8 @@ type NetworkConfig struct {
 	ServiceCIDR string `koanf:"service-cidr,omitempty"`
 	// ClusterDomain is the cluster domain to use for the network.
 	ClusterDomain string `koanf:"cluster-domain,omitempty"`
+	// Routes to allow for container and other connected node traffic.
+	Routes []string `koanf:"routes,omitempty"`
 	// DisableIPv4 disables IPv4 on the host webmesh node.
 	DisableIPv4 bool `koanf:"disable-ipv4,omitempty"`
 	// DisableIPv6 disables IPv6 on the host webmesh node.
@@ -142,6 +144,7 @@ func NewNetworkConfig() NetworkConfig {
 		PodCIDR:                 os.Getenv(types.PodCIDREnvVar),
 		ServiceCIDR:             os.Getenv(types.ServiceCIDREnvVar),
 		ClusterDomain:           os.Getenv(types.ClusterDomainEnvVar),
+		Routes:                  []string{"0.0.0.0/0", "::/0"},
 		DisableIPv4:             false,
 		DisableIPv6:             false,
 	}
@@ -152,6 +155,7 @@ func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&n.PodCIDR, prefix+"pod-cidr", n.PodCIDR, "The CIDR(s) to use for the pod network")
 	fs.StringVar(&n.ServiceCIDR, prefix+"service-cidr", n.ServiceCIDR, "The CIDR(s) to use for the service network")
 	fs.StringVar(&n.ClusterDomain, prefix+"cluster-domain", n.ClusterDomain, "The cluster domain to use for the network")
+	fs.StringSliceVar(&n.Routes, prefix+"routes", n.Routes, "Routes to allow for container and other connected node traffic")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", n.DisableIPv4, "Disable IPv4 on the host webmesh node")
 	fs.BoolVar(&n.DisableIPv6, prefix+"disable-ipv6", n.DisableIPv6, "Disable IPv6 on the host webmesh node")
 }
@@ -176,6 +180,15 @@ func (n *NetworkConfig) Validate() error {
 	}
 	if n.ClusterDomain == "" {
 		return errors.New("cluster-domain must be set")
+	}
+	if len(n.Routes) == 0 {
+		return errors.New("at least one route must be set")
+	}
+	for _, rt := range n.Routes {
+		_, err := netip.ParsePrefix(rt)
+		if err != nil {
+			return fmt.Errorf("invalid route: %w", err)
+		}
 	}
 	if n.DisableIPv4 && n.DisableIPv6 {
 		return errors.New("cannot disable both IPv4 and IPv6")

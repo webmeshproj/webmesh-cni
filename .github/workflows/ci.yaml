@@ -42,7 +42,7 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout ${{ env.LINT_TIMEOUT }}
-          skip-cache: ${{ vars.E2E_PLATFORM != '' }}
+          skip-cache: ${{ vars.E2E_PLATFORM == 'self-hosted' }}
 
   tests:
     name: Unit Tests
@@ -56,7 +56,7 @@ jobs:
 
       - name: Setup Test Cache
         uses: actions/cache@v3
-        if: ${{ vars.E2E_PLATFORM == '' }}
+        if: ${{ vars.E2E_PLATFORM != 'self-hosted' }}
         with:
           key: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-
@@ -73,7 +73,6 @@ jobs:
           cache: false
 
       - name: Run Unit Tests
-        shell: bash
         run: make ci-test
 
   e2e-tests:
@@ -90,7 +89,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
-        if: ${{ vars.E2E_PLATFORM == '' }}
+        if: ${{ vars.E2E_PLATFORM != 'self-hosted' }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
@@ -112,7 +111,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Generate Default Bundle Manifest
-        shell: bash
         run: make bundle
 
       - name: Run CNI Build
@@ -156,7 +154,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
-        if: ${{ vars.BUILD_PLATFORM == '' }}
+        if: ${{ vars.BUILD_PLATFORM != 'self-hosted' }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
@@ -181,8 +179,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Generate Bundle Manifests
-        shell: bash
-        run: make generate bundle
+        run: make bundle
 
       - name: Run CNI Build
         uses: goreleaser/goreleaser-action@v5

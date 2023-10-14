@@ -5,14 +5,16 @@ go 1.21.1
 require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.3.0
+	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.1
+	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 	github.com/knadh/koanf/v2 v2.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.9.0
-	github.com/webmeshproj/storage-provider-k8s v0.1.4
-	github.com/webmeshproj/webmesh v0.13.11
+	github.com/webmeshproj/storage-provider-k8s v0.2.0
+	github.com/webmeshproj/webmesh v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0
@@ -49,7 +51,6 @@ require (
 	github.com/fsnotify/fsnotify v1.6.1-0.20230713180834-9342b6df5779 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.5 // indirect
 	github.com/go-ldap/ldap/v3 v3.4.6 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect

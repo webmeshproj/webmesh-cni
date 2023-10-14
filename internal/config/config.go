@@ -18,11 +18,13 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"time"
 
 	"github.com/spf13/pflag"
 
 	"github.com/webmeshproj/webmesh-cni/internal/host"
+	"github.com/webmeshproj/webmesh-cni/internal/metadata"
 )
 
 // Config is the configuration for the the webmesh-cni controllers.
@@ -57,6 +59,8 @@ type ManagerConfig struct {
 	// EnableMetadataServer enables a metadata server on the node that containers
 	// can use to query information about themselves.
 	EnableMetadataServer bool `koanf:"enable-metadata-server"`
+	// MetadataAddress is the address to bind the metadata server to.
+	MetadataAddress string `koanf:"metadata-address"`
 }
 
 // StorageConfig is the configuration for the storage provider.
@@ -90,6 +94,7 @@ func NewDefaultConfig() Config {
 			ClusterDNSNamespace:    "kube-system",
 			ClusterDNSPortSelector: "dns",
 			EnableMetadataServer:   true,
+			MetadataAddress:        metadata.DefaultServerAddress.String(),
 		},
 		Storage: StorageConfig{
 			LeaderElectLeaseDuration: 15 * time.Second,
@@ -117,6 +122,7 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&c.ClusterDNSNamespace, prefix+"cluster-dns-namespace", c.ClusterDNSNamespace, "The namespace to search for cluster DNS pods")
 	fs.StringVar(&c.ClusterDNSPortSelector, prefix+"cluster-dns-port-selector", c.ClusterDNSPortSelector, "The name of the port assumed to be the DNS port")
 	fs.BoolVar(&c.EnableMetadataServer, prefix+"enable-metadata-server", c.EnableMetadataServer, "Enable a metadata server on the node that containers can use to query information about themselves.")
+	fs.StringVar(&c.MetadataAddress, prefix+"metadata-address", c.MetadataAddress, "The address the metadata server binds to.")
 }
 
 func (c *StorageConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
@@ -139,6 +145,12 @@ func (c *Config) Validate() error {
 func (c *ManagerConfig) Validate() error {
 	if c.ReconcileTimeout <= 0 {
 		return fmt.Errorf("reconcile timeout must be positive")
+	}
+	if c.EnableMetadataServer {
+		_, err := netip.ParseAddrPort(c.MetadataAddress)
+		if err != nil {
+			return fmt.Errorf("invalid metadata address: %w", err)
+		}
 	}
 	return nil
 }

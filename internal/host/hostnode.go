@@ -303,9 +303,8 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 		Route: &v1.Route{
 			Name: fmt.Sprintf("%s-node-gw", h.nodeID.String()),
 			Node: h.nodeID.String(),
-			// This should be more configurable.
 			DestinationCIDRs: func() []string {
-				out := []string{"0.0.0.0/0", "::/0"}
+				out := h.config.Network.Routes
 				for _, ep := range eps {
 					out = append(out, ep.String())
 				}

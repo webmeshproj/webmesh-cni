@@ -22,6 +22,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/controller"
 	"github.com/webmeshproj/webmesh-cni/internal/host"
+	"github.com/webmeshproj/webmesh-cni/internal/metadata"
 )
 
 var (
@@ -177,9 +179,22 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 
+	// Setup the host node.
+	var metaaddr netip.AddrPort
+	if cniopts.Manager.EnableMetadataServer {
+		// Append the metadata server to the allowed routes.
+		metaaddr, err = netip.ParseAddrPort(cniopts.Manager.MetadataAddress)
+		if err != nil {
+			log.Error(err, "Failed to parse metadata address")
+			os.Exit(1)
+		}
+		metaaddrPreifx := netip.PrefixFrom(metaaddr.Addr(), 32)
+		cniopts.Host.Network.Routes = append(cniopts.Host.Network.Routes, metaaddrPreifx.String())
+	}
+	hostnode := host.NewNode(storageProvider, cniopts.Host)
+
 	// Register the peer container controller.
 	log.V(1).Info("Registering peer container controller")
-	hostnode := host.NewNode(storageProvider, cniopts.Host)
 	containerReconciler := &controller.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Host:     hostnode,
@@ -278,6 +293,35 @@ func Main(build version.BuildInfo) {
 	log.Info("Webmesh CNI node started")
 
 	// Start any configured services.
+
+	if cniopts.Manager.EnableMetadataServer {
+		// Add the metadata address to the wireguard interface.
+		addr := netip.PrefixFrom(metaaddr.Addr(), 32)
+		err = host.Node().Network().WireGuard().AddAddress(ctx, addr)
+		if err != nil {
+			log.Error(err, "Failed to add metadata address to wireguard interface")
+			os.Exit(1)
+		}
+		metasrv := metadata.NewServer(metadata.Options{
+			Address:     metaaddr,
+			Host:        host,
+			Storage:     storageProvider,
+			KeyResolver: containerReconciler,
+		})
+		go func() {
+			log.Info("Starting metadata server")
+			err := metasrv.ListenAndServe()
+			if err != nil {
+				log.Error(err, "Failed to start metadata server")
+				os.Exit(1)
+			}
+		}()
+		defer func() {
+			if err := metasrv.Shutdown(context.Background()); err != nil {
+				log.Error(err, "Failed to shutdown metadata server")
+			}
+		}()
+	}
 
 	hostCtx := meshcontext.WithLogger(context.Background(), host.NodeLogger())
 	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())

@@ -73,6 +73,18 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 		Complete(r)
 }
 
+// LookupPrivateKey looks up the private key for the given node ID.
+func (r *PeerContainerReconciler) LookupPrivateKey(ctx context.Context, nodeID meshtypes.NodeID) (crypto.PrivateKey, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, node := range r.containerNodes {
+		if node.ID() == nodeID {
+			return node.Key(), true
+		}
+	}
+	return nil, false
+}
+
 // Shutdown shuts down the controller and all running mesh nodes.
 func (r *PeerContainerReconciler) Shutdown(ctx context.Context) {
 	r.mu.Lock()

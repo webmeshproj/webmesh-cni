@@ -53,7 +53,7 @@ help: ## Display this help.
 CONTROLLER_TOOLS_VERSION ?= v0.13.0
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
-generate: ## Run code generators, including DeepCopy methods and manifests.
+generate: ## Run code generators. This is done as needed by most targets.
 	go generate ./...
 
 .PHONY: fmt
@@ -103,7 +103,7 @@ PARALLEL   ?= $(shell nproc)
 GORELEASER ?= go run github.com/goreleaser/goreleaser@latest
 BUILD_ARGS ?= --skip=validate --clean --parallelism=$(PARALLEL)
 
-build: ## Build cni binaries for the current architecture.
+build: ## Build cni binary for the current architecture.
 	$(GORELEASER) build --snapshot --single-target $(BUILD_ARGS)
 
 DOCKER ?= docker
@@ -135,7 +135,7 @@ RBAC_SOURCE             ?= deploy/rbac
 CONFIG_SOURCE           ?= deploy/config
 CNI_SOURCE              ?= deploy/cni/cni.yaml
 
-bundle: ## Bundle creates a distribution bundle manifest.
+bundle: generate ## Bundle creates the distribution bundle manifest.
 	@echo "+ Ensuring bundle directory $(BUNDLE_DIR)"
 	@mkdir -p $(BUNDLE_DIR)
 	@rm -f $(BUNDLE)
@@ -196,7 +196,7 @@ install: ## Install the WebMesh CNI into the test kind cluster. Uses kustomize.
 remove-cluster: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
-debug-box:
+debug: ## Run a debug pod in the test kind cluster
 	$(KUBECTL) --context $(KIND_CONTEXT) run -it --rm --restart=Never --image=alpine -- sh
 
 clean: remove-cluster ## Remove all local binaries, test clusters, and release assets.
