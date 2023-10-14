@@ -1038,51 +1038,10 @@ spec:
                 - native
                 - kubernetes
                 type: string
-              peers:
-                description: Peers are one or more peers in the remote network. Endpoints
-                  must be supplied for one or more peers in the list if not using
-                  peer-discovery.
-                items:
-                  description: Peer is a CNI node in the remote network.
-                  properties:
-                    endpoints:
-                      description: Endpoints are the endpoints of the peer. When not
-                        performing authentication and not using peer-discovery, these
-                        are remote wireguard endpoints. When performing authentication
-                        without peer-discovery, these are remote gRPC endpoints.
-                      items:
-                        type: string
-                      type: array
-                    id:
-                      description: ID is the ID of the peer. If provided, the native
-                        authentication will attempt ID based authentication. If not
-                        provided, an ID will be extracted from the public key and
-                        used for authentication.
-                      type: string
-                    publicKey:
-                      description: PublicKey is the public key of the peer. This must
-                        be provided if no ID is provided.
-                      type: string
-                  required:
-                  - endpoints
-                  - id
-                  - publicKey
-                  type: object
-                type: array
-              preSharedKey:
-                description: PreSharedKey is a pre-shared key for seeding address
-                  space allocation in the bridge network.
-                type: string
-              rendezvous:
-                description: Rendezvous are DHT rendezvous points for the peer. These
-                  are used for peer discovery.
-                items:
-                  type: string
-                type: array
-              tlsCredentials:
-                description: TLSCredentials are a reference to a secret containing
-                  mTLS credentials for authenticating with the remote network. When
-                  not present, ID based authentication will be tried.
+              credentials:
+                description: Credentials are a reference to a secret containing either
+                  mTLS credentials or a kubeconfig for authenticating with the remote
+                  network. When not present, ID based authentication will be tried.
                 properties:
                   apiVersion:
                     description: API version of the referent.
@@ -1118,6 +1077,41 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              peers:
+                description: Peers are one or more peers in the remote network. These
+                  are optional when using kubernetes authentication. Endpoints must
+                  be supplied for one or more peers in the list if not using peer-discovery.
+                items:
+                  description: Peer is a CNI node in the remote network.
+                  properties:
+                    endpoints:
+                      description: Endpoints are the endpoints of the peer. When not
+                        performing authentication and not using peer-discovery, these
+                        are remote wireguard endpoints. When performing authentication
+                        without peer-discovery, these are remote gRPC endpoints.
+                      items:
+                        type: string
+                      type: array
+                    id:
+                      description: ID is the ID of the peer. If provided, the native
+                        authentication will attempt ID based authentication. If not
+                        provided, an ID will be extracted from the public key and
+                        used for authentication.
+                      type: string
+                    publicKey:
+                      description: PublicKey is the public key of the peer. This must
+                        be provided if no ID is provided.
+                      type: string
+                    rendezvous:
+                      description: Rendezvous is a rendezvous point for the peer.
+                        This is used for peer discovery.
+                      type: string
+                  type: object
+                type: array
+              preSharedKey:
+                description: PreSharedKey is a pre-shared key for seeding address
+                  space allocation in the bridge network.
+                type: string
             required:
             - authMethod
             type: object
@@ -1156,10 +1150,10 @@ spec:
                       description: PublicKey is the public key of the peer. This must
                         be provided if no ID is provided.
                       type: string
-                  required:
-                  - endpoints
-                  - id
-                  - publicKey
+                    rendezvous:
+                      description: Rendezvous is a rendezvous point for the peer.
+                        This is used for peer discovery.
+                      type: string
                   type: object
                 type: array
             required:
@@ -1249,6 +1243,32 @@ rules:
   - cni.webmesh.io
   resources:
   - peercontainers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks/status
   verbs:
   - get
   - patch

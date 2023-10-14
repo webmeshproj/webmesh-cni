@@ -44,20 +44,17 @@ type RemoteNetworkSpec struct {
 	// the remote network.
 	// +kubebuilder:validation:Enum=none;native;kubernetes
 	AuthMethod RemoteAuthMethod `json:"authMethod"`
-	// Peers are one or more peers in the remote network. Endpoints
-	// must be supplied for one or more peers in the list if not
-	// using peer-discovery.
+	// Peers are one or more peers in the remote network. These are optional
+	// when using kubernetes authentication. Endpoints must be supplied for
+	// one or more peers in the list if not using peer-discovery.
 	Peers []Peer `json:"peers,omitempty"`
-	// TLSCredentials are a reference to a secret containing mTLS credentials
-	// for authenticating with the remote network. When not present, ID based
-	// authentication will be tried.
-	TLSCredentials *corev1.ObjectReference `json:"tlsCredentials,omitempty"`
+	// Credentials are a reference to a secret containing either mTLS credentials
+	// or a kubeconfig for authenticating with the remote network. When not present,
+	// ID based authentication will be tried.
+	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
 	// PreSharedKey is a pre-shared key for seeding address space allocation
 	// in the bridge network.
 	PreSharedKey string `json:"preSharedKey,omitempty"`
-	// Rendezvous are DHT rendezvous points for the peer. These are used
-	// for peer discovery.
-	Rendezvous []string `json:"rendezvous,omitempty"`
 }
 
 // Peer is a CNI node in the remote network.
@@ -65,15 +62,18 @@ type Peer struct {
 	// ID is the ID of the peer. If provided, the native authentication
 	// will attempt ID based authentication. If not provided, an ID will
 	// be extracted from the public key and used for authentication.
-	ID string `json:"id"`
+	ID string `json:"id,omitempty"`
 	// PublicKey is the public key of the peer. This must be provided if no
 	// ID is provided.
-	PublicKey string `json:"publicKey"`
+	PublicKey string `json:"publicKey,omitempty"`
 	// Endpoints are the endpoints of the peer. When not performing
 	// authentication and not using peer-discovery, these are remote
 	// wireguard endpoints. When performing authentication without
 	// peer-discovery, these are remote gRPC endpoints.
-	Endpoints []string `json:"endpoints"`
+	Endpoints []string `json:"endpoints,omitempty"`
+	// Rendezvous is a rendezvous point for the peer. This is used for
+	// peer discovery.
+	Rendezvous string `json:"rendezvous,omitempty"`
 }
 
 // RemoteNetworkStatus will contain the status of the peering with

@@ -171,15 +171,10 @@ func (in *RemoteNetworkSpec) DeepCopyInto(out *RemoteNetworkSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.TLSCredentials != nil {
-		in, out := &in.TLSCredentials, &out.TLSCredentials
+	if in.Credentials != nil {
+		in, out := &in.Credentials, &out.Credentials
 		*out = new(corev1.ObjectReference)
 		**out = **in
-	}
-	if in.Rendezvous != nil {
-		in, out := &in.Rendezvous, &out.Rendezvous
-		*out = make([]string, len(*in))
-		copy(*out, *in)
 	}
 }
 

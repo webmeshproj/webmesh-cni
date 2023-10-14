@@ -46,3 +46,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cni.webmesh.io
+  resources:
+  - remotenetworks/status
+  verbs:
+  - get
+  - patch
+  - update

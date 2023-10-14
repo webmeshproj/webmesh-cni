@@ -51,7 +51,7 @@ import (
 
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
-	"github.com/webmeshproj/webmesh-cni/internal/controller"
+	"github.com/webmeshproj/webmesh-cni/internal/controllers"
 	"github.com/webmeshproj/webmesh-cni/internal/host"
 	"github.com/webmeshproj/webmesh-cni/internal/metadata"
 )
@@ -193,9 +193,9 @@ func Main(build version.BuildInfo) {
 	}
 	hostnode := host.NewNode(storageProvider, cniopts.Host)
 
-	// Register the peer container controller.
+	// Register the main peer container controller.
 	log.V(1).Info("Registering peer container controller")
-	containerReconciler := &controller.PeerContainerReconciler{
+	containerReconciler := &controllers.PeerContainerReconciler{
 		Client:   mgr.GetClient(),
 		Host:     hostnode,
 		Provider: storageProvider,
@@ -207,7 +207,7 @@ func Main(build version.BuildInfo) {
 	}
 	// Register a node reconciler to make sure edges exist across the cluster.
 	log.V(1).Info("Registering node controller")
-	nodeReconciler := &controller.NodeReconciler{
+	nodeReconciler := &controllers.NodeReconciler{
 		Client:   mgr.GetClient(),
 		Provider: storageProvider,
 		NodeName: cniopts.Host.NodeID,
@@ -217,9 +217,9 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 	// Register a pod reconciler to check for containers that can broadcast features
-	// to the outside.
+	// to the outside world.
 	log.V(1).Info("Registering pod controller")
-	podRecondiler := &controller.PodReconciler{
+	podRecondiler := &controllers.PodReconciler{
 		Client:       mgr.GetClient(),
 		Host:         hostnode,
 		Provider:     storageProvider,
@@ -229,6 +229,19 @@ func Main(build version.BuildInfo) {
 	}
 	if err = podRecondiler.SetupWithManager(mgr); err != nil {
 		log.Error(err, "Failed to setup pod reconciler with manager", "controller", "Node")
+		os.Exit(1)
+	}
+	// Register the remote network reconciler for maintaining bridge connections to
+	// other clusters.
+	log.V(1).Info("Registering remote network controller")
+	remoteNetworkReconciler := &controllers.RemoteNetworkReconciler{
+		Client:   mgr.GetClient(),
+		Config:   cniopts,
+		Provider: storageProvider,
+		Host:     hostnode,
+	}
+	if err = remoteNetworkReconciler.SetupWithManager(mgr); err != nil {
+		log.Error(err, "Failed to setup remote network reconciler with manager", "controller", "RemoteNetwork")
 		os.Exit(1)
 	}
 
