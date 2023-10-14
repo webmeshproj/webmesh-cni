@@ -1031,6 +1031,7 @@ spec:
               another webmesh network.
             properties:
               authMethod:
+                default: native
                 description: AuthMethod is the authentication method to use for peering
                   with the remote network.
                 enum:
@@ -1039,9 +1040,13 @@ spec:
                 - kubernetes
                 type: string
               credentials:
-                description: Credentials are a reference to a secret containing either
-                  mTLS credentials or a kubeconfig for authenticating with the remote
-                  network. When not present, ID based authentication will be tried.
+                description: Credentials are a reference to a secret containing credentials
+                  for the remote network. This must contain at a minimum a pre-shared-key
+                  for seeding address space allocation in the bridge network. It may
+                  also contain a kubeconfig for kubernetes authentication or TLS credentials
+                  for mTLS authentication. If native authentication is set and no
+                  kubeconfig or TLS credentials are present, ID authentication will
+                  be used.
                 properties:
                   apiVersion:
                     description: API version of the referent.
@@ -1108,12 +1113,9 @@ spec:
                       type: string
                   type: object
                 type: array
-              preSharedKey:
-                description: PreSharedKey is a pre-shared key for seeding address
-                  space allocation in the bridge network.
-                type: string
             required:
             - authMethod
+            - credentials
             type: object
           status:
             description: RemoteNetworkStatus will contain the status of the peering

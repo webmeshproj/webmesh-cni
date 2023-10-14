@@ -37,24 +37,43 @@ const (
 	RemoteAuthMethodKubernetes RemoteAuthMethod = "kubernetes"
 )
 
+const (
+	// KubeconfigKey is the key in the secret containing the kubeconfig
+	// for the remote network.
+	KubeconfigKey = "kubeconfig"
+	// TLSCertificateKey is the key in the secret containing the TLS certificate
+	// for the remote network.
+	TLSCertificateKey = "tls.crt"
+	// TLSPrivateKeyKey is the key in the secret containing the TLS private key
+	// for the remote network.
+	TLSPrivateKeyKey = "tls.key"
+	// TLSCACertificateKey is the key in the secret containing the TLS CA certificate
+	// for the remote network.
+	TLSCACertificateKey = "ca.crt"
+	// PreSharedKeyKey is the key in the secret containing the pre-shared-key
+	// for the remote network.
+	PreSharedKeyKey = "pre-shared-key"
+)
+
 // RemoteNetworkSpec defines the configuration for peering with another
 // webmesh network.
 type RemoteNetworkSpec struct {
 	// AuthMethod is the authentication method to use for peering with
 	// the remote network.
 	// +kubebuilder:validation:Enum=none;native;kubernetes
+	// +kubebuilder:default=native
 	AuthMethod RemoteAuthMethod `json:"authMethod"`
 	// Peers are one or more peers in the remote network. These are optional
 	// when using kubernetes authentication. Endpoints must be supplied for
 	// one or more peers in the list if not using peer-discovery.
 	Peers []Peer `json:"peers,omitempty"`
-	// Credentials are a reference to a secret containing either mTLS credentials
-	// or a kubeconfig for authenticating with the remote network. When not present,
-	// ID based authentication will be tried.
-	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
-	// PreSharedKey is a pre-shared key for seeding address space allocation
-	// in the bridge network.
-	PreSharedKey string `json:"preSharedKey,omitempty"`
+	// Credentials are a reference to a secret containing credentials for the remote
+	// network. This must contain at a minimum a pre-shared-key for seeding address
+	// space allocation in the bridge network. It may also contain a kubeconfig for
+	// kubernetes authentication or TLS credentials for mTLS authentication. If native
+	// authentication is set and no kubeconfig or TLS credentials are present, ID
+	// authentication will be used.
+	Credentials corev1.ObjectReference `json:"credentials"`
 }
 
 // Peer is a CNI node in the remote network.

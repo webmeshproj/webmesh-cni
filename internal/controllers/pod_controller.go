@@ -38,6 +38,8 @@ import (
 
 // PodReconciler watches for pods of interest to the outside world
 // that have become ready and ensures their features are advertised.
+// TODO: This reoconciler should be used to match up all pod names
+// with containers for easier lookup.
 type PodReconciler struct {
 	client.Client
 	Host         host.Node

@@ -151,6 +151,7 @@ func Main(build version.BuildInfo) {
 			Cache: &client.CacheOptions{
 				DisableFor: append(
 					storagev1.CustomObjects,
+					&cniv1.PeerContainer{},
 					&corev1.Secret{},
 					&corev1.ConfigMap{},
 				),

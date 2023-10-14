@@ -23,11 +23,14 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	meshcniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
@@ -76,9 +79,29 @@ func NewRawClientForConfig(conf *rest.Config) (client.Client, error) {
 	return client.New(conf, client.Options{
 		Scheme: scheme,
 		Cache: &client.CacheOptions{
-			DisableFor: append(storagev1.CustomObjects, &meshcniv1.PeerContainer{}),
+			DisableFor: append(
+				storagev1.CustomObjects,
+				&meshcniv1.PeerContainer{},
+				&corev1.Secret{},
+				&corev1.ConfigMap{},
+			),
 		},
 	})
+}
+
+// NewRawClientFromKubeconfigBytes creates a new client from the given kubeconfig bytes.
+func NewRawClientFromKubeconfigBytes(kubeconfig []byte) (client.Client, error) {
+	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+		conf, err := clientcmd.Load(kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig from file: %w", err)
+		}
+		return conf, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
+	}
+	return NewRawClientForConfig(cfg)
 }
 
 // Ping will make sure the client can contact the API server using
