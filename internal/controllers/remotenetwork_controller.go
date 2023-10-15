@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -249,6 +250,25 @@ func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1
 
 func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte, bridge meshnode.Node) error {
 	log := log.FromContext(ctx)
+	// Detect the current endpoints on the machine.
+	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
+		DetectPrivate:        true, // TODO: Not necessarily required in this case.
+		DetectIPv6:           !nw.Spec.Network.DisableIPv6,
+		AllowRemoteDetection: r.Manager.RemoteEndpointDetection,
+		SkipInterfaces: func() []string {
+			out := []string{r.HostNode.Node().Network().WireGuard().Name()}
+			for _, n := range r.bridges {
+				if n.Started() {
+					out = append(out, n.Network().WireGuard().Name())
+				}
+			}
+			return out
+		}(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to detect endpoints: %w", err)
+	}
+	// Create a connection to the remote cluster storage
 	cfg, err := types.NewRestConfigFromBytes(kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to create client from kubeconfig: %w", err)
@@ -327,13 +347,40 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			}(),
 		},
 	}
-	log.Info("Registering ourselves with remote meshdb", "peer", peer.MeshNode)
+	log.Info("Registering ourselves with the remote meshdb", "peer", peer.MeshNode)
 	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
 		return handleErr(fmt.Errorf("failed to register peer: %w", err))
 	}
+	log.Info("Registering local routes with the remote meshdb")
+	routeName := fmt.Sprintf("%s-node-gw", bridge.ID().String())
+	err = db.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
+		Route: &v1.Route{
+			Name: routeName,
+			Node: bridge.ID().String(),
+			DestinationCIDRs: func() []string {
+				var out []string
+				for _, ep := range eps {
+					out = append(out, ep.String())
+				}
+				if r.Host.Network.PodCIDR != "" {
+					for _, addr := range strings.Split(r.Host.Network.PodCIDR, ",") {
+						out = append(out, strings.TrimSpace(addr))
+					}
+				}
+				if r.Host.Network.ServiceCIDR != "" {
+					for _, addr := range strings.Split(r.Host.Network.ServiceCIDR, ",") {
+						out = append(out, strings.TrimSpace(addr))
+					}
+				}
+				return out
+			}(),
+		},
+	})
+	if err != nil {
+		return handleErr(fmt.Errorf("failed to register route: %w", err))
+	}
 	// Add ourselves as an observer to the remote consensus group.
-	// This should trigger the remote CNI to edge us to all other
-	// remote CNI nodes.
+	// This should trigger the remote CNI to edge us to all other remote CNI nodes.
 	err = db.Consensus().AddObserver(ctx, meshtypes.StoragePeer{
 		StoragePeer: &v1.StoragePeer{
 			Id:        bridge.ID().String(),
@@ -368,6 +415,9 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	})
 	leaveRTT := meshtransport.LeaveRoundTripperFunc(func(ctx context.Context, req *v1.LeaveRequest) (*v1.LeaveResponse, error) {
 		// We remove ourself from the remote network.
+		if err := db.MeshDB().Networking().DeleteRoute(ctx, routeName); err != nil {
+			log.Error(err, "Failed to remove route from remote meshdb")
+		}
 		if err := db.MeshDB().Peers().Delete(ctx, bridge.ID()); err != nil {
 			log.Error(err, "Failed to remove peer from remote meshdb")
 		}
@@ -415,25 +465,6 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		defer bridge.Close(ctx)
 		return fmt.Errorf("failed to get wireguard listen port: %w", err)
-	}
-	// Detect the current endpoints on the machine.
-	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
-		DetectPrivate:        true, // TODO: Not necessarily required in this case.
-		DetectIPv6:           !nw.Spec.Network.DisableIPv6,
-		AllowRemoteDetection: r.Manager.RemoteEndpointDetection,
-		SkipInterfaces: func() []string {
-			out := []string{r.HostNode.Node().Network().WireGuard().Name()}
-			for _, n := range r.bridges {
-				if n.Started() {
-					out = append(out, n.Network().WireGuard().Name())
-				}
-			}
-			return out
-		}(),
-	})
-	if err != nil {
-		defer bridge.Close(ctx)
-		return fmt.Errorf("failed to detect endpoints: %w", err)
 	}
 	var wgeps []string
 	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {

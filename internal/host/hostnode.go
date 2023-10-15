@@ -348,6 +348,10 @@ func (h *hostNode) Stop(ctx context.Context) error {
 	if err != nil {
 		log.Error(err, "Failed to remove host webmesh node from network")
 	}
+	err = h.storage.MeshDB().Networking().DeleteRoute(ctx, fmt.Sprintf("%s-node-gw", h.nodeID.String()))
+	if err != nil {
+		log.Error(err, "Failed to remove default gateway route")
+	}
 	err = h.node.Close(ctx)
 	if err != nil {
 		log.Error(err, "Failed to close host webmesh node")
