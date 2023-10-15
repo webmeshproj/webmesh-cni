@@ -217,7 +217,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			"networkV4", validOrNone(bridge.Network().NetworkV4()),
 			"networkV6", validOrNone(bridge.Network().NetworkV6()),
 		)
-		err := r.ensureInterfaceReadyStatus(ctx, nw, bridge)
+		err := r.ensureBridgeReadyStatus(ctx, nw, bridge)
 		if err != nil {
 			log.Error(err, "Failed to update bridge status")
 			return fmt.Errorf("failed to update bridge status: %w", err)
@@ -232,7 +232,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 }
 
 func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte, bridge meshnode.Node) error {
-	return nil
+	return fmt.Errorf("not implemented")
 }
 
 func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte, bridge meshnode.Node) error {
@@ -400,6 +400,13 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 
 func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
+	if bridge, ok := r.bridges[key]; ok {
+		err := bridge.Close(ctx)
+		if err != nil {
+			log.Error(err, "Failed to close bridge node")
+		}
+		delete(r.bridges, key)
+	}
 	if controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.RemoveFinalizer(nw, cniv1.RemoteNetworkFinalizer)
 		if updated {
@@ -435,7 +442,7 @@ func (r *RemoteNetworkReconciler) updateBridgeStatus(ctx context.Context, bridge
 	return nil
 }
 
-func (r *RemoteNetworkReconciler) ensureInterfaceReadyStatus(ctx context.Context, nw *cniv1.RemoteNetwork, node meshnode.Node) (err error) {
+func (r *RemoteNetworkReconciler) ensureBridgeReadyStatus(ctx context.Context, nw *cniv1.RemoteNetwork, node meshnode.Node) (err error) {
 	log := log.FromContext(ctx)
 	// Update the status to running and sets its IP address.
 	var updateStatus bool
@@ -480,6 +487,7 @@ func (r *RemoteNetworkReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		nw.Status.Error = ""
 		updateStatus = true
 	}
+	// TODO: Lookup our direct peers and populate the status
 	if updateStatus {
 		log.Info("Updating container interface status",
 			"newStatus", nw.Status,
