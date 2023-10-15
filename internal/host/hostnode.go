@@ -191,7 +191,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 	hostNode := NewMeshNode(h.nodeLog, meshnode.Config{
 		Key:             key,
 		NodeID:          h.nodeID.String(),
-		ZoneAwarenessID: h.nodeID.String(),
+		ZoneAwarenessID: h.config.NodeID,
 		DisableIPv4:     h.config.Network.DisableIPv4,
 		DisableIPv6:     h.config.Network.DisableIPv6,
 	})
@@ -224,7 +224,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			InterfaceName:         cnitypes.IfNameFromID(h.nodeID.String()),
 			ForceReplace:          true,
 			MTU:                   h.config.WireGuard.MTU,
-			ZoneAwarenessID:       h.nodeID.String(),
+			ZoneAwarenessID:       h.config.NodeID,
 			DisableIPv4:           h.config.Network.DisableIPv4,
 			DisableIPv6:           h.config.Network.DisableIPv6,
 			RecordMetrics:         h.config.WireGuard.RecordMetrics,

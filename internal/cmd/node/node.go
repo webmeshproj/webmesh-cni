@@ -139,8 +139,10 @@ func Main(build version.BuildInfo) {
 		HealthProbeBindAddress:  cniopts.Manager.ProbeAddress,
 		GracefulShutdownTimeout: &cniopts.Manager.ShutdownTimeout,
 		Controller: ctrlconfig.Controller{
+			MaxConcurrentReconciles: cniopts.Manager.MaxConcurrentReconciles,
 			GroupKindConcurrency: map[string]int{
 				"PeerContainer.cni.webmesh.io": 1,
+				"RemoteNetwork.cni.webmesh.io": 1,
 			},
 			NeedLeaderElection: &[]bool{false}[0],
 		},

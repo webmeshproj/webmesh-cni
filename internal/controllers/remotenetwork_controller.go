@@ -91,7 +91,14 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, r.reconcileRemove(ctx, req.NamespacedName, &nw)
 	}
 	log.Info("Reconciling remote network bridge")
-	return ctrl.Result{}, r.reconcileNetwork(ctx, req.NamespacedName, &nw)
+	err := r.reconcileNetwork(ctx, req.NamespacedName, &nw)
+	if err != nil {
+		log.Error(err, "Failed to reconcile remote network bridge")
+		return ctrl.Result{}, err
+	}
+	// Request a requeue in a minute to ensure the bridge is still running
+	// and all edges are up to date.
+	return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 }
 
 func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
@@ -120,7 +127,9 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 				return r.Host.Namespace
 			}(),
 		}, &secret); err != nil {
-			return fmt.Errorf("failed to fetch credentials: %w", err)
+			if client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("failed to fetch credentials: %w", err)
+			}
 		}
 		creds = secret.Data
 	}
@@ -130,9 +139,16 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	if !ok {
 		// Create the bridge node with the same attributes as the host.
 		log.Info("Webmesh node for bridge not found, we must need to create it")
+		nodeID := string(r.HostNode.ID())
+		privkey := r.HostNode.Node().Key()
+		if nw.Spec.AuthMethod == cniv1.RemoteAuthMethodNative && len(creds) == 0 {
+			// If there are no credentials configured, we assume we are using ID auth.
+			// So our node ID needs to match the key.
+			nodeID = privkey.ID()
+		}
 		node := NewNode(logging.NewLogger(r.Host.LogLevel, "json"), meshnode.Config{
-			Key:             r.HostNode.Node().Key(),
-			NodeID:          string(r.HostNode.Node().ID()),
+			Key:             privkey,
+			NodeID:          nodeID,
 			ZoneAwarenessID: r.Host.NodeID,
 			DisableIPv4:     r.Host.Network.DisableIPv4,
 			DisableIPv6:     r.Host.Network.DisableIPv6,

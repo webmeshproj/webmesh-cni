@@ -47,6 +47,10 @@ type ManagerConfig struct {
 	ProbeAddress string `koanf:"probe-address"`
 	// ReconcileTimeout is the timeout for reconciling a container's interface.
 	ReconcileTimeout time.Duration `koanf:"reconcile-timeout"`
+	// MaxConcurrentReconciles is the maximum number of concurrent reconciles.
+	// Most of the reconcilers take exclusive locks, so this will only apply
+	// to reconcilers as a whole.
+	MaxConcurrentReconciles int `koanf:"max-concurrent-reconciles"`
 	// ShutdownTimeout is the timeout for shutting down the node.
 	ShutdownTimeout time.Duration `koanf:"shutdown-timeout"`
 	// ClusterDNSSelector is the selector used for trying to find pods that provide DNS
@@ -88,6 +92,7 @@ func NewDefaultConfig() Config {
 			ProbeAddress:            ":8081",
 			ReconcileTimeout:        15 * time.Second,
 			ShutdownTimeout:         30 * time.Second,
+			MaxConcurrentReconciles: 1,
 			ClusterDNSSelector: map[string]string{
 				"k8s-app": "kube-dns",
 			},
@@ -118,6 +123,7 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&c.MetricsAddress, prefix+"metrics-address", c.MetricsAddress, "The address the metric endpoint binds to.")
 	fs.StringVar(&c.ProbeAddress, prefix+"probe-address", c.ProbeAddress, "The address the probe endpoint binds to.")
 	fs.DurationVar(&c.ShutdownTimeout, prefix+"shutdown-timeout", c.ShutdownTimeout, "The timeout for shutting down the node.")
+	fs.IntVar(&c.MaxConcurrentReconciles, prefix+"max-concurrent-reconciles", c.MaxConcurrentReconciles, "The maximum number of concurrent reconciles.")
 	fs.StringToStringVar(&c.ClusterDNSSelector, prefix+"cluster-dns-selector", c.ClusterDNSSelector, "The selector used for trying to find pods that provide DNS for the cluster")
 	fs.StringVar(&c.ClusterDNSNamespace, prefix+"cluster-dns-namespace", c.ClusterDNSNamespace, "The namespace to search for cluster DNS pods")
 	fs.StringVar(&c.ClusterDNSPortSelector, prefix+"cluster-dns-port-selector", c.ClusterDNSPortSelector, "The name of the port assumed to be the DNS port")
