@@ -139,10 +139,10 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		})
 		r.bridges[key] = node
 		// Update the status to created.
-		log.Info("Updating container interface status to created")
+		log.Info("Updating bridge interface status to created")
 		nw.Status.BridgeStatus = cniv1.BridgeStatusCreated
 		if err := r.updateBridgeStatus(ctx, nw); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
+			return fmt.Errorf("failed to update bridge status: %w", err)
 		}
 		return nil
 	}
@@ -174,7 +174,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		log.Info("Updating bridge interface status to starting")
 		nw.Status.BridgeStatus = cniv1.BridgeStatusStarting
 		if err := r.updateBridgeStatus(ctx, nw); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
+			return fmt.Errorf("failed to update bridge status: %w", err)
 		}
 		return nil
 	}
@@ -183,7 +183,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	select {
 	case <-bridge.Ready():
 		hwaddr, _ := bridge.Network().WireGuard().HardwareAddr()
-		log.Info("Webmesh node for container is running",
+		log.Info("Webmesh node for bridge is running",
 			"interfaceName", bridge.Network().WireGuard().Name(),
 			"macAddress", hwaddr.String(),
 			"ipv4Address", validOrNone(bridge.Network().WireGuard().AddressV4()),
@@ -193,12 +193,12 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		)
 		err := r.ensureInterfaceReadyStatus(ctx, nw, bridge)
 		if err != nil {
-			log.Error(err, "Failed to update container status")
-			return fmt.Errorf("failed to update container status: %w", err)
+			log.Error(err, "Failed to update bridge status")
+			return fmt.Errorf("failed to update bridge status: %w", err)
 		}
 	case <-ctx.Done():
 		// Update the status to failed.
-		log.Error(ctx.Err(), "Timed out waiting for mesh node to start")
+		log.Error(ctx.Err(), "Timed out waiting for bridge node to start")
 		// Don't delete the node or set it to failed yet, maybe it'll be ready on the next reconcile.
 		return ctx.Err()
 	}
