@@ -58,43 +58,45 @@ var PeerContainerTypeMeta = metav1.TypeMeta{
 // PeerContainerSpec defines the desired state of PeerContainer
 type PeerContainerSpec struct {
 	// NodeID is the ID to use for the container.
-	NodeID string `json:"nodeID"`
+	NodeID string `json:"nodeID,omitempty"`
 	// ContainerID is the ID of the container being created.
-	ContainerID string `json:"containerID"`
+	ContainerID string `json:"containerID,omitempty"`
 	// Netns is the network namespace of the container being created.
-	Netns string `json:"netns"`
+	Netns string `json:"netns,omitempty"`
 	// IfName is the name of the interface create.
-	IfName string `json:"ifName"`
+	IfName string `json:"ifName,omitempty"`
 	// NodeName is the name of the node the container is running on.
-	NodeName string `json:"nodeName"`
+	NodeName string `json:"nodeName,omitempty"`
 	// MTU is the MTU to set on the interface.
-	MTU int `json:"mtu"`
+	MTU int `json:"mtu,omitempty"`
 	// DisableIPv4 is whether to disable IPv4 on the interface.
-	DisableIPv4 bool `json:"disableIPv4"`
+	DisableIPv4 bool `json:"disableIPv4,omitempty"`
 	// DisableIPv6 is whether to disable IPv6 on the interface.
-	DisableIPv6 bool `json:"disableIPv6"`
+	DisableIPv6 bool `json:"disableIPv6,omitempty"`
 	// LogLevel is the log level for the webmesh interface.
-	LogLevel string `json:"logLevel"`
+	LogLevel string `json:"logLevel,omitempty"`
 }
 
 // PeerContainerStatus defines the observed state of PeerContainer
 type PeerContainerStatus struct {
 	// InterfaceStatus is the current status of the interface.
-	InterfaceStatus InterfaceStatus `json:"status"`
+	InterfaceStatus InterfaceStatus `json:"status,omitempty"`
 	// InterfaceName is the name of the interface.
-	InterfaceName string `json:"interfaceName"`
+	InterfaceName string `json:"interfaceName,omitempty"`
 	// MACAddress is the MAC address of the interface.
-	MACAddress string `json:"macAddress"`
+	MACAddress string `json:"macAddress,omitempty"`
 	// IPv4Address is the IPv4 address of the interface.
-	IPv4Address string `json:"ipv4Address"`
+	IPv4Address string `json:"ipv4Address,omitempty"`
 	// IPv6Address is the IPv6 address of the interface.
-	IPv6Address string `json:"ipv6Address"`
+	IPv6Address string `json:"ipv6Address,omitempty"`
 	// NetworkV4 is the IPv4 network of the interface.
-	NetworkV4 string `json:"networkV4"`
+	NetworkV4 string `json:"networkV4,omitempty"`
 	// NetworkV6 is the IPv6 network of the interface.
-	NetworkV6 string `json:"networkV6"`
+	NetworkV6 string `json:"networkV6,omitempty"`
+	// DNSServers is an optional list of extra DNS servers to use for the interface.
+	DNSServers []string `json:"dnsServers,omitempty"`
 	// Error is any error that occurred while peering the interface.
-	Error string `json:"error"`
+	Error string `json:"error,omitempty"`
 }
 
 // IsEmpty returns true if the status is empty.

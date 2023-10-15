@@ -815,20 +815,16 @@ spec:
                 description: NodeName is the name of the node the container is running
                   on.
                 type: string
-            required:
-            - containerID
-            - disableIPv4
-            - disableIPv6
-            - ifName
-            - logLevel
-            - mtu
-            - netns
-            - nodeID
-            - nodeName
             type: object
           status:
             description: PeerContainerStatus defines the observed state of PeerContainer
             properties:
+              dnsServers:
+                description: DNSServers is an optional list of extra DNS servers to
+                  use for the interface.
+                items:
+                  type: string
+                type: array
               error:
                 description: Error is any error that occurred while peering the interface.
                 type: string
@@ -853,15 +849,6 @@ spec:
               status:
                 description: InterfaceStatus is the current status of the interface.
                 type: string
-            required:
-            - error
-            - interfaceName
-            - ipv4Address
-            - ipv6Address
-            - macAddress
-            - networkV4
-            - networkV6
-            - status
             type: object
         type: object
     served: true
@@ -975,6 +962,11 @@ spec:
                     type: boolean
                   disableIPv6:
                     description: DisableIPv6 disables IPv6 forwarding on the interface.
+                    type: boolean
+                  forwardDNS:
+                    description: ForwardDNS enables forwarding DNS requests from the
+                      remote network. Requires that a MeshDNS server is running on
+                      each peered CNI node.
                     type: boolean
                   interfaceName:
                     description: InterfaceName is the name to give the interface.
