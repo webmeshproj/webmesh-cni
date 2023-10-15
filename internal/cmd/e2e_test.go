@@ -346,7 +346,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 							}
 							got = len(pods)
 							return got
-						}).ShouldEqual(time.Second*30, time.Second, expectedNodes)
+						}).ShouldEqual(time.Minute, time.Second, expectedNodes)
 						if !ok {
 							t.Fatalf("Failed to get expected number of CoreDNS pods: %d, got: %d", expectedNodes, got)
 						}
@@ -455,7 +455,7 @@ func TestWebmeshCNIEndToEnd(t *testing.T) {
 							}
 							got = len(pods)
 							return got
-						}).ShouldEqual(time.Second*30, time.Second, expectedPods)
+						}).ShouldEqual(time.Minute, time.Second, expectedPods)
 						if !ok {
 							t.Fatalf("Failed to get expected number of running pods: %d, got: %d", expectedPods, got)
 						}

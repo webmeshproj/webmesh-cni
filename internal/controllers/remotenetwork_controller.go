@@ -331,7 +331,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to register with remote as observer: %w", err))
 	}
-	// Setup a dummy join transport using the client to the remote network.
+	// Setup a join transport using the client to the remote network.
 	_ = meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 		// Retrieve the peer we created earlier
 		peer, err := db.MeshDB().Peers().Get(ctx, bridge.ID())
