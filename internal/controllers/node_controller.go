@@ -110,7 +110,7 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		MeshEdge: &v1.MeshEdge{
 			Source: r.Host.ID().String(),
 			Target: node.GetId(),
-			Weight: 1,
+			Weight: 100,
 		},
 	})
 	if err != nil {

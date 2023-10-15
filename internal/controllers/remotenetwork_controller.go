@@ -312,6 +312,8 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to encode public key: %w", err))
 	}
+	// TODO: We need to add our wireguard endpoints and optionally
+	// broadcast forward DNS.
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:              bridge.ID().String(),

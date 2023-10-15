@@ -418,6 +418,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		if err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{MeshEdge: &v1.MeshEdge{
 			Source: node.ID().String(),
 			Target: peer.NodeID().String(),
+			Weight: 50,
 		}}); err != nil {
 			// Try again on the next reconcile.
 			log.Error(err, "Failed to create edge", "targetNode", peer.NodeID())
