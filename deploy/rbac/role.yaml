@@ -7,14 +7,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - nodes
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   verbs:
   - get
@@ -68,6 +60,14 @@ rules:
   - cni.webmesh.io
   resources:
   - remotenetworks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.webmesh.io
+  resources:
+  - storagepeers/finalizers
   verbs:
   - get
   - patch

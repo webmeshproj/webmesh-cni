@@ -247,6 +247,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		return r.Host.Namespace
 	}()
 	db, err := provider.NewObserverWithConfig(cfg, provider.Options{
+		NodeID:    bridge.ID().String(),
 		Namespace: namespace,
 	})
 	if err != nil {
@@ -317,6 +318,18 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	log.Info("Registering ourselves with remote meshdb", "peer", peer.MeshNode)
 	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
 		return handleErr(fmt.Errorf("failed to register peer: %w", err))
+	}
+	// Add ourselves as an observer to the remote consensus group.
+	// This should trigger the remote CNI to edge us to all other
+	// remote CNI nodes.
+	err = db.Consensus().AddObserver(ctx, meshtypes.StoragePeer{
+		StoragePeer: &v1.StoragePeer{
+			Id:        bridge.ID().String(),
+			PublicKey: encoded,
+		},
+	})
+	if err != nil {
+		return handleErr(fmt.Errorf("failed to register with remote as observer: %w", err))
 	}
 	// Setup a dummy join transport using the client to the remote network.
 	_ = meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {

@@ -18,20 +18,23 @@ package controllers
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	v1 "github.com/webmeshproj/api/v1"
+	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
-	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
-	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// StoragePeerFinalizer is the StoragePeer finalizer.
+const StoragePeerFinalizer = "storagepeer.cniv1.webmesh.io"
+
+//+kubebuilder:rbac:groups=storage.webmesh.io,resources=storagepeers/finalizers,verbs=get;update;patch
 
 // NodeReconciler watches for nodes joining and leaving the cluster and ensures
 // we have edges between the host node and them.
@@ -45,55 +48,66 @@ type NodeReconciler struct {
 func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("node-edges").
-		Watches(&corev1.Node{}, &handler.EnqueueRequestForObject{}).
+		Watches(&storagev1.StoragePeer{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
 
 // Reconcile reconciles a node.
 func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	log.Info("Reconciling cluster node")
-	var node corev1.Node
+	log.Info("Reconciling cluster CNI node")
+	var node storagev1.StoragePeer
 	if err := r.Get(ctx, req.NamespacedName, &node); err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			log.Error(err, "Failed to lookup node")
 			return ctrl.Result{}, err
 		}
-		log.Info("Node not found, it was probably deleted, ensuring its gone from the consensus group")
-		err := r.Provider.Consensus().RemovePeer(ctx, meshtypes.StoragePeer{StoragePeer: &v1.StoragePeer{
-			Id: req.Name,
-		}}, false)
+		return ctrl.Result{}, nil
+	}
+	if node.GetName() == r.NodeName {
+		log.Info("Ignoring the local host node")
+		return ctrl.Result{}, nil
+	}
+	if node.GetDeletionTimestamp() != nil {
+		// Ensure the edge is removed.
+		log.Info("Removing edge to node", "source", r.NodeName, "target", node.GetName())
+		err := r.Provider.MeshDB().Peers().RemoveEdge(ctx, meshtypes.NodeID(r.NodeName), meshtypes.NodeID(node.GetId()))
 		if err != nil {
-			if !errors.Is(err, mesherrors.ErrNotLeader) {
-				log.Error(err, "Failed to remove node from consensus group")
+			log.Error(err, "Failed to remove edge to node")
+			return ctrl.Result{}, err
+		}
+		if controllerutil.ContainsFinalizer(&node, StoragePeerFinalizer) {
+			updated := controllerutil.RemoveFinalizer(&node, StoragePeerFinalizer)
+			if updated {
+				log.Info("Removing finalizer from storage peer")
+				if err := r.Update(ctx, &node); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
+				}
 			}
 		}
 		return ctrl.Result{}, nil
 	}
-	if node.GetName() == r.NodeName {
-		log.Info("Ignoring host node")
-		return ctrl.Result{}, nil
+	// Make sure the finalizer is present first.
+	if !controllerutil.ContainsFinalizer(&node, StoragePeerFinalizer) {
+		updated := controllerutil.AddFinalizer(&node, StoragePeerFinalizer)
+		if updated {
+			log.V(1).Info("Adding finalizer to storage peer")
+			if err := r.Update(ctx, &node); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to add finalizer: %w", err)
+			}
+			return ctrl.Result{}, nil
+		}
 	}
 	log.Info("Ensuring edge to node", "source", r.NodeName, "target", node.GetName())
 	err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{
 		MeshEdge: &v1.MeshEdge{
 			Source: r.NodeName,
-			Target: node.GetName(),
+			Target: node.GetId(),
 			Weight: 1,
 		},
 	})
 	if err != nil {
 		log.Error(err, "Failed to add edge to node")
-		return ctrl.Result{}, err
-	}
-	log.Info("Ensuring node in consensus group")
-	err = r.Provider.Consensus().AddVoter(ctx, meshtypes.StoragePeer{StoragePeer: &v1.StoragePeer{
-		Id:            node.GetName(),
-		Address:       node.Status.Addresses[0].Address,
-		ClusterStatus: v1.ClusterStatus_CLUSTER_VOTER,
-	}})
-	if err != nil && !errors.Is(err, mesherrors.ErrNotLeader) {
-		log.Error(err, "Failed to add node to consensus group")
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil

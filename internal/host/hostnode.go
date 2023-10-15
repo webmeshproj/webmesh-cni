@@ -216,7 +216,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			}, nil
 		}),
 		LeaveRoundTripper: meshtransport.LeaveRoundTripperFunc(func(ctx context.Context, req *v1.LeaveRequest) (*v1.LeaveResponse, error) {
-			// TODO: Actually leave the cluster.
+			// No-op, we clean up on shutdown
 			return &v1.LeaveResponse{}, nil
 		}),
 		NetworkOptions: meshnet.Options{
@@ -334,8 +334,17 @@ func (h *hostNode) Stop(ctx context.Context) error {
 	if !h.started.Load() {
 		return fmt.Errorf("host node must be started before it can be stopped")
 	}
+	// Try to remove ourself from the consensus group
+	err := h.storage.Consensus().RemovePeer(ctx, meshtypes.StoragePeer{
+		StoragePeer: &v1.StoragePeer{
+			Id: h.nodeID.String(),
+		},
+	}, false)
+	if err != nil {
+		log.Error(err, "Failed to remove host webmesh node from consensus group")
+	}
 	// Try to remove our peer from the mesh.
-	err := h.storage.MeshDB().Peers().Delete(ctx, h.nodeID)
+	err = h.storage.MeshDB().Peers().Delete(ctx, h.nodeID)
 	if err != nil {
 		log.Error(err, "Failed to remove host webmesh node from network")
 	}
