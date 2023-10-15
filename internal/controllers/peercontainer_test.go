@@ -79,18 +79,22 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 		return controllerutil.ContainsFinalizer(&container, cniv1.PeerContainerFinalizer)
 	}).ShouldEqual(time.Second*10, time.Second, true)
 	if !ok {
-		t.Error("Failed to see finalizer on peer container")
+		t.Fatalf("Failed to see finalizer on peer container")
 	}
 	// The node should eventually be in the reconcilers node list.
 	ok = testutil.Eventually[bool](func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		_, ok := r.containerNodes[key]
 		return ok
 	}).ShouldEqual(time.Second*10, time.Second, true)
 	if !ok {
-		t.Error("Failed to see node in reconciler")
+		t.Fatalf("Failed to see node in reconciler")
 	}
 	// The node should eventually be started.
 	ok = testutil.Eventually[bool](func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		node, ok := r.containerNodes[key]
 		if !ok {
 			// Would be very strange at this point
@@ -100,7 +104,7 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 		return node.Started()
 	}).ShouldEqual(time.Second*10, time.Second, true)
 	if !ok {
-		t.Error("Failed to see node in started state")
+		t.Fatalf("Failed to see node in started state")
 	}
 	// The peer container status should eventually be set to Running
 	var container cniv1.PeerContainer
@@ -114,14 +118,14 @@ func ValidateReconciledContainer(t *testing.T, r *PeerContainerReconciler, cli c
 		return container.Status.InterfaceStatus == cniv1.InterfaceStatusRunning
 	}).ShouldEqual(time.Second*10, time.Second, true)
 	if !ok {
-		t.Error("Failed to see container in running state")
+		t.Fatalf("Failed to see container in running state")
 	}
 	// All status fields should be populated
 	if container.Status.InterfaceName != container.Spec.IfName {
-		t.Error("Interface name not set correctly, got:", container.Status.InterfaceName, "expected:", container.Spec.IfName)
+		t.Fatal("Interface name not set correctly, got:", container.Status.InterfaceName, "expected:", container.Spec.IfName)
 	}
 	if !container.Status.HasNetworkInfo() {
-		t.Error("Network info not set")
+		t.Fatalf("Network info not set")
 	}
 }
 
@@ -148,10 +152,26 @@ func newTestContainerFor(r *PeerContainerReconciler) cniv1.PeerContainer {
 
 func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	t.Helper()
-	mgr, provider := newTestManager(t)
+	mgr := newTestManager(t)
 	var out []*PeerContainerReconciler
 	for i := 0; i < count; i++ {
 		id := uuid.NewString()
+		// Create the storage provider.
+		t.Log("Creating webmesh storage provider for reconciler")
+		storageOpts := storageprovider.Options{
+			NodeID:                      id,
+			Namespace:                   "default",
+			ListenPort:                  0,
+			LeaderElectionLeaseDuration: time.Second * 15,
+			LeaderElectionRenewDeadline: time.Second * 10,
+			LeaderElectionRetryPeriod:   time.Second * 2,
+			ShutdownTimeout:             time.Second * 10,
+		}
+		provider, err := storageprovider.NewWithManager(mgr, storageOpts)
+		if err != nil {
+			t.Fatal("Failed to create storage provider", err)
+		}
+		t.Log("Creating test reconciler", id)
 		host := host.NewNode(provider, host.Config{
 			NodeID:             id,
 			Namespace:          "default",
@@ -183,12 +203,14 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 				},
 			},
 		}
-		err := r.SetupWithManager(mgr)
+		t.Log("Setting up reconciler with manager")
+		err = r.SetupWithManager(mgr)
 		if err != nil {
 			t.Fatal("Failed to setup reconciler", err)
 		}
 		out = append(out, r)
 	}
+	t.Log("Starting manager and storage provider")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() {
@@ -197,18 +219,20 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 			t.Log("Failed to start manager", err)
 		}
 	}()
-	err := provider.StartUnmanaged(context.Background())
-	if err != nil {
-		t.Fatal("Failed to start storage provider", err)
-	}
-	t.Cleanup(func() {
-		err := provider.Close()
-		if err != nil {
-			t.Log("Failed to stop storage provider", err)
-		}
-	})
 	for _, r := range out {
-		err := r.Host.Start(ctx, mgr.GetConfig())
+		t.Log("Starting storage provider for reconciler")
+		err := r.Provider.StartUnmanaged(context.Background())
+		if err != nil {
+			t.Fatal("Failed to start storage provider", err)
+		}
+		t.Cleanup(func() {
+			err := r.Provider.Close()
+			if err != nil {
+				t.Log("Failed to stop storage provider", err)
+			}
+		})
+		t.Log("Starting host node for reconciler")
+		err = r.Host.Start(ctx, mgr.GetConfig())
 		if err != nil {
 			t.Fatal("Failed to start host node", err)
 		}
@@ -222,7 +246,7 @@ func newTestReconcilers(t *testing.T, count int) []*PeerContainerReconciler {
 	return out
 }
 
-func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
+func newTestManager(t *testing.T) ctrl.Manager {
 	t.Helper()
 	cfg := newTestEnv(t)
 	t.Log("Setting up test manager")
@@ -253,22 +277,7 @@ func newTestManager(t *testing.T) (ctrl.Manager, *storageprovider.Provider) {
 	if err != nil {
 		t.Fatal("Failed to create manager", err)
 	}
-	// Create the storage provider.
-	t.Log("Creating webmesh storage provider")
-	storageOpts := storageprovider.Options{
-		NodeID:                      uuid.NewString(),
-		Namespace:                   "default",
-		ListenPort:                  0,
-		LeaderElectionLeaseDuration: time.Second * 15,
-		LeaderElectionRenewDeadline: time.Second * 10,
-		LeaderElectionRetryPeriod:   time.Second * 2,
-		ShutdownTimeout:             shutdownTimeout,
-	}
-	provider, err := storageprovider.NewWithManager(mgr, storageOpts)
-	if err != nil {
-		t.Fatal("Failed to create storage provider", err)
-	}
-	return mgr, provider
+	return mgr
 }
 
 func newTestEnv(t *testing.T) *rest.Config {

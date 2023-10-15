@@ -73,7 +73,7 @@ setup-envtest: ## Setup envtest. This is automatically run by the test target.
 
 RICHGO       ?= go run github.com/kyoh86/richgo@v0.3.12
 TEST_TIMEOUT ?= 300s
-TEST_ARGS    ?= -v -cover -covermode=atomic -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
+TEST_ARGS    ?= -v -failfast -cover -covermode=atomic -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
 test: generate setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(SETUP))" CRD_PATHS="$(CURDIR)/deploy/crds" \
 		$(RICHGO) test $(TEST_ARGS) ./...
@@ -95,7 +95,7 @@ export E2E_KIND_EXEC=$(KIND)
 export E2E_KUSTOMIZE_EXEC=$(KUSTOMIZE)
 export E2E_TEST_IMAGE=$(IMG)
 e2e: ## Run e2e tests.
-	$(RICHGO) test -v -timeout=$(TEST_TIMEOUT) -tags=e2e ./internal/cmd
+	$(RICHGO) test -v -failfast -timeout=$(TEST_TIMEOUT) -tags=e2e ./internal/cmd
 
 ##@ Build
 

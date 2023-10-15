@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"sync"
 	"time"
 
@@ -541,18 +540,4 @@ func (r *PeerContainerReconciler) updateContainerStatus(ctx context.Context, con
 		return fmt.Errorf("failed to update status: %w", err)
 	}
 	return nil
-}
-
-func validOrEmpty(prefix netip.Prefix) string {
-	if prefix.IsValid() {
-		return prefix.String()
-	}
-	return ""
-}
-
-func validOrNone(prefix netip.Prefix) string {
-	if prefix.IsValid() {
-		return prefix.String()
-	}
-	return "none"
 }

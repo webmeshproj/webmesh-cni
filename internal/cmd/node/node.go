@@ -271,13 +271,15 @@ func Main(build version.BuildInfo) {
 		log.Error(err, "Failed to start webmesh storage provider")
 		os.Exit(1)
 	}
-	defer storageProvider.Close()
 
 	// Wait for the manager cache to sync and then get ready to handle requests
 
 	log.Info("Waiting for manager cache to sync", "timeout", cniopts.Storage.CacheSyncTimeout)
 	cacheCtx, cancel := context.WithTimeout(ctx, cniopts.Storage.CacheSyncTimeout)
 	if synced := mgr.GetCache().WaitForCacheSync(cacheCtx); !synced {
+		if err := storageProvider.Close(); err != nil {
+			log.Error(err, "Failed to stop storage provider")
+		}
 		cancel()
 		log.Error(err, "Timed out waiting for caches to sync")
 		os.Exit(1)
@@ -289,6 +291,10 @@ func Main(build version.BuildInfo) {
 	host := containerReconciler.Host
 	err = host.Start(ctx, mgr.GetConfig())
 	if err != nil {
+		if err := storageProvider.Close(); err != nil {
+			log.Error(err, "Failed to stop storage provider")
+		}
+		cancel()
 		log.Error(err, "Failed to start host node")
 		os.Exit(1)
 	}
@@ -302,6 +308,10 @@ func Main(build version.BuildInfo) {
 		addr := netip.PrefixFrom(metaaddr.Addr(), 32)
 		err = host.Node().Network().WireGuard().AddAddress(ctx, addr)
 		if err != nil {
+			err := host.Stop(ctx)
+			if err != nil {
+				log.Error(err, "Failed to stop host node")
+			}
 			log.Error(err, "Failed to add metadata address to wireguard interface")
 			os.Exit(1)
 		}
@@ -315,6 +325,10 @@ func Main(build version.BuildInfo) {
 			log.Info("Starting metadata server")
 			err := metasrv.ListenAndServe()
 			if err != nil {
+				err := host.Stop(ctx)
+				if err != nil {
+					log.Error(err, "Failed to stop host node")
+				}
 				log.Error(err, "Failed to start metadata server")
 				os.Exit(1)
 			}
@@ -329,11 +343,19 @@ func Main(build version.BuildInfo) {
 	hostCtx := meshcontext.WithLogger(context.Background(), host.NodeLogger())
 	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())
 	if err != nil {
+		err := host.Stop(ctx)
+		if err != nil {
+			log.Error(err, "Failed to stop host node")
+		}
 		log.Error(err, "Failed to create webmesh service options")
 		os.Exit(1)
 	}
 	srv, err := meshservices.NewServer(hostCtx, srvOpts)
 	if err != nil {
+		err := host.Stop(ctx)
+		if err != nil {
+			log.Error(err, "Failed to stop host node")
+		}
 		log.Error(err, "Failed to create webmesh services server")
 		os.Exit(1)
 	}
@@ -346,6 +368,10 @@ func Main(build version.BuildInfo) {
 			BuildInfo:   build,
 		})
 		if err != nil {
+			err := host.Stop(ctx)
+			if err != nil {
+				log.Error(err, "Failed to stop host node")
+			}
 			log.Error(err, "Failed to register webmesh services APIs")
 			os.Exit(1)
 		}
@@ -354,6 +380,10 @@ func Main(build version.BuildInfo) {
 		log.Info("Starting webmesh services")
 		err := srv.ListenAndServe()
 		if err != nil {
+			err := host.Stop(ctx)
+			if err != nil {
+				log.Error(err, "Failed to stop host node")
+			}
 			log.Error(err, "Failed to start webmesh services server")
 			os.Exit(1)
 		}
@@ -363,13 +393,12 @@ func Main(build version.BuildInfo) {
 	<-ctx.Done()
 
 	log.Info("Shutting down webmesh node and services")
-
 	shutdownCtx, cancel := context.WithTimeout(
 		ctrllog.IntoContext(context.Background(), log),
 		cniopts.Manager.ShutdownTimeout,
 	)
 	defer cancel()
-	err = containerReconciler.Host.Stop(shutdownCtx)
+	err = host.Stop(shutdownCtx)
 	if err != nil {
 		log.Error(err, "Failed to stop host node")
 	}
