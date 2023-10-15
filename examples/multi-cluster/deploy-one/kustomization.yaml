@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: kube-system
 resources:
 - ../../../deploy
-- cluster-two-peering.yaml
+# - cluster-two-peering.yaml
 labels:
 - includeSelectors: true
   pairs:

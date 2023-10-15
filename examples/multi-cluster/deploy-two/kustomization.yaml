@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: kube-system
 resources:
 - ../../../deploy
-- cluster-one-peering.yaml
+# - cluster-one-peering.yaml
 labels:
 - includeSelectors: true
   pairs:

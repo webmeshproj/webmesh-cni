@@ -103,21 +103,25 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, fmt.Errorf("failed to find peer for pod")
 	}
 	// Ensure the pod has the DNS feature.
+	dnsPort := func() int32 {
+		for _, container := range pod.Spec.Containers {
+			for _, port := range container.Ports {
+				if port.Name == r.DNSPort {
+					return port.ContainerPort
+				}
+			}
+		}
+		// Assume the DNS port is 53.
+		return 53
+	}()
 	if !peer.HasFeature(v1.Feature_MESH_DNS) {
 		log.Info("Ensuring pod has MeshDNS feature")
 		peer.Features = append(peer.Features, &v1.FeaturePort{
 			Feature: v1.Feature_MESH_DNS,
-			Port: func() int32 {
-				for _, container := range pod.Spec.Containers {
-					for _, port := range container.Ports {
-						if port.Name == r.DNSPort {
-							return port.ContainerPort
-						}
-					}
-				}
-				// Assume the DNS port is 53.
-				return 53
-			}(),
+			Port:    dnsPort,
+		}, &v1.FeaturePort{
+			Feature: v1.Feature_FORWARD_MESH_DNS,
+			Port:    dnsPort,
 		})
 		if err := r.Provider.MeshDB().Peers().Put(ctx, peer); err != nil {
 			log.Error(err, "Failed to add DNS feature to peer")
