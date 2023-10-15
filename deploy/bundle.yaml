@@ -920,6 +920,12 @@ spec:
                 - native
                 - kubernetes
                 type: string
+              checkInterval:
+                description: CheckInterval is the interval to check on the remote
+                  network status when using native or no authentication. Defaults
+                  to 1 minute. Kubernetes authentiation relies on storage subscription
+                  events and does not require a check interval.
+                type: string
               credentials:
                 description: Credentials are a reference to a secret containing credentials
                   for the remote network. It may contain a kubeconfig for kubernetes

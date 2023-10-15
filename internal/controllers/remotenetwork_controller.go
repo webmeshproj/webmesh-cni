@@ -105,9 +105,19 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to reconcile remote network bridge")
 		return ctrl.Result{}, err
 	}
-	// Request a requeue in a minute to ensure the bridge is still running
-	// and all edges are up to date.
-	return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
+
+	if nw.Spec.AuthMethod != cniv1.RemoteAuthMethodKubernetes {
+		// Request a requeue in a minute to ensure the bridge is still running
+		// and all node edges are up to date.
+		var requeueAfter time.Duration
+		if nw.Spec.CheckInterval != nil {
+			requeueAfter = nw.Spec.CheckInterval.Duration
+		} else {
+			requeueAfter = time.Minute
+		}
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueAfter}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {

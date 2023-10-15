@@ -22,6 +22,7 @@ package v1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -222,6 +223,11 @@ func (in *RemoteNetworkSpec) DeepCopyInto(out *RemoteNetworkSpec) {
 	if in.Credentials != nil {
 		in, out := &in.Credentials, &out.Credentials
 		*out = new(corev1.ObjectReference)
+		**out = **in
+	}
+	if in.CheckInterval != nil {
+		in, out := &in.CheckInterval, &out.CheckInterval
+		*out = new(metav1.Duration)
 		**out = **in
 	}
 }

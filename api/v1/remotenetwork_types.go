@@ -100,6 +100,10 @@ type RemoteNetworkSpec struct {
 	// credentials for mTLS authentication. If native authentication is set and no
 	// kubeconfig or TLS credentials are present, ID authentication will be used.
 	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
+	// CheckInterval is the interval to check on the remote network status when
+	// using native or no authentication. Defaults to 1 minute. Kubernetes authentiation
+	// relies on storage subscription events and does not require a check interval.
+	CheckInterval *metav1.Duration `json:"checkInterval,omitempty"`
 }
 
 // NetworkConfig is configuration options for the bridge connection.
