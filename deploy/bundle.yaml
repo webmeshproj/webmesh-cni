@@ -1222,15 +1222,11 @@ metadata:
 data:
   # TODO: Allow entire node config via ConfigMap.
   cluster-domain: "cluster.local"
-  # TODO: Currently IPv6 address space is computed at bootstrap,
-  # But we should allow this to be configured with the IPv4 address space.
+  # The cluster pod CIDR is used to handle IP allocation for pods.
   pod-cidr: "10.42.0.0/16,fd00:10:42::/48"
+  # The cluster service CIDR is used to determine which IPs are cluster-local.
   service-cidr: "10.96.0.0/12,fd00:10:96::/112"
   # The network config to install on each node.
-  # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
-  # disableIPv4/disableIPv6 fields in the interface section. You can also
-  # set the MTU for the webmesh interface by setting the mtu field. The 
-  # default is 1420.
   cni-network-config: |-
     {
       "name": "k8s-pod-network",
