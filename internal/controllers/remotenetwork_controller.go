@@ -241,6 +241,27 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return ctx.Err()
 	}
 
+	log.Info("Ensuring local routes to remote network")
+	err := r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
+		Route: &v1.Route{
+			Name: r.localRouteName(nw),
+			Node: r.HostNode.ID().String(),
+			DestinationCIDRs: func() []string {
+				var out []string
+				if bridge.Network().NetworkV4().IsValid() {
+					out = append(out, bridge.Network().NetworkV4().String())
+				}
+				if bridge.Network().NetworkV6().IsValid() {
+					out = append(out, bridge.Network().NetworkV6().String())
+				}
+				return out
+			}(),
+		},
+	})
+	if err != nil {
+		log.Error(err, "Failed to add local routes to remote network")
+		return fmt.Errorf("failed to add local routes to remote network: %w", err)
+	}
 	return bridge.Network().Peers().Sync(ctx)
 }
 
@@ -504,6 +525,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 
 func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
+	// Make sure the bridge connection is shutdown
 	if bridge, ok := r.bridges[key]; ok {
 		err := bridge.Close(ctx)
 		if err != nil {
@@ -511,6 +533,14 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key clien
 		}
 		delete(r.bridges, key)
 	}
+	// Make sure we've removed routes to the remote network.
+	err := r.Provider.MeshDB().Networking().DeleteRoute(ctx, r.localRouteName(nw))
+	if err != nil {
+		log.Error(err, "Failed to remove local routes to remote network")
+		// Try again on the next reconcile.
+		return fmt.Errorf("failed to remove local routes to remote network: %w", err)
+	}
+	// Remove the finalizer
 	if controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.RemoveFinalizer(nw, cniv1.RemoteNetworkFinalizer)
 		if updated {
@@ -521,6 +551,10 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key clien
 		}
 	}
 	return nil
+}
+
+func (r *RemoteNetworkReconciler) localRouteName(nw *cniv1.RemoteNetwork) string {
+	return fmt.Sprintf("%s-%s-bridge", r.HostNode.ID(), nw.GetName())
 }
 
 func (r *RemoteNetworkReconciler) setFailedStatus(ctx context.Context, bridge *cniv1.RemoteNetwork, reason error) {
