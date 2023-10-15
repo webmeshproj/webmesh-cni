@@ -85,6 +85,12 @@ type RemoteNetworkSpec struct {
 	// +kubebuilder:validation:Enum=none;native;kubernetes
 	// +kubebuilder:default=native
 	AuthMethod RemoteAuthMethod `json:"authMethod"`
+	// RemoteNamespace is the remote namespace to use for peer storage
+	// when using the kubernetes authentication method. Defaults to the
+	// storage namespace configured on the host.
+	RemoteNamespace string `json:"remoteNamespace,omitempty"`
+	// Network is the network configuration for the bridge connection.
+	Network NetworkConfig `json:"network,omitempty"`
 	// Peers are one or more peers in the remote network. These are optional
 	// when using kubernetes authentication. Endpoints must be supplied for
 	// one or more peers in the list if not using peer-discovery.
@@ -95,6 +101,24 @@ type RemoteNetworkSpec struct {
 	// or TLS credentials for mTLS authentication. If native authentication is set and
 	// no kubeconfig or TLS credentials are present, ID authentication will be used.
 	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
+}
+
+// NetworkConfig is configuration options for the bridge connection.
+type NetworkConfig struct {
+	// WireGuardPort is the port to use for WireGuard. One will be
+	// allocated automatically if not provided.
+	WireGuardPort int `json:"wireguardPort,omitempty"`
+	// InterfaceName is the name to give the interface. It will be
+	// automatically chosen from the name of the remote network if
+	// not provided.
+	InterfaceName string `json:"interfaceName,omitempty"`
+	// MTU is the MTU to use for the interface. It will be automatically
+	// chosen if not provided.
+	MTU int `json:"mtu,omitempty"`
+	// DisableIPv4 disables IPv4 forwarding on the interface.
+	DisableIPv4 bool `json:"disableIPv4,omitempty"`
+	// DisableIPv6 disables IPv6 forwarding on the interface.
+	DisableIPv6 bool `json:"disableIPv6,omitempty"`
 }
 
 // Peer is a CNI node in the remote network.

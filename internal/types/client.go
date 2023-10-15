@@ -89,19 +89,15 @@ func NewRawClientForConfig(conf *rest.Config) (client.Client, error) {
 	})
 }
 
-// NewRawClientFromKubeconfigBytes creates a new client from the given kubeconfig bytes.
-func NewRawClientFromKubeconfigBytes(kubeconfig []byte) (client.Client, error) {
-	cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+// NewRestConfigFromBytes creates a new rest config from the given kubeconfig bytes.
+func NewRestConfigFromBytes(kubeconfig []byte) (*rest.Config, error) {
+	return clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
 		conf, err := clientcmd.Load(kubeconfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load kubeconfig from file: %w", err)
 		}
 		return conf, nil
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
-	}
-	return NewRawClientForConfig(cfg)
 }
 
 // Ping will make sure the client can contact the API server using

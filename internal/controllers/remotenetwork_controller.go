@@ -22,9 +22,15 @@ import (
 	"sync"
 	"time"
 
+	v1 "github.com/webmeshproj/api/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/logging"
+	"github.com/webmeshproj/webmesh/pkg/meshnet"
+	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/netutil"
+	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	"github.com/webmeshproj/webmesh/pkg/plugins"
+	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +40,8 @@ import (
 	cniv1 "github.com/webmeshproj/webmesh-cni/api/v1"
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/host"
+	"github.com/webmeshproj/webmesh-cni/internal/ipam"
+	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
 //+kubebuilder:rbac:groups=cni.webmesh.io,resources=remotenetworks,verbs=get;list;watch;create;update;patch;delete
@@ -150,8 +158,8 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			Key:             privkey,
 			NodeID:          nodeID,
 			ZoneAwarenessID: r.Host.NodeID,
-			DisableIPv4:     r.Host.Network.DisableIPv4,
-			DisableIPv6:     r.Host.Network.DisableIPv6,
+			DisableIPv4:     nw.Spec.Network.DisableIPv4,
+			DisableIPv6:     nw.Spec.Network.DisableIPv6,
 		})
 		r.bridges[key] = node
 		// Update the status to created.
@@ -165,6 +173,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 
 	// Ensure the bridge is running.
 	if !bridge.Started() {
+		log.Info("Starting webmesh node for remote network bridge")
 		var err error
 		switch nw.Spec.AuthMethod {
 		case cniv1.RemoteAuthMethodNone, cniv1.RemoteAuthMethodNative:
@@ -226,6 +235,112 @@ func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1
 }
 
 func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte, bridge meshnode.Node) error {
+	log := log.FromContext(ctx)
+	cfg, err := types.NewRestConfigFromBytes(kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client from kubeconfig: %w", err)
+	}
+	namespace := func() string {
+		if nw.Spec.RemoteNamespace != "" {
+			return nw.Spec.RemoteNamespace
+		}
+		return r.Host.Namespace
+	}()
+	db, err := provider.NewObserverWithConfig(cfg, provider.Options{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create meshdb observer: %w", err)
+	}
+	err = db.StartManaged(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to start meshdb observer: %w", err)
+	}
+	handleErr := func(cause error) error {
+		if err := db.Close(); err != nil {
+			log.Error(err, "Failed to stop meshdb observer")
+		}
+		return cause
+	}
+	// Retrieve the state of the remote network.
+	remoteState, err := db.MeshDB().MeshState().GetMeshState(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get remote mesh state: %w", err)
+	}
+	// Create a peer for ourselves on the remote network.
+	var ipv4addr string
+	if !nw.Spec.Network.DisableIPv4 {
+		// Make sure we get an IPv4 allocation on the remote network.
+		ipam, err := ipam.NewAllocator(cfg, ipam.Config{
+			IPAM: plugins.IPAMConfig{},
+			Lock: ipam.LockConfig{
+				ID:                 r.Host.NodeID,
+				Namespace:          namespace,
+				LockDuration:       r.Host.LockDuration,
+				LockAcquireTimeout: r.Host.LockAcquireTimeout,
+			},
+			Network: remoteState.NetworkV4(),
+		})
+		if err != nil {
+			return handleErr(fmt.Errorf("failed to create IPAM allocator: %w", err))
+		}
+		err = ipam.Locker().Acquire(ctx)
+		if err != nil {
+			return handleErr(fmt.Errorf("failed to acquire IPAM lock: %w", err))
+		}
+		defer ipam.Locker().Release(ctx)
+		alloc, err := ipam.Allocate(ctx, bridge.ID())
+		if err != nil {
+			return handleErr(fmt.Errorf("failed to allocate IPv4 address: %w", err))
+		}
+		ipv4addr = alloc.String()
+	}
+	// Go ahead and register a Peer for this node.
+	encoded, err := bridge.Key().PublicKey().Encode()
+	if err != nil {
+		return handleErr(fmt.Errorf("failed to encode public key: %w", err))
+	}
+	peer := meshtypes.MeshNode{
+		MeshNode: &v1.MeshNode{
+			Id:              bridge.ID().String(),
+			PublicKey:       encoded,
+			ZoneAwarenessID: r.Host.NodeID,
+			PrivateIPv4:     ipv4addr,
+			PrivateIPv6: func() string {
+				if nw.Spec.Network.DisableIPv6 {
+					return ""
+				}
+				return netutil.AssignToPrefix(remoteState.NetworkV6(), bridge.Key().PublicKey()).String()
+			}(),
+		},
+	}
+	log.Info("Registering ourselves with remote meshdb", "peer", peer.MeshNode)
+	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
+		return handleErr(fmt.Errorf("failed to register peer: %w", err))
+	}
+	// Setup a dummy join transport using the client to the remote network.
+	_ = meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
+		// Retrieve the peer we created earlier
+		peer, err := db.MeshDB().Peers().Get(ctx, bridge.ID())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get registered peer for container: %w", err)
+		}
+		// Compute the current topology for the container.
+		peers, err := meshnet.WireGuardPeersFor(ctx, db.MeshDB(), bridge.ID())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get peers for container: %w", err)
+		}
+		return &v1.JoinResponse{
+			MeshDomain: remoteState.Domain(),
+			// We always return both networks regardless of IP preferences.
+			NetworkIPv4: remoteState.NetworkV4().String(),
+			NetworkIPv6: remoteState.NetworkV6().String(),
+			// Addresses as allocated above.
+			AddressIPv4: peer.PrivateIPv4,
+			AddressIPv6: peer.PrivateIPv6,
+			Peers:       peers,
+		}, nil
+	})
 	return nil
 }
 

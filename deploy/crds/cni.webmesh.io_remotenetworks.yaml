@@ -91,6 +91,29 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              network:
+                description: Network is the network configuration for the bridge connection.
+                properties:
+                  disableIPv4:
+                    description: DisableIPv4 disables IPv4 forwarding on the interface.
+                    type: boolean
+                  disableIPv6:
+                    description: DisableIPv6 disables IPv6 forwarding on the interface.
+                    type: boolean
+                  interfaceName:
+                    description: InterfaceName is the name to give the interface.
+                      It will be automatically chosen from the name of the remote
+                      network if not provided.
+                    type: string
+                  mtu:
+                    description: MTU is the MTU to use for the interface. It will
+                      be automatically chosen if not provided.
+                    type: integer
+                  wireguardPort:
+                    description: WireGuardPort is the port to use for WireGuard. One
+                      will be allocated automatically if not provided.
+                    type: integer
+                type: object
               peers:
                 description: Peers are one or more peers in the remote network. These
                   are optional when using kubernetes authentication. Endpoints must
@@ -122,6 +145,11 @@ spec:
                       type: string
                   type: object
                 type: array
+              remoteNamespace:
+                description: RemoteNamespace is the remote namespace to use for peer
+                  storage when using the kubernetes authentication method. Defaults
+                  to the storage namespace configured on the host.
+                type: string
             required:
             - authMethod
             type: object
