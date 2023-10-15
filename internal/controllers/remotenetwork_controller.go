@@ -145,7 +145,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 				if nw.Spec.Credentials.Namespace != "" {
 					return nw.Spec.Credentials.Namespace
 				}
-				return r.Host.Namespace
+				return key.Namespace
 			}(),
 		}, &secret); err != nil {
 			if client.IgnoreNotFound(err) != nil {

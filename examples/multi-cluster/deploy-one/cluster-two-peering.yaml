@@ -1,0 +1,9 @@
+apiVersion: cni.webmesh.io/v1
+kind: RemoteNetwork
+metadata:
+  name: cluster-two
+  namespace: kube-system
+spec:
+  authMethod: kubernetes
+  credentials:
+    name: cluster-two-credentials
