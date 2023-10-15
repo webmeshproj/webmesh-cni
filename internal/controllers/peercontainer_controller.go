@@ -61,9 +61,6 @@ type PeerContainerReconciler struct {
 	mu             sync.Mutex
 }
 
-// NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
-var NewNode = meshnode.NewWithLogger
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 	// Create clients for IPAM locking

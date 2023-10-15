@@ -76,12 +76,11 @@ type RemoteNetworkSpec struct {
 	// one or more peers in the list if not using peer-discovery.
 	Peers []Peer `json:"peers,omitempty"`
 	// Credentials are a reference to a secret containing credentials for the remote
-	// network. This must contain at a minimum a pre-shared-key for seeding address
-	// space allocation in the bridge network. It may also contain a kubeconfig for
-	// kubernetes authentication or TLS credentials for mTLS authentication. If native
-	// authentication is set and no kubeconfig or TLS credentials are present, ID
-	// authentication will be used.
-	Credentials corev1.ObjectReference `json:"credentials"`
+	// network. This may contain a pre-shared-key for seeding address space allocation
+	// in the bridge network. It may also contain a kubeconfig for kubernetes authentication
+	// or TLS credentials for mTLS authentication. If native authentication is set and
+	// no kubeconfig or TLS credentials are present, ID authentication will be used.
+	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
 }
 
 // Peer is a CNI node in the remote network.

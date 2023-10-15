@@ -17,4 +17,9 @@ limitations under the License.
 // Package controllers contains the controllers for the webmesh-cni.
 package controllers
 
+import meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+
 //go:generate sh -x -c "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest rbac:roleName=webmesh-cni-role webhook paths='./...' output:rbac:artifacts:config=../../deploy/rbac"
+
+// NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
+var NewNode = meshnode.NewWithLogger

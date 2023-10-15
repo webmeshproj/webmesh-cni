@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/webmeshproj/storage-provider-k8s/provider"
+	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -41,9 +43,11 @@ import (
 type RemoteNetworkReconciler struct {
 	client.Client
 	config.Config
-	Provider *provider.Provider
-	Host     host.Node
-	mu       sync.Mutex
+	Namespace string
+	Provider  *provider.Provider
+	Host      host.Node
+	bridges   map[client.ObjectKey]meshnode.Node
+	mu        sync.Mutex
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -82,6 +86,10 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
 	log.Info("Reconciling remote network")
+	if r.bridges == nil {
+		r.bridges = map[client.ObjectKey]meshnode.Node{}
+	}
+	// Ensure the finalizer on the network.
 	if !controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.AddFinalizer(nw, cniv1.RemoteNetworkFinalizer)
 		if updated {
@@ -92,6 +100,42 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, nw *cniv
 			return nil
 		}
 	}
+	// Fetch any credentials if provided.
+	var creds map[string][]byte
+	if nw.Spec.Credentials != nil {
+		var secret corev1.Secret
+		if err := r.Get(ctx, client.ObjectKey{
+			Name: nw.Spec.Credentials.Name,
+			Namespace: func() string {
+				if nw.Spec.Credentials.Namespace != "" {
+					return nw.Spec.Credentials.Namespace
+				}
+				return r.Namespace
+			}(),
+		}, &secret); err != nil {
+			return fmt.Errorf("failed to fetch credentials: %w", err)
+		}
+		creds = secret.Data
+	}
+	switch nw.Spec.AuthMethod {
+	case cniv1.RemoteAuthMethodNone, cniv1.RemoteAuthMethodNative:
+		return r.reconcileWithRPCs(ctx, nw, creds)
+	case cniv1.RemoteAuthMethodKubernetes:
+		kubeconfig, ok := creds[cniv1.KubeconfigKey]
+		if !ok {
+			return fmt.Errorf("kubeconfig not provided in credentials")
+		}
+		return r.reconcileWithKubeconfig(ctx, nw, kubeconfig)
+	default:
+		return fmt.Errorf("unknown auth method: %s", nw.Spec.AuthMethod)
+	}
+}
+
+func (r *RemoteNetworkReconciler) reconcileWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte) error {
+	return nil
+}
+
+func (r *RemoteNetworkReconciler) reconcileWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte) error {
 	return nil
 }
 
