@@ -26,6 +26,7 @@ import (
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/netutil"
 	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
@@ -238,7 +239,8 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		// Don't delete the node or set it to failed yet, maybe it'll be ready on the next reconcile.
 		return ctx.Err()
 	}
-	return nil
+
+	return bridge.Network().Peers().Sync(ctx)
 }
 
 func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte, bridge meshnode.Node) error {
@@ -307,13 +309,10 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		}
 		ipv4addr = alloc.String()
 	}
-	// Go ahead and register a Peer for this node.
 	encoded, err := bridge.Key().PublicKey().Encode()
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to encode public key: %w", err))
 	}
-	// TODO: We need to add our wireguard endpoints and optionally
-	// broadcast forward DNS.
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:              bridge.ID().String(),
@@ -407,6 +406,67 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		},
 		PreferIPv6: !nw.Spec.Network.DisableIPv6,
 	})
+	if err != nil {
+		return handleErr(fmt.Errorf("failed to connect to remote network: %w", err))
+	}
+	log.Info("Bridge node is connected, registering endpoints with remote network")
+	wireguardPort, err := bridge.Network().WireGuard().ListenPort()
+	if err != nil {
+		defer bridge.Close(ctx)
+		return fmt.Errorf("failed to get wireguard listen port: %w", err)
+	}
+	// Detect the current endpoints on the machine.
+	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
+		DetectPrivate:        true, // TODO: Not necessarily required in this case.
+		DetectIPv6:           !nw.Spec.Network.DisableIPv6,
+		AllowRemoteDetection: r.Manager.RemoteEndpointDetection,
+		SkipInterfaces: func() []string {
+			out := []string{r.HostNode.Node().Network().WireGuard().Name()}
+			for _, n := range r.bridges {
+				if n.Started() {
+					out = append(out, n.Network().WireGuard().Name())
+				}
+			}
+			return out
+		}(),
+	})
+	if err != nil {
+		defer bridge.Close(ctx)
+		return fmt.Errorf("failed to detect endpoints: %w", err)
+	}
+	var wgeps []string
+	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {
+		wgeps = append(wgeps, ep.String())
+	}
+	// Patch the peer we created earlier with our wireguard endpoints
+	peer = meshtypes.MeshNode{
+		MeshNode: &v1.MeshNode{
+			Id:        bridge.ID().String(),
+			PublicKey: encoded,
+			PrimaryEndpoint: func() string {
+				if eps.FirstPublicAddr().IsValid() {
+					return eps.FirstPublicAddr().String()
+				}
+				return eps.PrivateAddrs()[0].String()
+			}(),
+			WireguardEndpoints: wgeps,
+			ZoneAwarenessID:    r.Host.NodeID,
+			PrivateIPv4:        ipv4addr,
+			PrivateIPv6: func() string {
+				if nw.Spec.Network.DisableIPv6 {
+					return ""
+				}
+				return netutil.AssignToPrefix(remoteState.NetworkV6(), bridge.Key().PublicKey()).String()
+			}(),
+			// TODO: Optionally advertise forward DNS.
+			Features: nil,
+		},
+	}
+	log.Info("Updating peer with wireguard endpoints", "peer", peer.MeshNode)
+	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
+		defer bridge.Close(ctx)
+		return fmt.Errorf("failed to update peer with wireguard endpoints: %w", err)
+	}
 	return err
 }
 
