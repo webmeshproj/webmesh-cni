@@ -60,9 +60,9 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			return ctrl.Result{}, err
 		}
 		log.Info("Node not found, it was probably deleted, ensuring its gone from the consensus group")
-		err := r.Provider.Consensus().RemovePeer(ctx, &v1.StoragePeer{
+		err := r.Provider.Consensus().RemovePeer(ctx, meshtypes.StoragePeer{StoragePeer: &v1.StoragePeer{
 			Id: req.Name,
-		}, false)
+		}}, false)
 		if err != nil {
 			if !errors.Is(err, mesherrors.ErrNotLeader) {
 				log.Error(err, "Failed to remove node from consensus group")
@@ -87,11 +87,11 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 	log.Info("Ensuring node in consensus group")
-	err = r.Provider.Consensus().AddVoter(ctx, &v1.StoragePeer{
+	err = r.Provider.Consensus().AddVoter(ctx, meshtypes.StoragePeer{StoragePeer: &v1.StoragePeer{
 		Id:            node.GetName(),
 		Address:       node.Status.Addresses[0].Address,
 		ClusterStatus: v1.ClusterStatus_CLUSTER_VOTER,
-	})
+	}})
 	if err != nil && !errors.Is(err, mesherrors.ErrNotLeader) {
 		log.Error(err, "Failed to add node to consensus group")
 		return ctrl.Result{}, err

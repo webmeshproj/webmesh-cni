@@ -29,6 +29,42 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          features:
+            description: features are a list of features and the ports they are advertised
+              on.
+            items:
+              description: FeaturePort describes a feature and the port it is advertised
+                on.
+              properties:
+                feature:
+                  description: feature is the feature.
+                  format: int32
+                  type: integer
+                port:
+                  description: port is the port the feature is advertised on.
+                  format: int32
+                  type: integer
+              type: object
+            type: array
+          id:
+            description: id is the ID of the node.
+            type: string
+          joinedAt:
+            description: joined_at is the time the node joined the cluster.
+            properties:
+              nanos:
+                description: Non-negative fractions of a second at nanosecond resolution.
+                  Negative second values with fractions must still have non-negative
+                  nanos values that count forward in time. Must be from 0 to 999,999,999
+                  inclusive.
+                format: int32
+                type: integer
+              seconds:
+                description: Represents seconds of UTC time since Unix epoch 1970-01-01T00:00:00Z.
+                  Must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive.
+                format: int64
+                type: integer
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -36,84 +72,32 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: PeerSpec defines the desired state of a Peer.
-            properties:
-              node:
-                description: MeshNode wraps a mesh node.
-                properties:
-                  features:
-                    description: features are a list of features and the ports they
-                      are advertised on.
-                    items:
-                      description: FeaturePort describes a feature and the port it
-                        is advertised on.
-                      properties:
-                        feature:
-                          description: feature is the feature.
-                          format: int32
-                          type: integer
-                        port:
-                          description: port is the port the feature is advertised
-                            on.
-                          format: int32
-                          type: integer
-                      type: object
-                    type: array
-                  id:
-                    description: id is the ID of the node.
-                    type: string
-                  joinedAt:
-                    description: joined_at is the time the node joined the cluster.
-                    properties:
-                      nanos:
-                        description: Non-negative fractions of a second at nanosecond
-                          resolution. Negative second values with fractions must still
-                          have non-negative nanos values that count forward in time.
-                          Must be from 0 to 999,999,999 inclusive.
-                        format: int32
-                        type: integer
-                      seconds:
-                        description: Represents seconds of UTC time since Unix epoch
-                          1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z
-                          to 9999-12-31T23:59:59Z inclusive.
-                        format: int64
-                        type: integer
-                    type: object
-                  multiaddrs:
-                    description: multiaddrs are the multiaddrs of the node.
-                    items:
-                      type: string
-                    type: array
-                  primaryEndpoint:
-                    description: primary_endpoint is the primary endpoint of the node.
-                    type: string
-                  privateIPv4:
-                    description: private_ipv4 is the private IPv4 address of the node.
-                    type: string
-                  privateIPv6:
-                    description: private_ipv6 is the private IPv6 address of the node.
-                    type: string
-                  publicKey:
-                    description: public_key is the public key of the node.
-                    type: string
-                  wireguardEndpoints:
-                    description: wireguard_endpoints is a list of WireGuard endpoints
-                      for the node.
-                    items:
-                      type: string
-                    type: array
-                  zoneAwarenessID:
-                    description: zone_awareness_id is the zone awareness ID of the
-                      node.
-                    type: string
-                type: object
-            required:
-            - node
-            type: object
-          status:
-            description: PeerStatus defines the observed state of a Peer.
-            type: object
+          multiaddrs:
+            description: multiaddrs are the multiaddrs of the node.
+            items:
+              type: string
+            type: array
+          primaryEndpoint:
+            description: primary_endpoint is the primary endpoint of the node.
+            type: string
+          privateIPv4:
+            description: private_ipv4 is the private IPv4 address of the node.
+            type: string
+          privateIPv6:
+            description: private_ipv6 is the private IPv6 address of the node.
+            type: string
+          publicKey:
+            description: public_key is the public key of the node.
+            type: string
+          wireguardEndpoints:
+            description: wireguard_endpoints is a list of WireGuard endpoints for
+              the node.
+            items:
+              type: string
+            type: array
+          zoneAwarenessID:
+            description: zone_awareness_id is the zone awareness ID of the node.
+            type: string
         type: object
     served: true
     storage: true
@@ -153,51 +137,36 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: RoleSpec defines the desired state of a Role.
-            properties:
-              role:
-                description: Role wraps a role.
-                properties:
-                  name:
-                    description: name is the name of the role.
+          name:
+            description: name is the name of the role.
+            type: string
+          rules:
+            description: rules is the list of rules that apply to the role.
+            items:
+              description: Rule is a rule that applies to a resource.
+              properties:
+                resourceNames:
+                  description: resource_names is the list of resource names to which
+                    the rule applies.
+                  items:
                     type: string
-                  rules:
-                    description: rules is the list of rules that apply to the role.
-                    items:
-                      description: Rule is a rule that applies to a resource.
-                      properties:
-                        resourceNames:
-                          description: resource_names is the list of resource names
-                            to which the rule applies.
-                          items:
-                            type: string
-                          type: array
-                        resources:
-                          description: resources is the resources to which the rule
-                            applies.
-                          items:
-                            description: RuleResource is the resource type for a rule.
-                            format: int32
-                            type: integer
-                          type: array
-                        verbs:
-                          description: verbs is the list of verbs that apply to the
-                            resource.
-                          items:
-                            description: RuleVerb is the verb type for a rule.
-                            format: int32
-                            type: integer
-                          type: array
-                      type: object
-                    type: array
-                type: object
-            required:
-            - role
-            type: object
-          status:
-            description: RoleStatus defines the observed state of a Role.
-            type: object
+                  type: array
+                resources:
+                  description: resources is the resources to which the rule applies.
+                  items:
+                    description: RuleResource is the resource type for a rule.
+                    format: int32
+                    type: integer
+                  type: array
+                verbs:
+                  description: verbs is the list of verbs that apply to the resource.
+                  items:
+                    description: RuleVerb is the verb type for a rule.
+                    format: int32
+                    type: integer
+                  type: array
+              type: object
+            type: array
         type: object
     served: true
     storage: true
@@ -237,36 +206,23 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: GroupSpec defines the desired state of a Group.
-            properties:
-              group:
-                description: Group wraps a group.
-                properties:
-                  name:
-                    description: name is the name of the group.
-                    type: string
-                  subjects:
-                    description: subjects is the list of subjects in the group.
-                    items:
-                      description: Subject is a subject to which a role can be bound.
-                      properties:
-                        name:
-                          description: name is the name of the subject.
-                          type: string
-                        type:
-                          description: type is the type of the subject.
-                          format: int32
-                          type: integer
-                      type: object
-                    type: array
-                type: object
-            required:
-            - group
-            type: object
-          status:
-            description: GroupStatus defines the observed state of a Group.
-            type: object
+          name:
+            description: name is the name of the group.
+            type: string
+          subjects:
+            description: subjects is the list of subjects in the group.
+            items:
+              description: Subject is a subject to which a role can be bound.
+              properties:
+                name:
+                  description: name is the name of the subject.
+                  type: string
+                type:
+                  description: type is the type of the subject.
+                  format: int32
+                  type: integer
+              type: object
+            type: array
         type: object
     served: true
     storage: true
@@ -294,11 +250,30 @@ spec:
       openAPIV3Schema:
         description: NetworkACL is the Schema for the NetworkACLs API.
         properties:
+          action:
+            description: action is the action to take when a request matches the ACL.
+            format: int32
+            type: integer
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          destinationCIDRs:
+            description: destination_cidrs is a list of destination CIDRs to match
+              against. If empty, all CIDRs are matched. If one or more of the CIDRs
+              is '*', all CIDRs are matched.
+            items:
+              type: string
+            type: array
+          destinationNodes:
+            description: destination_nodes is a list of destination nodes to match
+              against. If empty, all nodes are matched. Groups can be specified with
+              the prefix "group:". If one or more of the nodes is '*', all nodes are
+              matched.
+            items:
+              type: string
+            type: array
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -306,62 +281,28 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: NetworkACLSpec defines the desired state of a NetworkACL.
-            properties:
-              networkACL:
-                description: NetworkACL is a Network ACL.
-                properties:
-                  action:
-                    description: action is the action to take when a request matches
-                      the ACL.
-                    format: int32
-                    type: integer
-                  destinationCIDRs:
-                    description: destination_cidrs is a list of destination CIDRs
-                      to match against. If empty, all CIDRs are matched. If one or
-                      more of the CIDRs is '*', all CIDRs are matched.
-                    items:
-                      type: string
-                    type: array
-                  destinationNodes:
-                    description: destination_nodes is a list of destination nodes
-                      to match against. If empty, all nodes are matched. Groups can
-                      be specified with the prefix "group:". If one or more of the
-                      nodes is '*', all nodes are matched.
-                    items:
-                      type: string
-                    type: array
-                  name:
-                    description: name is the name of the ACL.
-                    type: string
-                  priority:
-                    description: priority is the priority of the ACL. ACLs with higher
-                      priority are evaluated first.
-                    format: int32
-                    type: integer
-                  sourceCIDRs:
-                    description: source_cidrs is a list of source CIDRs to match against.
-                      If empty, all CIDRs are matched. If one or more of the CIDRs
-                      is '*', all CIDRs are matched.
-                    items:
-                      type: string
-                    type: array
-                  sourceNodes:
-                    description: source_nodes is a list of source nodes to match against.
-                      If empty, all nodes are matched. Groups can be specified with
-                      the prefix "group:". If one or more of the nodes is '*', all
-                      nodes are matched.
-                    items:
-                      type: string
-                    type: array
-                type: object
-            required:
-            - networkACL
-            type: object
-          status:
-            description: NetworkACLStatus defines the observed state of a NetworkACL.
-            type: object
+          name:
+            description: name is the name of the ACL.
+            type: string
+          priority:
+            description: priority is the priority of the ACL. ACLs with higher priority
+              are evaluated first.
+            format: int32
+            type: integer
+          sourceCIDRs:
+            description: source_cidrs is a list of source CIDRs to match against.
+              If empty, all CIDRs are matched. If one or more of the CIDRs is '*',
+              all CIDRs are matched.
+            items:
+              type: string
+            type: array
+          sourceNodes:
+            description: source_nodes is a list of source nodes to match against.
+              If empty, all nodes are matched. Groups can be specified with the prefix
+              "group:". If one or more of the nodes is '*', all nodes are matched.
+            items:
+              type: string
+            type: array
         type: object
     served: true
     storage: true
@@ -401,41 +342,26 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: RoleBindingSpec defines the desired state of a RoleBinding.
-            properties:
-              roleBinding:
-                description: RoleBinding wraps a rolebinding.
-                properties:
-                  name:
-                    description: name is the name of the role binding.
-                    type: string
-                  role:
-                    description: role is the name of the role to which the binding
-                      applies.
-                    type: string
-                  subjects:
-                    description: subjects is the list of subjects to which the binding
-                      applies.
-                    items:
-                      description: Subject is a subject to which a role can be bound.
-                      properties:
-                        name:
-                          description: name is the name of the subject.
-                          type: string
-                        type:
-                          description: type is the type of the subject.
-                          format: int32
-                          type: integer
-                      type: object
-                    type: array
-                type: object
-            required:
-            - roleBinding
-            type: object
-          status:
-            description: RoleBindingStatus defines the observed state of a RoleBinding.
-            type: object
+          name:
+            description: name is the name of the role binding.
+            type: string
+          role:
+            description: role is the name of the role to which the binding applies.
+            type: string
+          subjects:
+            description: subjects is the list of subjects to which the binding applies.
+            items:
+              description: Subject is a subject to which a role can be bound.
+              properties:
+                name:
+                  description: name is the name of the subject.
+                  type: string
+                type:
+                  description: type is the type of the subject.
+                  format: int32
+                  type: integer
+              type: object
+            type: array
         type: object
     served: true
     storage: true
@@ -468,6 +394,11 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          destinationCIDRs:
+            description: destination_cidrs are the destination CIDRs of the route.
+            items:
+              type: string
+            type: array
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -475,36 +406,17 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: RouteSpec defines the desired state of a Route.
-            properties:
-              route:
-                description: Route wraps a Route.
-                properties:
-                  destinationCIDRs:
-                    description: destination_cidrs are the destination CIDRs of the
-                      route.
-                    items:
-                      type: string
-                    type: array
-                  name:
-                    description: name is the name of the route.
-                    type: string
-                  nextHopNode:
-                    description: nextHopNode is an optional node that is used as the
-                      next hop for the route.
-                    type: string
-                  node:
-                    description: node is the node that broadcasts the route. A group
-                      can be specified with the prefix "group:".
-                    type: string
-                type: object
-            required:
-            - route
-            type: object
-          status:
-            description: RouteStatus defines the observed state of a Route.
-            type: object
+          name:
+            description: name is the name of the route.
+            type: string
+          nextHopNode:
+            description: nextHopNode is an optional node that is used as the next
+              hop for the route.
+            type: string
+          node:
+            description: node is the node that broadcasts the route. A group can be
+              specified with the prefix "group:".
+            type: string
         type: object
     served: true
     storage: true
@@ -537,6 +449,11 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          attributes:
+            additionalProperties:
+              type: string
+            description: attributes is a list of attributes for the edge.
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -544,34 +461,16 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: MeshEdgeSpec defines the desired state of a MeshEdge.
-            properties:
-              meshEdge:
-                description: MeshEdge wraps a mesh edge.
-                properties:
-                  attributes:
-                    additionalProperties:
-                      type: string
-                    description: attributes is a list of attributes for the edge.
-                    type: object
-                  source:
-                    description: source is the source node.
-                    type: string
-                  target:
-                    description: target is the target node.
-                    type: string
-                  weight:
-                    description: weight is the weight of the edge.
-                    format: int32
-                    type: integer
-                type: object
-            required:
-            - meshEdge
-            type: object
-          status:
-            description: MeshEdgeStatus defines the observed state of a MeshEdge.
-            type: object
+          source:
+            description: source is the source node.
+            type: string
+          target:
+            description: target is the target node.
+            type: string
+          weight:
+            description: weight is the weight of the edge.
+            format: int32
+            type: integer
         type: object
     served: true
     storage: true
@@ -604,6 +503,8 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          domain:
+            type: string
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -611,16 +512,10 @@ spec:
             type: string
           metadata:
             type: object
-          networkState:
-            description: NetworkState is the network state.
-            properties:
-              domain:
-                type: string
-              networkV4:
-                type: string
-              networkV6:
-                type: string
-            type: object
+          networkV4:
+            type: string
+          networkV6:
+            type: string
         type: object
     served: true
     storage: true
@@ -648,10 +543,22 @@ spec:
       openAPIV3Schema:
         description: StoragePeer is the Schema for the StoragePeer API.
         properties:
+          address:
+            description: Address is the address of the server. This is not required
+              for demotion or removal RPCs.
+            type: string
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          clusterStatus:
+            description: ClusterStatus is the status of the server. This is only applicable
+              during a GetStatus RPC.
+            format: int32
+            type: integer
+          id:
+            description: ID is the id of the server.
             type: string
           kind:
             description: 'Kind is a string value representing the REST resource this
@@ -660,37 +567,11 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: StoragePeer defines a peer in the storage consensus group.
-            properties:
-              peer:
-                description: StoragePeer is a server that is currently recognized
-                  by the storage plugin.
-                properties:
-                  address:
-                    description: Address is the address of the server. This is not
-                      required for demotion or removal RPCs.
-                    type: string
-                  clusterStatus:
-                    description: ClusterStatus is the status of the server. This is
-                      only applicable during a GetStatus RPC.
-                    format: int32
-                    type: integer
-                  id:
-                    description: ID is the id of the server.
-                    type: string
-                  publicKey:
-                    description: public_key is the encoded public key of the server.
-                      This is not required for demotion or removal RPCs. Not all implementations
-                      need to support this.
-                    type: string
-                type: object
-            required:
-            - peer
-            type: object
-          status:
-            description: StoragePeerStatus defines the observed state of a Route.
-            type: object
+          publicKey:
+            description: public_key is the encoded public key of the server. This
+              is not required for demotion or removal RPCs. Not all implementations
+              need to support this.
+            type: string
         type: object
     served: true
     storage: true

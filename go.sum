@@ -847,10 +847,10 @@ github.com/warpfork/go-wish v0.0.0-20220906213052-39a1cc7a02d0 h1:GDDkbFiaK8jsSD
 github.com/warpfork/go-wish v0.0.0-20220906213052-39a1cc7a02d0/go.mod h1:x6AKhvSSexNrVSrViXSHUEbICjmGXhtgABaHIySUSGw=
 github.com/webmeshproj/api v0.9.0 h1:Fi4d0yv4FpVOLE1OihTxweGVxv35ZTlGkhOYf22xOog=
 github.com/webmeshproj/api v0.9.0/go.mod h1:+AYy40KGXJqRpHZ4Lph3tuOHGivZ+1iWir4Cbr/asdg=
-github.com/webmeshproj/storage-provider-k8s v0.2.0 h1:wEzPDr6wHTGMsf8q+H+x1m5zoAEdf/PNzXyoBNpLzdg=
-github.com/webmeshproj/storage-provider-k8s v0.2.0/go.mod h1:JQCLxJUXI+suelKACpN8vv1h95qlgN5iD+LM+J9v0Bw=
-github.com/webmeshproj/webmesh v0.14.0 h1:SucjBvWBtX1Aq1KT8p2YLCtZstGjVaqS4Y31JlVAn70=
-github.com/webmeshproj/webmesh v0.14.0/go.mod h1:NyhtaJLkSNNfQ361wER1aLD+oGh6Fb5nj8dsXBi2P+0=
+github.com/webmeshproj/storage-provider-k8s v0.2.1 h1:QQu9ktIMxXTmQnfDqufh14UZ/kdhJpOZ2jxtvuZ/it8=
+github.com/webmeshproj/storage-provider-k8s v0.2.1/go.mod h1:KHY6PPkopiZpqYRc4UynUPy+ZOt0W6TbcsFyrAN8q5o=
+github.com/webmeshproj/webmesh v0.14.1 h1:lQeGbFe+z9vBGWgvsgusdAwyNW2FdOMS+QjNgg9nuXQ=
+github.com/webmeshproj/webmesh v0.14.1/go.mod h1:NyhtaJLkSNNfQ361wER1aLD+oGh6Fb5nj8dsXBi2P+0=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 h1:EKhdznlJHPMoKr0XTrX+IlJs1LH3lyx2nfr1dOlZ79k=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1/go.mod h1:8UvriyWtv5Q5EOgjHaSseUEdkQfvwFv1I/In/O2M9gc=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=

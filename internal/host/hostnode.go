@@ -288,12 +288,12 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 		return fmt.Errorf("failed to register with mesh: %w", err)
 	}
 	// Update our consensus record with our public key.
-	err = h.storage.Consensus().AddVoter(ctx, &v1.StoragePeer{
+	err = h.storage.Consensus().AddVoter(ctx, meshtypes.StoragePeer{StoragePeer: &v1.StoragePeer{
 		Id:            h.nodeID.String(),
 		PublicKey:     encodedPubKey,
 		Address:       fmt.Sprintf("%s:%d", h.nodeID, h.config.Services.API.ListenPort()),
 		ClusterStatus: v1.ClusterStatus_CLUSTER_VOTER,
-	})
+	}})
 	if err != nil {
 		defer hostNode.Close(ctx)
 		return fmt.Errorf("failed to register with consensus: %w", err)
