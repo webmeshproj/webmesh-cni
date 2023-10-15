@@ -1,6 +1,6 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: webmesh-cni
+name: multi-cluster-two
 networking:
   ipFamily: dual
   disableDefaultCNI: true
@@ -9,10 +9,6 @@ networking:
   serviceSubnet: "10.97.0.0/12,fd00:10:97::/112"
 nodes:
 - role: control-plane
-  extraMounts:
-  - hostPath: /dev/net/tun
-    containerPath: /dev/net/tun
-- role: worker
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun

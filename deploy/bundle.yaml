@@ -1224,7 +1224,7 @@ data:
   cluster-domain: "cluster.local"
   # TODO: Currently IPv6 address space is computed at bootstrap,
   # But we should allow this to be configured with the IPv4 address space.
-  pod-cidr: "10.42.0.0/16,fd00:10:24::/48"
+  pod-cidr: "10.42.0.0/16,fd00:10:42::/48"
   service-cidr: "10.96.0.0/12,fd00:10:96::/112"
   # The network config to install on each node.
   # You can enable/disable IPv4/IPv6 on dual-stack nodes by adjusting the
