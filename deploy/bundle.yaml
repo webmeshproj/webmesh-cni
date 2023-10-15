@@ -981,6 +981,12 @@ spec:
                       It will be automatically chosen from the name of the remote
                       network if not provided.
                     type: string
+                  localDomain:
+                    description: LocalDomain is the domain to forward DNS requests
+                      for from the remote network. Requests to this domain will have
+                      their question mutated and passed to the cluster DNS. If not
+                      provided, the local domain will be the cluster domain.
+                    type: string
                   mtu:
                     description: MTU is the MTU to use for the interface. It will
                       be automatically chosen if not provided.
@@ -1212,8 +1218,8 @@ rules:
 ---
 # Source: deploy/config/configmap.yaml
 # This ConfigMap is used to configure the webmesh-cni installation.
-kind: ConfigMap
 apiVersion: v1
+kind: ConfigMap
 metadata:
   name: webmesh-config
   namespace: kube-system
@@ -1256,8 +1262,8 @@ data:
 # and configuration on each node in the cluster. It also runs the
 # webmesh-cni-node binary as a privileged container to manage the
 # network interfaces on each node.
-kind: DaemonSet
 apiVersion: apps/v1
+kind: DaemonSet
 metadata:
   name: webmesh-node
   namespace: kube-system

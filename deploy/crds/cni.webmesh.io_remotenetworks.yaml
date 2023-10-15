@@ -110,6 +110,12 @@ spec:
                       It will be automatically chosen from the name of the remote
                       network if not provided.
                     type: string
+                  localDomain:
+                    description: LocalDomain is the domain to forward DNS requests
+                      for from the remote network. Requests to this domain will have
+                      their question mutated and passed to the cluster DNS. If not
+                      provided, the local domain will be the cluster domain.
+                    type: string
                   mtu:
                     description: MTU is the MTU to use for the interface. It will
                       be automatically chosen if not provided.

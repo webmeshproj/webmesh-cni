@@ -3,8 +3,8 @@
 # and configuration on each node in the cluster. It also runs the
 # webmesh-cni-node binary as a privileged container to manage the
 # network interfaces on each node.
-kind: DaemonSet
 apiVersion: apps/v1
+kind: DaemonSet
 metadata:
   name: webmesh-node
   namespace: kube-system
