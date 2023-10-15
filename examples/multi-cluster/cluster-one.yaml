@@ -12,3 +12,8 @@ nodes:
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    networking:
+      dnsDomain: "cluster-one.local"

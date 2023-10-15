@@ -17,5 +17,6 @@ patches:
       name: webmesh-config
       namespace: kube-system
     data:
+      cluster-domain: "cluster-one.local"
       pod-cidr: "10.42.0.0/16,fd00:10:42::/48"
       service-cidr: "10.96.0.0/12,fd00:10:96::/112"

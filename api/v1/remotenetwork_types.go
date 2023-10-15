@@ -118,11 +118,6 @@ type NetworkConfig struct {
 	// MTU is the MTU to use for the interface. It will be automatically
 	// chosen if not provided.
 	MTU int `json:"mtu,omitempty"`
-	// LocalDomain is the domain to forward DNS requests for from the remote
-	// network. Requests to this domain will have their question mutated and
-	// passed to the cluster DNS. If not provided, the local domain will be
-	// the cluster domain.
-	LocalDomain string `json:"localDomain,omitempty"`
 	// DisableIPv4 disables IPv4 forwarding on the interface.
 	DisableIPv4 bool `json:"disableIPv4,omitempty"`
 	// DisableIPv6 disables IPv6 forwarding on the interface.
