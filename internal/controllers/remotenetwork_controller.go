@@ -377,6 +377,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			},
 		}, false)
 	})
+	log.Info("Connecting to remote network")
 	err = bridge.Connect(ctx, meshnode.ConnectOptions{
 		StorageProvider:   db,
 		MaxJoinRetries:    10,
