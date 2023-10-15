@@ -27,9 +27,10 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/netutil"
+	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
-	"github.com/webmeshproj/webmesh/pkg/plugins"
+	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -273,7 +274,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if !nw.Spec.Network.DisableIPv4 {
 		// Make sure we get an IPv4 allocation on the remote network.
 		ipam, err := ipam.NewAllocator(cfg, ipam.Config{
-			IPAM: plugins.IPAMConfig{},
+			IPAM: meshplugins.IPAMConfig{},
 			Lock: ipam.LockConfig{
 				ID:                 r.Host.NodeID,
 				Namespace:          namespace,
@@ -332,7 +333,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		return handleErr(fmt.Errorf("failed to register with remote as observer: %w", err))
 	}
 	// Setup a join transport using the client to the remote network.
-	_ = meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
+	joinRTT := meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 		// Retrieve the peer we created earlier
 		peer, err := db.MeshDB().Peers().Get(ctx, bridge.ID())
 		if err != nil {
@@ -354,7 +355,47 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			Peers:       peers,
 		}, nil
 	})
-	return nil
+	leaveRTT := meshtransport.LeaveRoundTripperFunc(func(ctx context.Context, req *v1.LeaveRequest) (*v1.LeaveResponse, error) {
+		// We remove ourself from the remote network.
+		if err := db.MeshDB().Peers().Delete(ctx, bridge.ID()); err != nil {
+			log.Error(err, "Failed to remove peer from remote meshdb")
+		}
+		return &v1.LeaveResponse{}, db.Consensus().RemovePeer(ctx, meshtypes.StoragePeer{
+			StoragePeer: &v1.StoragePeer{
+				Id: bridge.ID().String(),
+			},
+		}, false)
+	})
+	err = bridge.Connect(ctx, meshnode.ConnectOptions{
+		StorageProvider:   db,
+		MaxJoinRetries:    10,
+		JoinRoundTripper:  joinRTT,
+		LeaveRoundTripper: leaveRTT,
+		NetworkOptions: meshnet.Options{
+
+			ZoneAwarenessID: r.Host.NodeID,
+			DisableIPv4:     nw.Spec.Network.DisableIPv4,
+			DisableIPv6:     nw.Spec.Network.DisableIPv6,
+			MTU: func() int {
+				if nw.Spec.Network.MTU > 0 {
+					return nw.Spec.Network.MTU
+				}
+				return meshsys.DefaultMTU
+			}(),
+			InterfaceName: func() string {
+				if nw.Spec.Network.InterfaceName != "" {
+					return nw.Spec.Network.InterfaceName
+				}
+				return types.IfNameFromID(bridge.ID().String())
+			}(),
+			ForceReplace: true,
+			// Maybe by configuration?
+			RecordMetrics:         false,
+			RecordMetricsInterval: 0,
+		},
+		PreferIPv6: !nw.Spec.Network.DisableIPv6,
+	})
+	return err
 }
 
 func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
