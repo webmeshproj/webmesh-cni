@@ -372,10 +372,10 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		JoinRoundTripper:  joinRTT,
 		LeaveRoundTripper: leaveRTT,
 		NetworkOptions: meshnet.Options{
-
 			ZoneAwarenessID: r.Host.NodeID,
 			DisableIPv4:     nw.Spec.Network.DisableIPv4,
 			DisableIPv6:     nw.Spec.Network.DisableIPv6,
+			ListenPort:      nw.Spec.Network.WireGuardPort,
 			MTU: func() int {
 				if nw.Spec.Network.MTU > 0 {
 					return nw.Spec.Network.MTU
