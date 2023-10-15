@@ -165,6 +165,9 @@ func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
 			GW:  ipv6net.IP,
 		})
 	}
+	if len(p.Status.DNSServers) > 0 {
+		result.DNS.Nameservers = append(p.Status.DNSServers, result.DNS.Nameservers...)
+	}
 	return nil
 }
 

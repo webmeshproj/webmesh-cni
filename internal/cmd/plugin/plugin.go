@@ -111,8 +111,6 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	}
 	log = conf.NewLogger(args)
 	result.CNIVersion = conf.CNIVersion
-	// Use the host DNS servers?
-	// TODO: We can run a DNS server on the mesh node.
 	result.DNS = conf.DNS
 	log.Debug("Handling new container add request")
 	cli, err := conf.NewClient(testConnectionTimeout)

@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/netutil"
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
+	meshdns "github.com/webmeshproj/webmesh/pkg/services/meshdns"
 	meshstorage "github.com/webmeshproj/webmesh/pkg/storage"
 	mesherrors "github.com/webmeshproj/webmesh/pkg/storage/errors"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
@@ -56,6 +58,7 @@ type PeerContainerReconciler struct {
 	Provider *provider.Provider
 	Host     host.Node
 
+	dns            *meshdns.Server
 	containerNodes map[client.ObjectKey]meshnode.Node
 	mu             sync.Mutex
 }
@@ -67,6 +70,13 @@ func (r *PeerContainerReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.PeerContainer{}).
 		Complete(r)
+}
+
+// SetDNSServer sets the DNS server for the controller.
+func (r *PeerContainerReconciler) SetDNSServer(dns *meshdns.Server) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dns = dns
 }
 
 // LookupPrivateKey looks up the private key for the given node ID.
@@ -484,12 +494,24 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 		container.Status.MACAddress = hwaddr.String()
 		updateStatus = true
 	}
-
+	if r.dns != nil {
+		// Add ourself as a DNS server for the container.
+		var addr netip.Addr
+		if container.Spec.DisableIPv6 {
+			addr = r.Host.Node().Network().WireGuard().AddressV4().Addr()
+		} else {
+			addr = r.Host.Node().Network().WireGuard().AddressV6().Addr()
+		}
+		addrport := netip.AddrPortFrom(addr, uint16(r.dns.ListenPort()))
+		if len(container.Status.DNSServers) == 0 || container.Status.DNSServers[0] != addrport.String() {
+			container.Status.DNSServers = []string{addrport.String()}
+			updateStatus = true
+		}
+	}
 	if container.Status.IPv4Address != addrV4 {
 		container.Status.IPv4Address = addrV4
 		updateStatus = true
 	}
-
 	if container.Status.IPv6Address != addrV6 {
 		container.Status.IPv6Address = addrV6
 		updateStatus = true

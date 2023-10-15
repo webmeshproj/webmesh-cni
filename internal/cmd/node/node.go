@@ -369,9 +369,7 @@ func Main(build version.BuildInfo) {
 			os.Exit(1)
 		}
 		remoteNetworkReconciler.SetDNSServer(dnssrv.(*meshdns.Server))
-		// TODO: We should technically tell the local containers
-		// to use this DNS server to. That way they will receive
-		// forward DNS requests from any remote networks.
+		containerReconciler.SetDNSServer(dnssrv.(*meshdns.Server))
 	}
 	srv, err := meshservices.NewServer(hostCtx, srvOpts)
 	if err != nil {

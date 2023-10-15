@@ -249,6 +249,8 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return ctx.Err()
 	}
 
+	// TODO: If we are running a DNS server, append the remote network to the DNS server.
+
 	// Make sure we route traffic to the remote network
 	log.Info("Ensuring local routes to remote network")
 	err := r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
@@ -623,12 +625,10 @@ func (r *RemoteNetworkReconciler) ensureBridgeReadyStatus(ctx context.Context, n
 		nw.Status.MACAddress = hwaddr.String()
 		updateStatus = true
 	}
-
 	if nw.Status.IPv4Address != addrV4 {
 		nw.Status.IPv4Address = addrV4
 		updateStatus = true
 	}
-
 	if nw.Status.IPv6Address != addrV6 {
 		nw.Status.IPv6Address = addrV6
 		updateStatus = true
