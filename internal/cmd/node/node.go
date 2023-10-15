@@ -223,11 +223,10 @@ func Main(build version.BuildInfo) {
 	// other clusters.
 	log.V(1).Info("Registering remote network controller")
 	remoteNetworkReconciler := &controllers.RemoteNetworkReconciler{
-		Client:    mgr.GetClient(),
-		Config:    cniopts,
-		Namespace: cniopts.Host.Namespace,
-		Provider:  storageProvider,
-		Host:      hostnode,
+		Client:   mgr.GetClient(),
+		Config:   cniopts,
+		Provider: storageProvider,
+		HostNode: hostnode,
 	}
 	if err = remoteNetworkReconciler.SetupWithManager(mgr); err != nil {
 		log.Error(err, "Failed to setup remote network reconciler with manager", "controller", "RemoteNetwork")

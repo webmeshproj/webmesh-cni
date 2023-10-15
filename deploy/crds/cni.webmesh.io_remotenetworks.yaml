@@ -15,9 +15,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Whether the remote network has been peered with
-      jsonPath: .status.peered
-      name: Peered
+    - description: The status of the remote bridge interface
+      jsonPath: .status.bridgeStatus
+      name: Status
       type: boolean
     name: v1
     schema:
@@ -129,14 +129,13 @@ spec:
             description: RemoteNetworkStatus will contain the status of the peering
               with the remote network.
             properties:
+              bridgeStatus:
+                description: BridgeStatus is the status of the bridge interface.
+                type: string
               error:
                 description: Error is the last error encountered when peering with
                   the remote network.
                 type: string
-              peered:
-                description: Peered is true when the remote network has been successfully
-                  peered with.
-                type: boolean
               peers:
                 description: Peers are the peers in the remote network.
                 items:
@@ -166,8 +165,6 @@ spec:
                       type: string
                   type: object
                 type: array
-            required:
-            - peered
             type: object
         type: object
     served: true

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/webmeshproj/storage-provider-k8s/provider"
+	"github.com/webmeshproj/webmesh/pkg/logging"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,11 +44,10 @@ import (
 type RemoteNetworkReconciler struct {
 	client.Client
 	config.Config
-	Namespace string
-	Provider  *provider.Provider
-	Host      host.Node
-	bridges   map[client.ObjectKey]meshnode.Node
-	mu        sync.Mutex
+	Provider *provider.Provider
+	HostNode host.Node
+	bridges  map[client.ObjectKey]meshnode.Node
+	mu       sync.Mutex
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -61,10 +61,19 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	log := log.FromContext(ctx)
-	if !r.Host.Started() {
+	if !r.HostNode.Started() {
 		// Request a requeue until the host is started.
-		log.Info("Host not started yet, requeuing")
+		log.Info("Host node not ready yet, requeuing")
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 2}, nil
+	}
+	if r.bridges == nil {
+		r.bridges = make(map[client.ObjectKey]meshnode.Node)
+	}
+	if r.Manager.ReconcileTimeout > 0 {
+		log.V(1).Info("Setting reconcile timeout", "timeout", r.Manager.ReconcileTimeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.Manager.ReconcileTimeout)
+		defer cancel()
 	}
 	var nw cniv1.RemoteNetwork
 	if err := r.Get(ctx, req.NamespacedName, &nw); err != nil {
@@ -78,22 +87,20 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	nw.TypeMeta = cniv1.RemoteNetworkTypeMeta
 	if nw.GetDeletionTimestamp() != nil {
 		// Stop the mesh node for this container.
-		return ctrl.Result{}, r.reconcileRemove(ctx, &nw)
+		log.Info("Tearing down remote network bridge")
+		return ctrl.Result{}, r.reconcileRemove(ctx, req.NamespacedName, &nw)
 	}
-	return ctrl.Result{}, r.reconcileNetwork(ctx, &nw)
+	log.Info("Reconciling remote network bridge")
+	return ctrl.Result{}, r.reconcileNetwork(ctx, req.NamespacedName, &nw)
 }
 
-func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, nw *cniv1.RemoteNetwork) error {
+func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
-	log.Info("Reconciling remote network")
-	if r.bridges == nil {
-		r.bridges = map[client.ObjectKey]meshnode.Node{}
-	}
 	// Ensure the finalizer on the network.
 	if !controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.AddFinalizer(nw, cniv1.RemoteNetworkFinalizer)
 		if updated {
-			log.V(1).Info("Adding finalizer to remote network")
+			log.Info("Adding finalizer to remote network")
 			if err := r.Update(ctx, nw); err != nil {
 				return fmt.Errorf("failed to add finalizer: %w", err)
 			}
@@ -110,38 +117,80 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, nw *cniv
 				if nw.Spec.Credentials.Namespace != "" {
 					return nw.Spec.Credentials.Namespace
 				}
-				return r.Namespace
+				return r.Host.Namespace
 			}(),
 		}, &secret); err != nil {
 			return fmt.Errorf("failed to fetch credentials: %w", err)
 		}
 		creds = secret.Data
 	}
-	switch nw.Spec.AuthMethod {
-	case cniv1.RemoteAuthMethodNone, cniv1.RemoteAuthMethodNative:
-		return r.reconcileWithRPCs(ctx, nw, creds)
-	case cniv1.RemoteAuthMethodKubernetes:
-		kubeconfig, ok := creds[cniv1.KubeconfigKey]
-		if !ok {
-			return fmt.Errorf("kubeconfig not provided in credentials")
+
+	// Ensure the bridge exists.
+	bridge, ok := r.bridges[key]
+	if !ok {
+		// Create the bridge node with the same attributes as the host.
+		log.Info("Webmesh node for bridge not found, we must need to create it")
+		node := NewNode(logging.NewLogger(r.Host.LogLevel, "json"), meshnode.Config{
+			Key:             r.HostNode.Node().Key(),
+			NodeID:          string(r.HostNode.Node().ID()),
+			ZoneAwarenessID: r.Host.NodeID,
+			DisableIPv4:     r.Host.Network.DisableIPv4,
+			DisableIPv6:     r.Host.Network.DisableIPv6,
+		})
+		r.bridges[key] = node
+		// Update the status to created.
+		log.Info("Updating container interface status to created")
+		nw.Status.BridgeStatus = cniv1.BridgeStatusCreated
+		if err := r.updateBridgeStatus(ctx, nw); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
 		}
-		return r.reconcileWithKubeconfig(ctx, nw, kubeconfig)
-	default:
-		return fmt.Errorf("unknown auth method: %s", nw.Spec.AuthMethod)
+		return nil
 	}
-}
 
-func (r *RemoteNetworkReconciler) reconcileWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte) error {
+	// Ensure the bridge is running.
+	if !bridge.Started() {
+		var err error
+		switch nw.Spec.AuthMethod {
+		case cniv1.RemoteAuthMethodNone, cniv1.RemoteAuthMethodNative:
+			err = r.connectWithRPCs(ctx, nw, creds, bridge)
+		case cniv1.RemoteAuthMethodKubernetes:
+			kubeconfig, ok := creds[cniv1.KubeconfigKey]
+			if !ok {
+				err = fmt.Errorf("kubeconfig not provided in credentials")
+				break
+			}
+			err = r.connectWithKubeconfig(ctx, nw, kubeconfig, bridge)
+		default:
+			err = fmt.Errorf("unknown auth method: %s", nw.Spec.AuthMethod)
+		}
+		if err != nil {
+			log.Error(err, "Failed to connect bridge node to remote network")
+			r.setFailedStatus(ctx, nw, err)
+			// Create a new node on the next reconcile.
+			delete(r.bridges, key)
+			return fmt.Errorf("failed to connect bridge node: %w", err)
+		}
+		// Update the status to starting.
+		log.Info("Updating bridge interface status to starting")
+		nw.Status.BridgeStatus = cniv1.BridgeStatusStarting
+		if err := r.updateBridgeStatus(ctx, nw); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+	}
+
 	return nil
 }
 
-func (r *RemoteNetworkReconciler) reconcileWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte) error {
+func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte, bridge meshnode.Node) error {
 	return nil
 }
 
-func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, nw *cniv1.RemoteNetwork) error {
+func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte, bridge meshnode.Node) error {
+	return nil
+}
+
+func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
-	log.Info("Removing remote network")
 	if controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.RemoveFinalizer(nw, cniv1.RemoteNetworkFinalizer)
 		if updated {
@@ -150,6 +199,29 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, nw *cniv1
 				return fmt.Errorf("failed to remove finalizer: %w", err)
 			}
 		}
+	}
+	return nil
+}
+
+func (r *RemoteNetworkReconciler) setFailedStatus(ctx context.Context, bridge *cniv1.RemoteNetwork, reason error) {
+	bridge.Status.BridgeStatus = cniv1.BridgeStatusFailed
+	bridge.Status.Error = reason.Error()
+	err := r.updateBridgeStatus(ctx, bridge)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to update container status")
+	}
+}
+
+func (r *RemoteNetworkReconciler) updateBridgeStatus(ctx context.Context, bridge *cniv1.RemoteNetwork) error {
+	bridge.SetManagedFields(nil)
+	err := r.Status().Patch(ctx,
+		bridge,
+		client.Apply,
+		client.ForceOwnership,
+		client.FieldOwner(cniv1.FieldOwner),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
 	}
 	return nil
 }

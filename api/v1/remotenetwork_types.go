@@ -57,6 +57,20 @@ const (
 	PreSharedKeyKey = "pre-shared-key"
 )
 
+// BridgeStatus is the current status of a bridge interface.
+type BridgeStatus string
+
+const (
+	// InterfaceStatusCreated is the initial phase of a new peer interface.
+	BridgeStatusCreated BridgeStatus = "Created"
+	// InterfaceStatusStarting is the phase when the interface is starting.
+	BridgeStatusStarting BridgeStatus = "Starting"
+	// InterfaceStatusRunning is the phase when the interface is running.
+	BridgeStatusRunning BridgeStatus = "Running"
+	// InterfaceStatusFailed is the phase when the interface failed to start.
+	BridgeStatusFailed BridgeStatus = "Failed"
+)
+
 // RemoteNetworkTypeMeta is the type meta for the RemoteNetwork.
 var RemoteNetworkTypeMeta = metav1.TypeMeta{
 	APIVersion: GroupVersion.String(),
@@ -105,9 +119,8 @@ type Peer struct {
 // RemoteNetworkStatus will contain the status of the peering with
 // the remote network.
 type RemoteNetworkStatus struct {
-	// Peered is true when the remote network has been successfully
-	// peered with.
-	Peered bool `json:"peered"`
+	// BridgeStatus is the status of the bridge interface.
+	BridgeStatus BridgeStatus `json:"bridgeStatus,omitempty"`
 	// Peers are the peers in the remote network.
 	Peers []Peer `json:"peers,omitempty"`
 	// Error is the last error encountered when peering with the remote
@@ -117,7 +130,7 @@ type RemoteNetworkStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Peered",type=boolean,JSONPath=`.status.peered`,description="Whether the remote network has been peered with"
+//+kubebuilder:printcolumn:name="Status",type=boolean,JSONPath=`.status.bridgeStatus`,description="The status of the remote bridge interface"
 
 // RemoteNetwork is the Schema for the remotenetworks API
 type RemoteNetwork struct {

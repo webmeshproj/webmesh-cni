@@ -97,6 +97,8 @@ func (r *PeerContainerReconciler) Shutdown(ctx context.Context) {
 
 // Reconcile reconciles a PeerContainer.
 func (r *PeerContainerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	log := log.FromContext(ctx)
 	if !r.Host.Started() {
 		log.Info("Controller is not ready yet, requeing reconcile request")
@@ -150,8 +152,6 @@ func (n *NoOpStorageCloser) Close() error {
 // reconcilePeerContainer reconciles the given PeerContainer.
 func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
-	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	// Make sure the finalizer is present first.
 	if !controllerutil.ContainsFinalizer(container, cniv1.PeerContainerFinalizer) {
@@ -439,8 +439,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 // teardownPeerContainer tears down the given PeerContainer.
 func (r *PeerContainerReconciler) teardownPeerContainer(ctx context.Context, req ctrl.Request, container *cniv1.PeerContainer) error {
 	log := log.FromContext(ctx)
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	node, ok := r.containerNodes[req.NamespacedName]
 	if !ok {
 		log.Info("Mesh node for container not found, we must have already deleted")
