@@ -249,7 +249,19 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return ctx.Err()
 	}
 
-	// TODO: If we are running a DNS server, append the remote network to the DNS server.
+	if nw.Spec.Network.ForwardDNS {
+		// We shouldn't have gotten this far without first checking the DNS server is set.
+		err := r.dnssrv.RegisterDomain(meshdns.DomainOptions{
+			NodeID:              bridge.ID(),
+			MeshDomain:          bridge.Domain(),
+			MeshStorage:         bridge.Storage(),
+			IPv6Only:            nw.Spec.Network.DisableIPv4,
+			SubscribeForwarders: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to register domain with dns server: %w", err)
+		}
+	}
 
 	// Make sure we route traffic to the remote network
 	log.Info("Ensuring local routes to remote network")
@@ -553,6 +565,12 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key clien
 	log := log.FromContext(ctx)
 	// Make sure the bridge connection is shutdown
 	if bridge, ok := r.bridges[key]; ok {
+		// Make sure we deregister DNS if we have a server running
+		if nw.Spec.Network.ForwardDNS && r.dnssrv != nil {
+			log.Info("Deregistering domain from dns server")
+			r.dnssrv.DeregisterDomain(bridge.Domain())
+		}
+		log.Info("Closing bridge node")
 		err := bridge.Close(ctx)
 		if err != nil {
 			log.Error(err, "Failed to close bridge node")
@@ -560,6 +578,7 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key clien
 		delete(r.bridges, key)
 	}
 	// Make sure we've removed routes to the remote network.
+	log.Info("Removing local routes to remote network")
 	err := r.Provider.MeshDB().Networking().DeleteRoute(ctx, r.localRouteName(nw))
 	if err != nil {
 		log.Error(err, "Failed to remove local routes to remote network")
