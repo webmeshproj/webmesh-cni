@@ -146,7 +146,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	// Ensure the bridge exists.
 	bridge, ok := r.bridges[key]
 	if !ok {
-		// Create the bridge node with the same attributes as the host.
+		// Create the bridge node with the configured attributes.
 		log.Info("Webmesh node for bridge not found, we must need to create it")
 		nodeID := string(r.HostNode.ID())
 		privkey := r.HostNode.Node().Key()
