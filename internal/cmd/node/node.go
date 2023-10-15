@@ -36,13 +36,11 @@ import (
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"github.com/webmeshproj/webmesh/pkg/version"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -133,7 +131,6 @@ func Main(build version.BuildInfo) {
 	// Create the manager.
 	ctx := ctrl.SetupSignalHandler()
 	ctx = ctrllog.IntoContext(ctx, log)
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -146,16 +143,6 @@ func Main(build version.BuildInfo) {
 				"PeerContainer.cni.webmesh.io": 1,
 			},
 			NeedLeaderElection: &[]bool{false}[0],
-		},
-		Client: client.Options{
-			Cache: &client.CacheOptions{
-				DisableFor: append(
-					storagev1.CustomObjects,
-					&cniv1.PeerContainer{},
-					&corev1.Secret{},
-					&corev1.ConfigMap{},
-				),
-			},
 		},
 	})
 	if err != nil {
