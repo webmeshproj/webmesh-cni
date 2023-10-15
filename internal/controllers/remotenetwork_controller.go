@@ -190,7 +190,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		var err error
 		switch nw.Spec.AuthMethod {
 		case cniv1.RemoteAuthMethodNone, cniv1.RemoteAuthMethodNative:
-			err = r.connectWithRPCs(ctx, nw, creds, bridge)
+			err = r.connectWithWebmeshAPI(ctx, nw, creds, bridge)
 		case cniv1.RemoteAuthMethodKubernetes:
 			kubeconfig, ok := creds[cniv1.KubeconfigKey]
 			if !ok {
@@ -265,7 +265,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	return bridge.Network().Peers().Sync(ctx)
 }
 
-func (r *RemoteNetworkReconciler) connectWithRPCs(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte, bridge meshnode.Node) error {
+func (r *RemoteNetworkReconciler) connectWithWebmeshAPI(ctx context.Context, nw *cniv1.RemoteNetwork, creds map[string][]byte, bridge meshnode.Node) error {
 	return fmt.Errorf("not implemented")
 }
 
