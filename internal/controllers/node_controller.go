@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
@@ -29,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
 // StoragePeerFinalizer is the StoragePeer finalizer.
@@ -40,8 +43,8 @@ const StoragePeerFinalizer = "storagepeer.cniv1.webmesh.io"
 // we have edges between the host node and them.
 type NodeReconciler struct {
 	client.Client
+	Host     host.Node
 	Provider *provider.Provider
-	NodeName string
 }
 
 // SetupWithManager sets up the node reconciler with the manager.
@@ -55,6 +58,10 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile reconciles a node.
 func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
+	if !r.Host.Started() {
+		log.Info("Host not started yet, requeing")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 2}, nil
+	}
 	log.Info("Reconciling cluster CNI node")
 	var node storagev1.StoragePeer
 	if err := r.Get(ctx, req.NamespacedName, &node); err != nil {
@@ -64,14 +71,14 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 		return ctrl.Result{}, nil
 	}
-	if node.GetName() == r.NodeName {
+	if node.GetId() == r.Host.ID().String() {
 		log.Info("Ignoring the local host node")
 		return ctrl.Result{}, nil
 	}
 	if node.GetDeletionTimestamp() != nil {
 		// Ensure the edge is removed.
-		log.Info("Removing edge to node", "source", r.NodeName, "target", node.GetName())
-		err := r.Provider.MeshDB().Peers().RemoveEdge(ctx, meshtypes.NodeID(r.NodeName), meshtypes.NodeID(node.GetId()))
+		log.Info("Removing edge to node", "source", r.Host.ID(), "target", node.GetName())
+		err := r.Provider.MeshDB().Peers().RemoveEdge(ctx, meshtypes.NodeID(r.Host.ID()), meshtypes.NodeID(node.GetId()))
 		if err != nil {
 			log.Error(err, "Failed to remove edge to node")
 			return ctrl.Result{}, err
@@ -98,10 +105,10 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			return ctrl.Result{}, nil
 		}
 	}
-	log.Info("Ensuring edge to node", "source", r.NodeName, "target", node.GetName())
+	log.Info("Ensuring edge to node", "source", r.Host.ID(), "target", node.GetName())
 	err := r.Provider.MeshDB().Peers().PutEdge(ctx, meshtypes.MeshEdge{
 		MeshEdge: &v1.MeshEdge{
-			Source: r.NodeName,
+			Source: r.Host.ID().String(),
 			Target: node.GetId(),
 			Weight: 1,
 		},

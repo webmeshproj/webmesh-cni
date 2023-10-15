@@ -199,8 +199,8 @@ func Main(build version.BuildInfo) {
 	log.V(1).Info("Registering node controller")
 	nodeReconciler := &controllers.NodeReconciler{
 		Client:   mgr.GetClient(),
+		Host:     hostnode,
 		Provider: storageProvider,
-		NodeName: cniopts.Host.NodeID,
 	}
 	if err = nodeReconciler.SetupWithManager(mgr); err != nil {
 		log.Error(err, "Failed to setup node reconciler with manager", "controller", "Node")
