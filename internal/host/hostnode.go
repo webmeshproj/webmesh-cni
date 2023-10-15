@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 
 	v1 "github.com/webmeshproj/api/v1"
+	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
 	endpoints "github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
@@ -66,6 +67,8 @@ type Node interface {
 	Node() meshnode.Node
 	// NodeLogger returns the node's logger.
 	NodeLogger() *slog.Logger
+	// NodeContext returns a context with the node's logger.
+	NodeContext(context.Context) context.Context
 }
 
 // NewNode is the function for creating a new mesh node. Declared as a variable for testing purposes.
@@ -119,6 +122,15 @@ func (h *hostNode) IPAM() ipam.Allocator {
 // NodeLogger returns the node's logger.
 func (h *hostNode) NodeLogger() *slog.Logger {
 	return h.nodeLog
+}
+
+// NodeContext returns a context with the node's logger. If context is
+// nil, the background context is used.
+func (h *hostNode) NodeContext(ctx context.Context) context.Context {
+	if ctx != nil {
+		return meshcontext.WithLogger(ctx, h.nodeLog)
+	}
+	return meshcontext.WithLogger(context.Background(), h.nodeLog)
 }
 
 // Start starts the host node.

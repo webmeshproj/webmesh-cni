@@ -24,15 +24,16 @@ import (
 	"time"
 
 	v1 "github.com/webmeshproj/api/v1"
-	"github.com/webmeshproj/storage-provider-k8s/provider"
-	"github.com/webmeshproj/webmesh/pkg/logging"
-	"github.com/webmeshproj/webmesh/pkg/meshnet"
-	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
+	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
+	meshlogging "github.com/webmeshproj/webmesh/pkg/logging"
+	meshnet "github.com/webmeshproj/webmesh/pkg/meshnet"
+	mesheps "github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 	netutil "github.com/webmeshproj/webmesh/pkg/meshnet/netutil"
 	meshsys "github.com/webmeshproj/webmesh/pkg/meshnet/system"
 	meshtransport "github.com/webmeshproj/webmesh/pkg/meshnet/transport"
 	meshnode "github.com/webmeshproj/webmesh/pkg/meshnode"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
+	meshdns "github.com/webmeshproj/webmesh/pkg/services/meshdns"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,9 +56,10 @@ import (
 type RemoteNetworkReconciler struct {
 	client.Client
 	config.Config
-	Provider *provider.Provider
+	Provider *storageprovider.Provider
 	HostNode host.Node
 	bridges  map[client.ObjectKey]meshnode.Node
+	dnssrv   *meshdns.Server
 	mu       sync.Mutex
 }
 
@@ -66,6 +68,13 @@ func (r *RemoteNetworkReconciler) SetupWithManager(mgr ctrl.Manager) (err error)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cniv1.RemoteNetwork{}).
 		Complete(r)
+}
+
+// SetDNSServer sets the DNS server for the controller.
+func (r *RemoteNetworkReconciler) SetDNSServer(srv *meshdns.Server) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dnssrv = srv
 }
 
 func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -107,7 +116,6 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to reconcile remote network bridge")
 		return ctrl.Result{}, err
 	}
-
 	if nw.Spec.AuthMethod != cniv1.RemoteAuthMethodKubernetes {
 		// Request a requeue in a minute to ensure the bridge is still running
 		// and all node edges are up to date.
@@ -167,7 +175,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			// So our node ID needs to match the key.
 			nodeID = privkey.ID()
 		}
-		node := NewNode(logging.NewLogger(r.Host.LogLevel, "json"), meshnode.Config{
+		node := NewNode(meshlogging.NewLogger(r.Host.LogLevel, "json"), meshnode.Config{
 			Key:             privkey,
 			NodeID:          nodeID,
 			ZoneAwarenessID: r.Host.NodeID,
@@ -221,7 +229,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	select {
 	case <-bridge.Ready():
 		hwaddr, _ := bridge.Network().WireGuard().HardwareAddr()
-		log.Info("Webmesh node for bridge is running",
+		log.Info("Webmesh node for remote network bridge is running",
 			"interfaceName", bridge.Network().WireGuard().Name(),
 			"macAddress", hwaddr.String(),
 			"ipv4Address", validOrNone(bridge.Network().WireGuard().AddressV4()),
@@ -241,6 +249,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return ctx.Err()
 	}
 
+	// Make sure we route traffic to the remote network
 	log.Info("Ensuring local routes to remote network")
 	err := r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
@@ -272,7 +281,7 @@ func (r *RemoteNetworkReconciler) connectWithWebmeshAPI(ctx context.Context, nw 
 func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw *cniv1.RemoteNetwork, kubeconfig []byte, bridge meshnode.Node) error {
 	log := log.FromContext(ctx)
 	// Detect the current endpoints on the machine.
-	eps, err := endpoints.Detect(ctx, endpoints.DetectOpts{
+	eps, err := mesheps.Detect(ctx, mesheps.DetectOpts{
 		DetectPrivate:        true, // TODO: Not necessarily required in this case.
 		DetectIPv6:           !nw.Spec.Network.DisableIPv6,
 		AllowRemoteDetection: r.Manager.RemoteEndpointDetection,
@@ -289,6 +298,25 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return fmt.Errorf("failed to detect endpoints: %w", err)
 	}
+	encodedPubkey, err := bridge.Key().PublicKey().Encode()
+	if err != nil {
+		return fmt.Errorf("failed to encode public key: %w", err)
+	}
+	var bridgeFeatures []*v1.FeaturePort
+	if nw.Spec.Network.ForwardDNS {
+		if r.dnssrv == nil {
+			// Requeue until the DNS server is set.
+			return fmt.Errorf("no dns server running yet")
+		}
+		bridgeFeatures = append(bridgeFeatures, &v1.FeaturePort{
+			Feature: v1.Feature_MESH_DNS,
+			Port:    int32(r.dnssrv.ListenPort()),
+		})
+		bridgeFeatures = append(bridgeFeatures, &v1.FeaturePort{
+			Feature: v1.Feature_FORWARD_MESH_DNS,
+			Port:    int32(r.dnssrv.ListenPort()),
+		})
+	}
 	// Create a connection to the remote cluster storage
 	cfg, err := types.NewRestConfigFromBytes(kubeconfig)
 	if err != nil {
@@ -300,7 +328,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		}
 		return r.Host.Namespace
 	}()
-	db, err := provider.NewObserverWithConfig(cfg, provider.Options{
+	db, err := storageprovider.NewObserverWithConfig(cfg, storageprovider.Options{
 		NodeID:    bridge.ID().String(),
 		Namespace: namespace,
 	})
@@ -320,7 +348,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	// Retrieve the state of the remote network.
 	remoteState, err := db.MeshDB().MeshState().GetMeshState(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get remote mesh state: %w", err)
+		return handleErr(fmt.Errorf("failed to get remote mesh state: %w", err))
 	}
 	// Create a peer for ourselves on the remote network.
 	var ipv4addr string
@@ -350,14 +378,10 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		}
 		ipv4addr = alloc.String()
 	}
-	encoded, err := bridge.Key().PublicKey().Encode()
-	if err != nil {
-		return handleErr(fmt.Errorf("failed to encode public key: %w", err))
-	}
 	peer := meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:              bridge.ID().String(),
-			PublicKey:       encoded,
+			PublicKey:       encodedPubkey,
 			ZoneAwarenessID: r.Host.NodeID,
 			PrivateIPv4:     ipv4addr,
 			PrivateIPv6: func() string {
@@ -366,6 +390,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 				}
 				return netutil.AssignToPrefix(remoteState.NetworkV6(), bridge.Key().PublicKey()).String()
 			}(),
+			Features: bridgeFeatures,
 		},
 	}
 	log.Info("Registering ourselves with the remote meshdb", "peer", peer.MeshNode)
@@ -405,7 +430,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	err = db.Consensus().AddObserver(ctx, meshtypes.StoragePeer{
 		StoragePeer: &v1.StoragePeer{
 			Id:        bridge.ID().String(),
-			PublicKey: encoded,
+			PublicKey: encodedPubkey,
 		},
 	})
 	if err != nil {
@@ -449,7 +474,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		}, false)
 	})
 	log.Info("Connecting to remote network")
-	err = bridge.Connect(ctx, meshnode.ConnectOptions{
+	err = bridge.Connect(r.HostNode.NodeContext(ctx), meshnode.ConnectOptions{
 		StorageProvider:   db,
 		MaxJoinRetries:    10,
 		JoinRoundTripper:  joinRTT,
@@ -495,7 +520,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	peer = meshtypes.MeshNode{
 		MeshNode: &v1.MeshNode{
 			Id:        bridge.ID().String(),
-			PublicKey: encoded,
+			PublicKey: encodedPubkey,
 			PrimaryEndpoint: func() string {
 				if eps.FirstPublicAddr().IsValid() {
 					return eps.FirstPublicAddr().String()
@@ -511,8 +536,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 				}
 				return netutil.AssignToPrefix(remoteState.NetworkV6(), bridge.Key().PublicKey()).String()
 			}(),
-			// TODO: Optionally advertise forward DNS.
-			Features: nil,
+			Features: bridgeFeatures,
 		},
 	}
 	log.Info("Updating peer with wireguard endpoints", "peer", peer.MeshNode)

@@ -118,6 +118,9 @@ type NetworkConfig struct {
 	// MTU is the MTU to use for the interface. It will be automatically
 	// chosen if not provided.
 	MTU int `json:"mtu,omitempty"`
+	// ForwardDNS enables forwarding DNS requests from the remote network.
+	// Requires that a MeshDNS server is running on each peered CNI node.
+	ForwardDNS bool `json:"forwardDNS,omitempty"`
 	// DisableIPv4 disables IPv4 forwarding on the interface.
 	DisableIPv4 bool `json:"disableIPv4,omitempty"`
 	// DisableIPv6 disables IPv6 forwarding on the interface.

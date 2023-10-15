@@ -105,6 +105,11 @@ spec:
                   disableIPv6:
                     description: DisableIPv6 disables IPv6 forwarding on the interface.
                     type: boolean
+                  forwardDNS:
+                    description: ForwardDNS enables forwarding DNS requests from the
+                      remote network. Requires that a MeshDNS server is running on
+                      each peered CNI node.
+                    type: boolean
                   interfaceName:
                     description: InterfaceName is the name to give the interface.
                       It will be automatically chosen from the name of the remote

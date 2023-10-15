@@ -35,6 +35,7 @@ import (
 	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
+	"github.com/webmeshproj/webmesh/pkg/services/meshdns"
 	"github.com/webmeshproj/webmesh/pkg/version"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -341,6 +342,11 @@ func Main(build version.BuildInfo) {
 	}
 
 	hostCtx := meshcontext.WithLogger(context.Background(), host.NodeLogger())
+	if cniopts.Host.Services.MeshDNS.Enabled {
+		// We force subscribe forwarders to true or otherwise it would
+		// serve very little purpose.
+		cniopts.Host.Services.MeshDNS.SubscribeForwarders = true
+	}
 	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())
 	if err != nil {
 		err := host.Stop(ctx)
@@ -349,6 +355,23 @@ func Main(build version.BuildInfo) {
 		}
 		log.Error(err, "Failed to create webmesh service options")
 		os.Exit(1)
+	}
+	if cniopts.Host.Services.MeshDNS.Enabled {
+		// Set the DNS server to the remote network controller
+		dnssrv, ok := srvOpts.GetServer(&meshdns.Server{})
+		if !ok {
+			// Something bizarre happened.
+			err := host.Stop(ctx)
+			if err != nil {
+				log.Error(err, "Failed to stop host node")
+			}
+			log.Error(err, "Failed to get meshdns server")
+			os.Exit(1)
+		}
+		remoteNetworkReconciler.SetDNSServer(dnssrv.(*meshdns.Server))
+		// TODO: We should technically tell the local containers
+		// to use this DNS server to. That way they will receive
+		// forward DNS requests from any remote networks.
 	}
 	srv, err := meshservices.NewServer(hostCtx, srvOpts)
 	if err != nil {
