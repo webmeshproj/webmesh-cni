@@ -448,7 +448,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 				if nw.Spec.Network.InterfaceName != "" {
 					return nw.Spec.Network.InterfaceName
 				}
-				return types.IfNameFromID(bridge.ID().String())
+				return types.IfNameFromID(nw.GetName())
 			}(),
 			ForceReplace: true,
 			// Maybe by configuration?

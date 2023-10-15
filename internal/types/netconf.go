@@ -262,6 +262,8 @@ func (n *NetConf) ContainerFromArgs(args *skel.CmdArgs) meshcniv1.PeerContainer 
 
 // IfNameFromID returns a suitable interface name for the given identifier.
 func IfNameFromID(id string) string {
+	id = strings.Replace(id, "-", "", -1)
+	id = strings.Replace(id, "_", "", -1)
 	return IfacePrefix + id[:min(9, len(id))] + "0"
 }
 
