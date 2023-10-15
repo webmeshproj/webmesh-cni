@@ -101,7 +101,7 @@ type RemoteNetworkSpec struct {
 	// kubeconfig or TLS credentials are present, ID authentication will be used.
 	Credentials *corev1.ObjectReference `json:"credentials,omitempty"`
 	// CheckInterval is the interval to check on the remote network status when
-	// using native or no authentication. Defaults to 1 minute. Kubernetes authentiation
+	// using native or no authentication. Defaults to 1 minute. Kubernetes authentication
 	// relies on storage subscription events and does not require a check interval.
 	CheckInterval *metav1.Duration `json:"checkInterval,omitempty"`
 }
