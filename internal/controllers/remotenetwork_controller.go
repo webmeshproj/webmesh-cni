@@ -176,8 +176,32 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		if err := r.updateBridgeStatus(ctx, nw); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}
+		return nil
 	}
 
+	log.Info("Ensuring the bridge node is ready")
+	select {
+	case <-bridge.Ready():
+		hwaddr, _ := bridge.Network().WireGuard().HardwareAddr()
+		log.Info("Webmesh node for container is running",
+			"interfaceName", bridge.Network().WireGuard().Name(),
+			"macAddress", hwaddr.String(),
+			"ipv4Address", validOrNone(bridge.Network().WireGuard().AddressV4()),
+			"ipv4Address", validOrNone(bridge.Network().WireGuard().AddressV6()),
+			"networkV4", validOrNone(bridge.Network().NetworkV4()),
+			"networkV6", validOrNone(bridge.Network().NetworkV6()),
+		)
+		err := r.ensureInterfaceReadyStatus(ctx, nw, bridge)
+		if err != nil {
+			log.Error(err, "Failed to update container status")
+			return fmt.Errorf("failed to update container status: %w", err)
+		}
+	case <-ctx.Done():
+		// Update the status to failed.
+		log.Error(ctx.Err(), "Timed out waiting for mesh node to start")
+		// Don't delete the node or set it to failed yet, maybe it'll be ready on the next reconcile.
+		return ctx.Err()
+	}
 	return nil
 }
 
@@ -222,6 +246,61 @@ func (r *RemoteNetworkReconciler) updateBridgeStatus(ctx context.Context, bridge
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update status: %w", err)
+	}
+	return nil
+}
+
+func (r *RemoteNetworkReconciler) ensureInterfaceReadyStatus(ctx context.Context, nw *cniv1.RemoteNetwork, node meshnode.Node) (err error) {
+	log := log.FromContext(ctx)
+	// Update the status to running and sets its IP address.
+	var updateStatus bool
+	origStatus := nw.Status
+	addrV4 := validOrEmpty(node.Network().WireGuard().AddressV4())
+	addrV6 := validOrEmpty(node.Network().WireGuard().AddressV6())
+	netv4 := validOrEmpty(node.Network().NetworkV4())
+	netv6 := validOrEmpty(node.Network().NetworkV6())
+	if nw.Status.BridgeStatus != cniv1.BridgeStatusRunning {
+		// Update the status to running and sets its IP address.
+		nw.Status.BridgeStatus = cniv1.BridgeStatusRunning
+		updateStatus = true
+	}
+	hwaddr, _ := node.Network().WireGuard().HardwareAddr()
+	if nw.Status.MACAddress != hwaddr.String() {
+		nw.Status.MACAddress = hwaddr.String()
+		updateStatus = true
+	}
+
+	if nw.Status.IPv4Address != addrV4 {
+		nw.Status.IPv4Address = addrV4
+		updateStatus = true
+	}
+
+	if nw.Status.IPv6Address != addrV6 {
+		nw.Status.IPv6Address = addrV6
+		updateStatus = true
+	}
+	if nw.Status.NetworkV4 != netv4 {
+		nw.Status.NetworkV4 = netv4
+		updateStatus = true
+	}
+	if nw.Status.NetworkV6 != netv6 {
+		nw.Status.NetworkV6 = netv6
+		updateStatus = true
+	}
+	if nw.Status.InterfaceName != node.Network().WireGuard().Name() {
+		nw.Status.InterfaceName = node.Network().WireGuard().Name()
+		updateStatus = true
+	}
+	if nw.Status.Error != "" {
+		nw.Status.Error = ""
+		updateStatus = true
+	}
+	if updateStatus {
+		log.Info("Updating container interface status",
+			"newStatus", nw.Status,
+			"oldStatus", origStatus,
+		)
+		return r.updateBridgeStatus(ctx, nw)
 	}
 	return nil
 }

@@ -136,6 +136,24 @@ spec:
                 description: Error is the last error encountered when peering with
                   the remote network.
                 type: string
+              interfaceName:
+                description: InterfaceName is the name of the interface.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address of the interface.
+                type: string
+              ipv6Address:
+                description: IPv6Address is the IPv6 address of the interface.
+                type: string
+              macAddress:
+                description: MACAddress is the MAC address of the interface.
+                type: string
+              networkV4:
+                description: NetworkV4 is the IPv4 network of the interface.
+                type: string
+              networkV6:
+                description: NetworkV6 is the IPv6 network of the interface.
+                type: string
               peers:
                 description: Peers are the peers in the remote network.
                 items:
@@ -165,6 +183,13 @@ spec:
                       type: string
                   type: object
                 type: array
+            required:
+            - interfaceName
+            - ipv4Address
+            - ipv6Address
+            - macAddress
+            - networkV4
+            - networkV6
             type: object
         type: object
     served: true

@@ -306,8 +306,7 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 		return nil
 	}
 
-	log.Info("Waiting for container webmesh node to be ready")
-
+	log.Info("Ensuring the container webmesh node is ready")
 	select {
 	case <-node.Ready():
 		hwaddr, _ := node.Network().WireGuard().HardwareAddr()
@@ -336,7 +335,6 @@ func (r *PeerContainerReconciler) reconcilePeerContainer(ctx context.Context, re
 	}
 
 	// Register the node to the storage provider.
-
 	wireguardPort, err := node.Network().WireGuard().ListenPort()
 	if err != nil {
 		// Something went terribly wrong, we need to recreate the node.

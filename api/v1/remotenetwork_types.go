@@ -121,10 +121,21 @@ type Peer struct {
 type RemoteNetworkStatus struct {
 	// BridgeStatus is the status of the bridge interface.
 	BridgeStatus BridgeStatus `json:"bridgeStatus,omitempty"`
+	// InterfaceName is the name of the interface.
+	InterfaceName string `json:"interfaceName"`
+	// MACAddress is the MAC address of the interface.
+	MACAddress string `json:"macAddress"`
+	// IPv4Address is the IPv4 address of the interface.
+	IPv4Address string `json:"ipv4Address"`
+	// IPv6Address is the IPv6 address of the interface.
+	IPv6Address string `json:"ipv6Address"`
+	// NetworkV4 is the IPv4 network of the interface.
+	NetworkV4 string `json:"networkV4"`
+	// NetworkV6 is the IPv6 network of the interface.
+	NetworkV6 string `json:"networkV6"`
 	// Peers are the peers in the remote network.
 	Peers []Peer `json:"peers,omitempty"`
-	// Error is the last error encountered when peering with the remote
-	// network.
+	// Error is the last error encountered when peering with the remote network.
 	Error string `json:"error,omitempty"`
 }
 

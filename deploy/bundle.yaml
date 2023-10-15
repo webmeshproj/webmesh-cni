@@ -886,9 +886,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Whether the remote network has been peered with
-      jsonPath: .status.peered
-      name: Peered
+    - description: The status of the remote bridge interface
+      jsonPath: .status.bridgeStatus
+      name: Status
       type: boolean
     name: v1
     schema:
@@ -922,12 +922,11 @@ spec:
                 type: string
               credentials:
                 description: Credentials are a reference to a secret containing credentials
-                  for the remote network. This must contain at a minimum a pre-shared-key
-                  for seeding address space allocation in the bridge network. It may
-                  also contain a kubeconfig for kubernetes authentication or TLS credentials
-                  for mTLS authentication. If native authentication is set and no
-                  kubeconfig or TLS credentials are present, ID authentication will
-                  be used.
+                  for the remote network. This may contain a pre-shared-key for seeding
+                  address space allocation in the bridge network. It may also contain
+                  a kubeconfig for kubernetes authentication or TLS credentials for
+                  mTLS authentication. If native authentication is set and no kubeconfig
+                  or TLS credentials are present, ID authentication will be used.
                 properties:
                   apiVersion:
                     description: API version of the referent.
@@ -996,20 +995,36 @@ spec:
                 type: array
             required:
             - authMethod
-            - credentials
             type: object
           status:
             description: RemoteNetworkStatus will contain the status of the peering
               with the remote network.
             properties:
+              bridgeStatus:
+                description: BridgeStatus is the status of the bridge interface.
+                type: string
               error:
                 description: Error is the last error encountered when peering with
                   the remote network.
                 type: string
-              peered:
-                description: Peered is true when the remote network has been successfully
-                  peered with.
-                type: boolean
+              interfaceName:
+                description: InterfaceName is the name of the interface.
+                type: string
+              ipv4Address:
+                description: IPv4Address is the IPv4 address of the interface.
+                type: string
+              ipv6Address:
+                description: IPv6Address is the IPv6 address of the interface.
+                type: string
+              macAddress:
+                description: MACAddress is the MAC address of the interface.
+                type: string
+              networkV4:
+                description: NetworkV4 is the IPv4 network of the interface.
+                type: string
+              networkV6:
+                description: NetworkV6 is the IPv6 network of the interface.
+                type: string
               peers:
                 description: Peers are the peers in the remote network.
                 items:
@@ -1040,7 +1055,12 @@ spec:
                   type: object
                 type: array
             required:
-            - peered
+            - interfaceName
+            - ipv4Address
+            - ipv6Address
+            - macAddress
+            - networkV4
+            - networkV6
             type: object
         type: object
     served: true
