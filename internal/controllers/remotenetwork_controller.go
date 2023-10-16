@@ -133,6 +133,7 @@ func (r *RemoteNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key client.ObjectKey, nw *cniv1.RemoteNetwork) error {
 	log := log.FromContext(ctx)
+
 	// Ensure the finalizer on the network.
 	if !controllerutil.ContainsFinalizer(nw, cniv1.RemoteNetworkFinalizer) {
 		updated := controllerutil.AddFinalizer(nw, cniv1.RemoteNetworkFinalizer)
@@ -144,6 +145,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			return nil
 		}
 	}
+
 	// Fetch any credentials if provided.
 	var creds map[string][]byte
 	if nw.Spec.Credentials != nil {
@@ -226,6 +228,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return nil
 	}
 
+	// Make sure the bridge is ready
 	log.Info("Ensuring the bridge node is ready")
 	select {
 	case <-bridge.Ready():
@@ -250,6 +253,7 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		return ctx.Err()
 	}
 
+	// Register the remote network with our dns server if enabled.
 	if nw.Spec.Network.ForwardDNS {
 		// We shouldn't have gotten this far without first checking the DNS server is set.
 		err := r.dnssrv.RegisterDomain(meshdns.DomainOptions{
@@ -264,17 +268,8 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 		}
 	}
 
-	// Make sure we route traffic to the remote network
-	log.Info("Ensuring local routes to remote network")
-	var destinationCIDRs []string
-	if bridge.Network().NetworkV4().IsValid() {
-		destinationCIDRs = append(destinationCIDRs, bridge.Network().NetworkV4().String())
-	}
-	if bridge.Network().NetworkV6().IsValid() {
-		destinationCIDRs = append(destinationCIDRs, bridge.Network().NetworkV6().String())
-	}
-	// Lookup the current leader on the remote side and see if they broadcast any other
-	// routes we care about.
+	// Lookup the current leader on the remote side and grab all the routes
+	// of the remote network that we care about.
 	leader, err := bridge.Storage().Consensus().GetLeader(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get remote consensus leader: %w", err)
@@ -283,15 +278,10 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 	if err != nil {
 		return fmt.Errorf("failed to get remote routes: %w", err)
 	}
+	var destinationCIDRs []string
 	for _, rt := range routes {
 		for _, cidr := range rt.DestinationPrefixes() {
 			if cidr.Addr().IsUnspecified() || cidr.Addr().IsLinkLocalUnicast() || cidr.Addr().IsLinkLocalMulticast() {
-				continue
-			}
-			if cidr.Addr().Is6() && cidr.Contains(bridge.Network().NetworkV6().Addr()) {
-				continue
-			}
-			if cidr.Addr().Is4() && cidr.Contains(bridge.Network().NetworkV4().Addr()) {
 				continue
 			}
 			if !r.Host.Network.CIDRsContain(cidr) {
