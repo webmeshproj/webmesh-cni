@@ -503,9 +503,8 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			ZoneAwarenessID: r.Host.NodeID,
 			DisableIPv4:     nw.Spec.Network.DisableIPv4,
 			DisableIPv6:     nw.Spec.Network.DisableIPv6,
-			// We don't want to use the full gateway routes broadcasted by
-			// the remote cluster because they will likely collide with our
-			// own.
+			// We don't want to use the default gateway routes broadcasted by
+			// the remote cluster because they will likely collide with our own.
 			DisableFullTunnel: true,
 			ListenPort:        nw.Spec.Network.WireGuardPort,
 			MTU: func() int {
