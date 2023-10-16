@@ -41,6 +41,10 @@ First remove any existing CNI installations, then you can install the downloaded
 kubectl apply -f https://github.com/webmeshproj/webmesh-cni/releases/latest/download/bundle.yaml
 ```
 
+## Examples
+
+Examples can be found in the [examples](examples/) directory with instructions on how to run them and the various features they demonstrate.
+
 ## Configuration
 
 The CNI is configured via the `webmesh-cni` daemonset and configmap found [here](deploy/cni/cni.yaml) as well as in the bundle.
