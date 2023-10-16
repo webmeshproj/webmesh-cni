@@ -418,10 +418,9 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		return handleErr(fmt.Errorf("failed to register peer: %w", err))
 	}
 	log.Info("Registering local routes with the remote meshdb")
-	routeName := fmt.Sprintf("%s-node-gw", bridge.ID().String())
 	err = db.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
-			Name: routeName,
+			Name: r.remoteRouteName(nw, bridge),
 			Node: bridge.ID().String(),
 			DestinationCIDRs: func() []string {
 				var out []string
@@ -481,7 +480,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	})
 	leaveRTT := meshtransport.LeaveRoundTripperFunc(func(ctx context.Context, req *v1.LeaveRequest) (*v1.LeaveResponse, error) {
 		// We remove ourself from the remote network.
-		if err := db.MeshDB().Networking().DeleteRoute(ctx, routeName); err != nil {
+		if err := db.MeshDB().Networking().DeleteRoute(ctx, r.remoteRouteName(nw, bridge)); err != nil {
 			log.Error(err, "Failed to remove route from remote meshdb")
 		}
 		if err := db.MeshDB().Peers().Delete(ctx, bridge.ID()); err != nil {
@@ -609,6 +608,10 @@ func (r *RemoteNetworkReconciler) reconcileRemove(ctx context.Context, key clien
 
 func (r *RemoteNetworkReconciler) localRouteName(nw *cniv1.RemoteNetwork) string {
 	return fmt.Sprintf("%s-%s-bridge", r.HostNode.ID(), nw.GetName())
+}
+
+func (r *RemoteNetworkReconciler) remoteRouteName(nw *cniv1.RemoteNetwork, bridge meshnode.Node) string {
+	return fmt.Sprintf("%s-%s-bridge", bridge.ID(), nw.GetName())
 }
 
 func (r *RemoteNetworkReconciler) setFailedStatus(ctx context.Context, bridge *cniv1.RemoteNetwork, reason error) {
