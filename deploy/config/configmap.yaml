@@ -13,7 +13,7 @@ data:
   # The cluster pod CIDR is used to handle IP allocation for pods.
   pod-cidr: "10.42.0.0/16,fd00:10:42::/48"
   # The cluster service CIDR is used to determine which IPs are cluster-local.
-  service-cidr: "10.96.0.0/12,fd00:10:96::/112"
+  service-cidr: "10.96.0.0/16,fd00:10:96::/112"
   # The network config to install on each node.
   cni-network-config: |-
     {
