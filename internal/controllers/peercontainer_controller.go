@@ -504,9 +504,10 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 			addr = r.Host.Node().Network().WireGuard().AddressV4().Addr()
 		}
 		if addr.IsValid() {
-			addrport := netip.AddrPortFrom(addr, uint16(r.dns.ListenPort()))
-			if len(container.Status.DNSServers) == 0 || container.Status.DNSServers[0] != addrport.String() {
-				container.Status.DNSServers = []string{addrport.String()}
+			// addrport := netip.AddrPortFrom(addr, uint16(r.dns.ListenPort()))
+			if len(container.Status.DNSServers) == 0 || container.Status.DNSServers[0] != addr.String() {
+				// container.Status.DNSServers = []string{addrport.String()}
+				container.Status.DNSServers = []string{addr.String()}
 				updateStatus = true
 			}
 		}
