@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"time"
 
@@ -147,8 +148,30 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		err = fmt.Errorf("failed to build container interface result from status: %w", err)
 		return
 	}
-	// Get the interface details from the container namespace and
-	// enable IP forwarding.
+	if len(peerContainer.Status.DNSServers) > 0 {
+		// We need to create a special resolv conf for the network namespace.
+		log.Debug("Creating resolv.conf for container namespace")
+		resolvConfPath := filepath.Join("/etc/netns", filepath.Base(args.Netns), "resolv.conf")
+		err := os.MkdirAll(filepath.Dir(resolvConfPath), 0755)
+		if err != nil {
+			err = fmt.Errorf("failed to create resolv.conf directory: %w", err)
+			return err
+		}
+		resolvConf, err := os.Create(resolvConfPath)
+		if err != nil {
+			err = fmt.Errorf("failed to create resolv.conf: %w", err)
+			return err
+		}
+		defer resolvConf.Close()
+		for _, dnsServer := range peerContainer.Status.DNSServers {
+			_, err = resolvConf.WriteString(fmt.Sprintf("nameserver %s\n", dnsServer))
+			if err != nil {
+				err = fmt.Errorf("failed to write to resolv.conf: %w", err)
+				return err
+			}
+		}
+	}
+	// Get the interface details from the container namespace and ensure IP forwarding is enabled.
 	log.Debug("Getting interface details from container namespace")
 	containerNs, err := ns.GetNS(args.Netns)
 	if err != nil {
