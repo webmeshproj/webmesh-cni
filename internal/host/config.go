@@ -138,6 +138,30 @@ type NetworkConfig struct {
 	DisableIPv6 bool `koanf:"disable-ipv6,omitempty"`
 }
 
+// PodCIDRs returns the pod CIDRs.
+func (n *NetworkConfig) PodCIDRs() []netip.Prefix {
+	var cidrs []netip.Prefix
+	if n.PodCIDR == "" {
+		return cidrs
+	}
+	for _, cidr := range strings.Split(n.PodCIDR, ",") {
+		cidrs = append(cidrs, netip.MustParsePrefix(cidr))
+	}
+	return cidrs
+}
+
+// ServiceCIDRs returns the service CIDRs.
+func (n *NetworkConfig) ServiceCIDRs() []netip.Prefix {
+	var cidrs []netip.Prefix
+	if n.ServiceCIDR == "" {
+		return cidrs
+	}
+	for _, cidr := range strings.Split(n.ServiceCIDR, ",") {
+		cidrs = append(cidrs, netip.MustParsePrefix(cidr))
+	}
+	return cidrs
+}
+
 func NewNetworkConfig() NetworkConfig {
 	return NetworkConfig{
 		RemoteEndpointDetection: false,

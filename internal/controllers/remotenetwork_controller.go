@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"strings"
 	"sync"
 	"time"
 
@@ -267,20 +266,36 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 
 	// Make sure we route traffic to the remote network
 	log.Info("Ensuring local routes to remote network")
-	err := r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
+	var destinationCIDRs []string
+	if bridge.Network().NetworkV4().IsValid() {
+		destinationCIDRs = append(destinationCIDRs, bridge.Network().NetworkV4().String())
+	}
+	if bridge.Network().NetworkV6().IsValid() {
+		destinationCIDRs = append(destinationCIDRs, bridge.Network().NetworkV6().String())
+	}
+	// Lookup the current leader on the remote side and see if they broadcast any other
+	// routes we care about.
+	leader, err := bridge.Storage().Consensus().GetLeader(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get remote consensus leader: %w", err)
+	}
+	routes, err := bridge.Storage().MeshDB().Networking().GetRoutesByNode(ctx, meshtypes.NodeID(leader.GetId()))
+	if err != nil {
+		return fmt.Errorf("failed to get remote routes: %w", err)
+	}
+	for _, rt := range routes {
+		for _, cidr := range rt.DestinationPrefixes() {
+			if cidr.Addr().IsUnspecified() || cidr.Addr().IsLinkLocalUnicast() || cidr.Addr().IsLinkLocalMulticast() {
+				continue
+			}
+			destinationCIDRs = append(destinationCIDRs, cidr.String())
+		}
+	}
+	err = r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
-			Name: r.localRouteName(nw),
-			Node: r.HostNode.ID().String(),
-			DestinationCIDRs: func() []string {
-				var out []string
-				if bridge.Network().NetworkV4().IsValid() {
-					out = append(out, bridge.Network().NetworkV4().String())
-				}
-				if bridge.Network().NetworkV6().IsValid() {
-					out = append(out, bridge.Network().NetworkV6().String())
-				}
-				return out
-			}(),
+			Name:             r.localRouteName(nw),
+			Node:             r.HostNode.ID().String(),
+			DestinationCIDRs: destinationCIDRs,
 		},
 	})
 	if err != nil {
@@ -442,15 +457,11 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 				for _, ep := range eps {
 					out = append(out, ep.String())
 				}
-				if r.Host.Network.PodCIDR != "" {
-					for _, addr := range strings.Split(r.Host.Network.PodCIDR, ",") {
-						out = append(out, strings.TrimSpace(addr))
-					}
+				for _, addr := range r.Host.Network.PodCIDRs() {
+					out = append(out, addr.String())
 				}
-				if r.Host.Network.ServiceCIDR != "" {
-					for _, addr := range strings.Split(r.Host.Network.ServiceCIDR, ",") {
-						out = append(out, strings.TrimSpace(addr))
-					}
+				for _, addr := range r.Host.Network.ServiceCIDRs() {
+					out = append(out, addr.String())
 				}
 				return out
 			}(),

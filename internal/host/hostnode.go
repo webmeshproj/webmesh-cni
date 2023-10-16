@@ -320,15 +320,11 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 				for _, ep := range eps {
 					out = append(out, ep.String())
 				}
-				if h.config.Network.PodCIDR != "" {
-					for _, addr := range strings.Split(h.config.Network.PodCIDR, ",") {
-						out = append(out, strings.TrimSpace(addr))
-					}
+				for _, addr := range h.config.Network.PodCIDRs() {
+					out = append(out, addr.String())
 				}
-				if h.config.Network.ServiceCIDR != "" {
-					for _, addr := range strings.Split(h.config.Network.ServiceCIDR, ",") {
-						out = append(out, strings.TrimSpace(addr))
-					}
+				for _, addr := range h.config.Network.ServiceCIDRs() {
+					out = append(out, addr.String())
 				}
 				return out
 			}(),
