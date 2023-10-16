@@ -86,3 +86,11 @@ kubectl --kubeconfig cluster-two-kubeconfig.yaml run -it --rm --restart=Never --
 $ apk add --update curl
 $ curl -sS whoami.default.svc.cluster-one.local
 ```
+
+### Teardown
+
+You can use the `teardown.sh` script to delete the clusters and clean up the generated kubeconfigs.
+
+```bash
+./scripts/teardown.sh
+```
