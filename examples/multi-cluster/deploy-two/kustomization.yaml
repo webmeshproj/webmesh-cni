@@ -34,3 +34,4 @@ patches:
                 - --host.services.api.disabled=false
                 - --host.services.api.mesh-enabled=true
                 - --host.services.meshdns.enabled=true
+                - --host.services.meshdns.cache-size=0
