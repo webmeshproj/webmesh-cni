@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,7 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/config"
 	"github.com/webmeshproj/webmesh-cni/internal/host"
 	"github.com/webmeshproj/webmesh-cni/internal/ipam"
+	"github.com/webmeshproj/webmesh-cni/internal/metadata"
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
 
@@ -533,7 +535,12 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			// We don't want to use the default gateway routes broadcasted by
 			// the remote cluster because they will likely collide with our own.
 			DisableFullTunnel: true,
-			ListenPort:        nw.Spec.Network.WireGuardPort,
+			// Ignore routes to any metadata servers. But this may need to be
+			// more configurable.
+			IgnoreRoutes: []netip.Prefix{
+				netip.PrefixFrom(metadata.DefaultServerAddress.Addr(), 32),
+			},
+			ListenPort: nw.Spec.Network.WireGuardPort,
 			MTU: func() int {
 				if nw.Spec.Network.MTU > 0 {
 					return nw.Spec.Network.MTU
