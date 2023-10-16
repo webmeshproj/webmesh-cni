@@ -353,9 +353,16 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return fmt.Errorf("failed to start meshdb observer: %w", err)
 	}
-	handleErr := func(cause error) error {
+	cleanFuncs := make([]func(), 0)
+	cleanFuncs = append(cleanFuncs, func() {
 		if err := db.Close(); err != nil {
 			log.Error(err, "Failed to stop meshdb observer")
+		}
+	})
+	handleErr := func(cause error) error {
+		// Iterate the clean functions in reverse order.
+		for i := len(cleanFuncs) - 1; i >= 0; i-- {
+			cleanFuncs[i]()
 		}
 		return cause
 	}
@@ -417,6 +424,12 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
 		return handleErr(fmt.Errorf("failed to register peer: %w", err))
 	}
+	cleanFuncs = append(cleanFuncs, func() {
+		if err := db.MeshDB().Peers().Delete(ctx, bridge.ID()); err != nil {
+			log.Error(err, "Failed to remove peer from remote meshdb")
+		}
+	})
+	// Create routes on the remote network for our local CIDRs.
 	log.Info("Registering local routes with the remote meshdb")
 	err = db.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
 		Route: &v1.Route{
@@ -444,6 +457,11 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to register route: %w", err))
 	}
+	cleanFuncs = append(cleanFuncs, func() {
+		if err := db.MeshDB().Networking().DeleteRoute(ctx, r.remoteRouteName(nw, bridge)); err != nil {
+			log.Error(err, "Failed to remove route from remote meshdb")
+		}
+	})
 	// Add ourselves as an observer to the remote consensus group.
 	// This should trigger the remote CNI to edge us to all other remote CNI nodes.
 	err = db.Consensus().AddObserver(ctx, meshtypes.StoragePeer{
@@ -455,6 +473,16 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to register with remote as observer: %w", err))
 	}
+	cleanFuncs = append(cleanFuncs, func() {
+		err = db.Consensus().RemovePeer(ctx, meshtypes.StoragePeer{
+			StoragePeer: &v1.StoragePeer{
+				Id: bridge.ID().String(),
+			},
+		}, false)
+		if err != nil {
+			log.Error(err, "Failed to remove peer from remote consensus group")
+		}
+	})
 	// Setup a join transport using the client to the remote network.
 	joinRTT := meshtransport.JoinRoundTripperFunc(func(ctx context.Context, _ *v1.JoinRequest) (*v1.JoinResponse, error) {
 		// Retrieve the peer we created earlier
@@ -528,11 +556,15 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if err != nil {
 		return handleErr(fmt.Errorf("failed to connect to remote network: %w", err))
 	}
+	cleanFuncs = append(cleanFuncs, func() {
+		if err := bridge.Close(ctx); err != nil {
+			log.Error(err, "Failed to disconnect from remote network")
+		}
+	})
 	log.Info("Bridge node is connected, registering endpoints with remote network")
 	wireguardPort, err := bridge.Network().WireGuard().ListenPort()
 	if err != nil {
-		defer bridge.Close(ctx)
-		return fmt.Errorf("failed to get wireguard listen port: %w", err)
+		return handleErr(fmt.Errorf("failed to get wireguard listen port: %w", err))
 	}
 	var wgeps []string
 	for _, ep := range eps.AddrPorts(uint16(wireguardPort)) {
@@ -563,8 +595,7 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	}
 	log.Info("Updating peer with wireguard endpoints", "peer", peer.MeshNode)
 	if err := db.MeshDB().Peers().Put(ctx, peer); err != nil {
-		defer bridge.Close(ctx)
-		return fmt.Errorf("failed to update peer with wireguard endpoints: %w", err)
+		return handleErr(fmt.Errorf("failed to update peer with wireguard endpoints: %w", err))
 	}
 	return err
 }
