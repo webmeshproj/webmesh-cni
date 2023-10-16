@@ -373,7 +373,9 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 	if !nw.Spec.Network.DisableIPv4 {
 		// Make sure we get an IPv4 allocation on the remote network.
 		ipam, err := ipam.NewAllocator(cfg, ipam.Config{
-			IPAM: meshplugins.IPAMConfig{},
+			IPAM: meshplugins.IPAMConfig{
+				Storage: db.MeshDB(),
+			},
 			Lock: ipam.LockConfig{
 				ID:                 r.Host.NodeID,
 				Namespace:          namespace,
