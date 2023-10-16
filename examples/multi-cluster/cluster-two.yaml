@@ -16,6 +16,9 @@ nodes:
   - containerPort: 8443
     hostPort: 8442
     protocol: TCP
+  - containerPort: 53
+    hostPort: 5352
+    protocol: UDP
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration
