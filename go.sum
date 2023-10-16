@@ -853,6 +853,8 @@ github.com/webmeshproj/webmesh v0.14.4 h1:cJp0ZABBiS6zBUToeshQbZcXWWRUhrs6etoHdp
 github.com/webmeshproj/webmesh v0.14.4/go.mod h1:NyhtaJLkSNNfQ361wER1aLD+oGh6Fb5nj8dsXBi2P+0=
 github.com/webmeshproj/webmesh v0.14.5-0.20231016172300-33752867bf36 h1:33WYWPWWuWaZFt7mc7QMmoJfJidWO5Xle9J8gTxX0ww=
 github.com/webmeshproj/webmesh v0.14.5-0.20231016172300-33752867bf36/go.mod h1:NyhtaJLkSNNfQ361wER1aLD+oGh6Fb5nj8dsXBi2P+0=
+github.com/webmeshproj/webmesh v0.14.5-0.20231016174627-78d7b5f28aec h1:5OnnuOItlbewXNf/whAAGmAaHrTQdje2c66eolBQQxg=
+github.com/webmeshproj/webmesh v0.14.5-0.20231016174627-78d7b5f28aec/go.mod h1:NyhtaJLkSNNfQ361wER1aLD+oGh6Fb5nj8dsXBi2P+0=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 h1:EKhdznlJHPMoKr0XTrX+IlJs1LH3lyx2nfr1dOlZ79k=
 github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1/go.mod h1:8UvriyWtv5Q5EOgjHaSseUEdkQfvwFv1I/In/O2M9gc=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=

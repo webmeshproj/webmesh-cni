@@ -32,7 +32,6 @@ import (
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/cmd/cmdutil"
 	meshconfig "github.com/webmeshproj/webmesh/pkg/config"
-	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	"github.com/webmeshproj/webmesh/pkg/plugins/builtins"
 	meshservices "github.com/webmeshproj/webmesh/pkg/services"
 	"github.com/webmeshproj/webmesh/pkg/services/meshdns"
@@ -341,11 +340,12 @@ func Main(build version.BuildInfo) {
 		}()
 	}
 
-	hostCtx := meshcontext.WithLogger(context.Background(), host.NodeLogger())
+	hostCtx := host.NodeContext(context.Background())
 	if cniopts.Host.Services.MeshDNS.Enabled {
 		// We force subscribe forwarders to true or otherwise it would
 		// serve very little purpose.
 		cniopts.Host.Services.MeshDNS.SubscribeForwarders = true
+		cniopts.Host.Services.MeshDNS.IncludeSystemResolvers = false
 	}
 	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())
 	if err != nil {
