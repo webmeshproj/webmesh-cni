@@ -1,4 +1,4 @@
-# Single Cluster
+# Single Cluster Example
 
 This example shows how to deploy the webmesh CNI to a single cluster.
 The example uses a dual-stack cluster with IPv4 and IPv6 enabled.

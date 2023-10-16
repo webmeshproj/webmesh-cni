@@ -47,5 +47,5 @@ kubectl --kubeconfig ${KUBECONFIG_TWO} --namespace kube-system \
 
 # Install the CNI to both clusters
 
-kubectl kustomize deploy-one | kubectl --kubeconfig ${KUBECONFIG_ONE} apply -f -
-kubectl kustomize deploy-two | kubectl --kubeconfig ${KUBECONFIG_TWO} apply -f -
+kubectl kustomize deploy/cluster-one | kubectl --kubeconfig ${KUBECONFIG_ONE} apply -f -
+kubectl kustomize deploy/cluster-two | kubectl --kubeconfig ${KUBECONFIG_TWO} apply -f -
