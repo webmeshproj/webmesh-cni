@@ -32,11 +32,12 @@ DOCKER_IP=$(docker inspect \
     ${CLUSTER_NAME_PREFIX}-two-control-plane)
 sed -i "s/127\.0\.0\.1:.*$/${DOCKER_IP}:6443/g" ${KUBECONFIG_TWO}
 
-# Install each kubernetes configuration to the opposite cluster
+# Install each kubernetes configuration to the opposite cluster.
 # In a real world situation this should be a kubeconfig with
 # credentials restricted to webmesh objects only. For an example
 # see the RBAC manifests in the bundle. These are the the objects
-# provided by the bundle in the storage-provider and the CNI APIs.
+# provided by the bundles for the storage-provider and CNI APIs.
+# RBAC-only manifests can be found in each repository.
 
 kubectl --kubeconfig ${KUBECONFIG_ONE} --namespace kube-system \
         create secret generic cluster-two-credentials --from-file=kubeconfig=${KUBECONFIG_TWO}
