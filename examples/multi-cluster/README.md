@@ -37,7 +37,7 @@ kubectl --kubeconfig cluster-two-kubeconfig.yaml get pod -o wide
 ### Bridge the Clusters
 
 We can now bridge the clusters using the custom resources in each of the deploy directories.
-Only one side should be configured with the bridge. But this will be changed to support both sides in future releases.
+Only one side should be configured with the bridge, but this will be changed to support both sides in future releases.
 The bridge is configured with the `RemoteNetwork` custom resource.
 
 ```bash
