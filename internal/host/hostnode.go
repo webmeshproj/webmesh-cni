@@ -317,14 +317,8 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			Node: h.nodeID.String(),
 			DestinationCIDRs: func() []string {
 				out := h.config.Network.Routes
-				for _, ep := range eps {
+				for _, ep := range append(eps, h.config.Network.CIDRs()...) {
 					out = append(out, ep.String())
-				}
-				for _, addr := range h.config.Network.PodCIDRs() {
-					out = append(out, addr.String())
-				}
-				for _, addr := range h.config.Network.ServiceCIDRs() {
-					out = append(out, addr.String())
 				}
 				return out
 			}(),

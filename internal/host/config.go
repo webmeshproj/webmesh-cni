@@ -26,6 +26,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/webmeshproj/webmesh/pkg/config"
+	"github.com/webmeshproj/webmesh/pkg/meshnet/endpoints"
 
 	"github.com/webmeshproj/webmesh-cni/internal/types"
 )
@@ -139,7 +140,7 @@ type NetworkConfig struct {
 }
 
 // PodCIDRs returns the pod CIDRs.
-func (n *NetworkConfig) PodCIDRs() []netip.Prefix {
+func (n *NetworkConfig) PodCIDRs() endpoints.PrefixList {
 	var cidrs []netip.Prefix
 	if n.PodCIDR == "" {
 		return cidrs
@@ -151,7 +152,7 @@ func (n *NetworkConfig) PodCIDRs() []netip.Prefix {
 }
 
 // ServiceCIDRs returns the service CIDRs.
-func (n *NetworkConfig) ServiceCIDRs() []netip.Prefix {
+func (n *NetworkConfig) ServiceCIDRs() endpoints.PrefixList {
 	var cidrs []netip.Prefix
 	if n.ServiceCIDR == "" {
 		return cidrs
@@ -163,7 +164,7 @@ func (n *NetworkConfig) ServiceCIDRs() []netip.Prefix {
 }
 
 // CIDRs returns all CIDRs.
-func (n *NetworkConfig) CIDRs() []netip.Prefix {
+func (n *NetworkConfig) CIDRs() endpoints.PrefixList {
 	return append(n.PodCIDRs(), n.ServiceCIDRs()...)
 }
 

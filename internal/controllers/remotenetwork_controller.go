@@ -452,14 +452,8 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			Node: bridge.ID().String(),
 			DestinationCIDRs: func() []string {
 				var out []string
-				for _, ep := range eps {
+				for _, ep := range append(eps, r.Host.Network.CIDRs()...) {
 					out = append(out, ep.String())
-				}
-				for _, addr := range r.Host.Network.PodCIDRs() {
-					out = append(out, addr.String())
-				}
-				for _, addr := range r.Host.Network.ServiceCIDRs() {
-					out = append(out, addr.String())
 				}
 				return out
 			}(),
