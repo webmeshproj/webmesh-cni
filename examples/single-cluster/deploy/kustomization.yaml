@@ -1,0 +1,25 @@
+# This patches the default Webmesh DaemonSet to enable the gRPC APIs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+resources:
+- ../../../deploy
+labels:
+- includeSelectors: true
+  pairs:
+    k8s-app: webmesh-cni
+patches:
+- patch: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: webmesh-node
+      namespace: kube-system
+    spec:
+      template:
+        spec:
+          containers:
+            - name: webmesh-node
+              args:
+                - --host.services.api.disabled=false
+                - --host.services.api.mesh-enabled=true

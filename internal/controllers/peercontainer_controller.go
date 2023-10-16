@@ -497,15 +497,18 @@ func (r *PeerContainerReconciler) ensureInterfaceReadyStatus(ctx context.Context
 	if r.dns != nil {
 		// Add ourself as a DNS server for the container.
 		var addr netip.Addr
-		if container.Spec.DisableIPv6 {
-			addr = r.Host.Node().Network().WireGuard().AddressV4().Addr()
-		} else {
+		if container.Spec.DisableIPv4 && r.Host.Node().Network().WireGuard().AddressV6().IsValid() {
 			addr = r.Host.Node().Network().WireGuard().AddressV6().Addr()
+		} else if r.Host.Node().Network().WireGuard().AddressV4().IsValid() {
+			// Prefer IPv4 if it's available.
+			addr = r.Host.Node().Network().WireGuard().AddressV4().Addr()
 		}
-		addrport := netip.AddrPortFrom(addr, uint16(r.dns.ListenPort()))
-		if len(container.Status.DNSServers) == 0 || container.Status.DNSServers[0] != addrport.String() {
-			container.Status.DNSServers = []string{addrport.String()}
-			updateStatus = true
+		if addr.IsValid() {
+			addrport := netip.AddrPortFrom(addr, uint16(r.dns.ListenPort()))
+			if len(container.Status.DNSServers) == 0 || container.Status.DNSServers[0] != addrport.String() {
+				container.Status.DNSServers = []string{addrport.String()}
+				updateStatus = true
+			}
 		}
 	}
 	if container.Status.IPv4Address != addrV4 {

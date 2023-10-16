@@ -12,7 +12,15 @@ nodes:
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
+  extraPortMappings:
+  - containerPort: 8443
+    hostPort: 8443
+    protocol: TCP
 - role: worker
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
+  extraPortMappings:
+  - containerPort: 8443
+    hostPort: 8444
+    protocol: TCP
