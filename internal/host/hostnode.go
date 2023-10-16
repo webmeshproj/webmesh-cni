@@ -207,7 +207,7 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 		UseMeshDNS:      h.config.Network.WriteResolveConf,
 		LocalMeshDNSAddr: func() string {
 			if h.config.Services.MeshDNS.Enabled {
-				return fmt.Sprintf("127.0.0.1:%d", h.config.Services.MeshDNS.ListenPort())
+				return fmt.Sprintf("%s:%d", ipv4Addr, h.config.Services.MeshDNS.ListenPort())
 			}
 			return ""
 		}(),
