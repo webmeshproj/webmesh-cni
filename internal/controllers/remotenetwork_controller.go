@@ -288,6 +288,12 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			if cidr.Addr().IsUnspecified() || cidr.Addr().IsLinkLocalUnicast() || cidr.Addr().IsLinkLocalMulticast() {
 				continue
 			}
+			if cidr.Addr().Is6() && cidr.Contains(bridge.Network().NetworkV6().Addr()) {
+				continue
+			}
+			if cidr.Addr().Is4() && cidr.Contains(bridge.Network().NetworkV4().Addr()) {
+				continue
+			}
 			if !r.Host.Network.CIDRsContain(cidr) {
 				destinationCIDRs = append(destinationCIDRs, cidr.String())
 			}
