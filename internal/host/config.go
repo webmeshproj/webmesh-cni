@@ -162,6 +162,21 @@ func (n *NetworkConfig) ServiceCIDRs() []netip.Prefix {
 	return cidrs
 }
 
+// CIDRsContain checks if the local CIDRs contain the given prefix.
+func (n *NetworkConfig) CIDRsContain(prefix netip.Prefix) bool {
+	for _, cidr := range n.PodCIDRs() {
+		if cidr.Contains(prefix.Addr()) && prefix.Bits() >= cidr.Bits() {
+			return true
+		}
+	}
+	for _, cidr := range n.ServiceCIDRs() {
+		if cidr.Contains(prefix.Addr()) && prefix.Bits() >= cidr.Bits() {
+			return true
+		}
+	}
+	return false
+}
+
 func NewNetworkConfig() NetworkConfig {
 	return NetworkConfig{
 		RemoteEndpointDetection: false,

@@ -288,7 +288,9 @@ func (r *RemoteNetworkReconciler) reconcileNetwork(ctx context.Context, key clie
 			if cidr.Addr().IsUnspecified() || cidr.Addr().IsLinkLocalUnicast() || cidr.Addr().IsLinkLocalMulticast() {
 				continue
 			}
-			destinationCIDRs = append(destinationCIDRs, cidr.String())
+			if !r.Host.Network.CIDRsContain(cidr) {
+				destinationCIDRs = append(destinationCIDRs, cidr.String())
+			}
 		}
 	}
 	err = r.Provider.MeshDB().Networking().PutRoute(ctx, meshtypes.Route{
