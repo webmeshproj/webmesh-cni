@@ -19,6 +19,7 @@ package ipam
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 
 	v1 "github.com/webmeshproj/api/v1"
@@ -48,9 +49,22 @@ type Config struct {
 	Network netip.Prefix
 }
 
+var (
+	// ErrNoNetwork is returned when no network is configured.
+	ErrNoNetwork = fmt.Errorf("no network configured")
+	// ErrNoStorage is returned when no storage is configured.
+	ErrNoStorage = fmt.Errorf("no storage configured")
+)
+
 // NewAllocator creates a new IPAM allocator. The given configuration
 // will be copied and modified.
 func NewAllocator(cfg *rest.Config, conf Config) (Allocator, error) {
+	if conf.Network == (netip.Prefix{}) {
+		return nil, ErrNoNetwork
+	}
+	if conf.IPAM.Storage == nil {
+		return nil, ErrNoStorage
+	}
 	lock, err := NewLock(rest.CopyConfig(cfg), conf.Lock)
 	if err != nil {
 		return nil, err
