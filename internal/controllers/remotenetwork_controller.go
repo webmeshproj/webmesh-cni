@@ -359,6 +359,10 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 		}
 		return cause
 	}
+	ok := db.WaitForCacheSync(ctx)
+	if !ok {
+		return handleErr(fmt.Errorf("failed to sync remote meshdb cache"))
+	}
 	// Retrieve the state of the remote network.
 	remoteState, err := db.MeshDB().MeshState().GetMeshState(ctx)
 	if err != nil {
