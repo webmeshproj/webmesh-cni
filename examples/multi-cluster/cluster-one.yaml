@@ -12,6 +12,10 @@ nodes:
   extraMounts:
   - hostPath: /dev/net/tun
     containerPath: /dev/net/tun
+  extraPortMappings:
+  - containerPort: 8443
+    hostPort: 8443
+    protocol: TCP
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration

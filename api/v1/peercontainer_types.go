@@ -166,7 +166,7 @@ func (p PeerContainer) AppendToResults(result *cniv1.Result) error {
 		})
 	}
 	if len(p.Status.DNSServers) > 0 {
-		result.DNS.Nameservers = append(p.Status.DNSServers, result.DNS.Nameservers...)
+		result.DNS.Nameservers = append(result.DNS.Nameservers, p.Status.DNSServers...)
 	}
 	return nil
 }
