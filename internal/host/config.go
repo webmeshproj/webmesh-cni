@@ -162,6 +162,11 @@ func (n *NetworkConfig) ServiceCIDRs() []netip.Prefix {
 	return cidrs
 }
 
+// CIDRs returns all CIDRs.
+func (n *NetworkConfig) CIDRs() []netip.Prefix {
+	return append(n.PodCIDRs(), n.ServiceCIDRs()...)
+}
+
 // CIDRsContain checks if the local CIDRs contain the given prefix.
 func (n *NetworkConfig) CIDRsContain(prefix netip.Prefix) bool {
 	for _, cidr := range n.PodCIDRs() {

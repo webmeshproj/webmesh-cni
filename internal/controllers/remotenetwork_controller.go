@@ -546,10 +546,8 @@ func (r *RemoteNetworkReconciler) connectWithKubeconfig(ctx context.Context, nw 
 			DisableFullTunnel: true,
 			// Ignore routes to any metadata servers. But this may need to be
 			// more configurable.
-			IgnoreRoutes: []netip.Prefix{
-				netip.PrefixFrom(metadata.DefaultServerAddress.Addr(), 32),
-			},
-			ListenPort: nw.Spec.Network.WireGuardPort,
+			IgnoreRoutes: append(r.Host.Network.CIDRs(), netip.PrefixFrom(metadata.DefaultServerAddress.Addr(), 32)),
+			ListenPort:   nw.Spec.Network.WireGuardPort,
 			MTU: func() int {
 				if nw.Spec.Network.MTU > 0 {
 					return nw.Spec.Network.MTU
