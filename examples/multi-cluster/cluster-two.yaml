@@ -14,7 +14,7 @@ nodes:
     containerPath: /dev/net/tun
   extraPortMappings:
   - containerPort: 8443
-    hostPort: 8444
+    hostPort: 8442
     protocol: TCP
   kubeadmConfigPatches:
   - |
