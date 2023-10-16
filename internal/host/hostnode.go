@@ -204,8 +204,15 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 		Key:             key,
 		NodeID:          h.nodeID.String(),
 		ZoneAwarenessID: h.config.NodeID,
-		DisableIPv4:     h.config.Network.DisableIPv4,
-		DisableIPv6:     h.config.Network.DisableIPv6,
+		UseMeshDNS:      h.config.Network.WriteResolveConf,
+		LocalMeshDNSAddr: func() string {
+			if h.config.Services.MeshDNS.Enabled {
+				return fmt.Sprintf("127.0.0.1:%d", h.config.Services.MeshDNS.ListenPort())
+			}
+			return ""
+		}(),
+		DisableIPv4: h.config.Network.DisableIPv4,
+		DisableIPv6: h.config.Network.DisableIPv6,
 	})
 	connectCtx, cancel := context.WithTimeout(ctx, h.config.ConnectTimeout)
 	defer cancel()

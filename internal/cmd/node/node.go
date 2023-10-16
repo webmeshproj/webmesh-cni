@@ -342,10 +342,9 @@ func Main(build version.BuildInfo) {
 
 	hostCtx := host.NodeContext(context.Background())
 	if cniopts.Host.Services.MeshDNS.Enabled {
-		// We force subscribe forwarders to true or otherwise it would
-		// serve very little purpose.
+		// We force subscribe forwarders to true or otherwise it would serve very little purpose.
+		// This makes sure we wind up with CoreDNS as a forwarding server for non-root zones.
 		cniopts.Host.Services.MeshDNS.SubscribeForwarders = true
-		cniopts.Host.Services.MeshDNS.IncludeSystemResolvers = false
 	}
 	srvOpts, err := cniopts.Host.Services.NewServiceOptions(hostCtx, host.Node())
 	if err != nil {

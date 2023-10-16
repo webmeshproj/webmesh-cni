@@ -133,6 +133,8 @@ type NetworkConfig struct {
 	ClusterDomain string `koanf:"cluster-domain,omitempty"`
 	// Routes to allow for container and other connected node traffic.
 	Routes []string `koanf:"routes,omitempty"`
+	// WriteResolveConf will add any MeshDNS servers to the system resolv.conf.
+	WriteResolveConf bool `koanf:"write-resolv-conf,omitempty"`
 	// DisableIPv4 disables IPv4 on the host webmesh node.
 	DisableIPv4 bool `koanf:"disable-ipv4,omitempty"`
 	// DisableIPv6 disables IPv6 on the host webmesh node.
@@ -201,6 +203,7 @@ func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&n.ServiceCIDR, prefix+"service-cidr", n.ServiceCIDR, "The CIDR(s) to use for the service network")
 	fs.StringVar(&n.ClusterDomain, prefix+"cluster-domain", n.ClusterDomain, "The cluster domain to use for the network")
 	fs.StringSliceVar(&n.Routes, prefix+"routes", n.Routes, "Routes to allow for container and other connected node traffic")
+	fs.BoolVar(&n.WriteResolveConf, prefix+"write-resolv-conf", n.WriteResolveConf, "Write MeshDNS servers to the local resolv.conf")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", n.DisableIPv4, "Disable IPv4 on the host webmesh node")
 	fs.BoolVar(&n.DisableIPv6, prefix+"disable-ipv6", n.DisableIPv6, "Disable IPv6 on the host webmesh node")
 }
