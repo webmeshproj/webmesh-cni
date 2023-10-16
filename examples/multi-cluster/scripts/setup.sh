@@ -12,15 +12,25 @@ kind create cluster \
     --name ${CLUSTER_NAME_PREFIX}-one \
     --kubeconfig ${KUBECONFIG_ONE} \
     --config ./cluster-one.yaml
-
 kubectl --kubeconfig ${KUBECONFIG_ONE} config set-context --current --namespace kube-system
+
+# Set the server address to the docker IP so the kubeconfig will work
+# inside the docker network
+DOCKER_IP=$(docker inspect \
+    -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+    ${CLUSTER_NAME_PREFIX}-one-control-plane)
+sed -i "s/127\.0\.0\.1:.*$/${DOCKER_IP}:6443/g" ${KUBECONFIG_ONE}
 
 kind create cluster \
     --name ${CLUSTER_NAME_PREFIX}-two \
     --kubeconfig ${KUBECONFIG_TWO} \
     --config ./cluster-two.yaml
-
 kubectl --kubeconfig ${KUBECONFIG_TWO} config set-context --current --namespace kube-system
+
+DOCKER_IP=$(docker inspect \
+    -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+    ${CLUSTER_NAME_PREFIX}-two-control-plane)
+sed -i "s/127\.0\.0\.1:.*$/${DOCKER_IP}:6443/g" ${KUBECONFIG_TWO}
 
 # Install each kubernetes configuration to the opposite cluster
 # In a real world situation this should be a kubeconfig with
