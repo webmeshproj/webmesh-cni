@@ -197,7 +197,7 @@ remove-cluster: ## Remove the test kind cluster.
 	$(KIND) delete cluster --name $(CLUSTER_NAME)
 
 debug: ## Run a debug pod in the test kind cluster
-	$(KUBECTL) --context $(KIND_CONTEXT) run -it --rm --restart=Never --image=alpine -- sh
+	$(KUBECTL) --context $(KIND_CONTEXT) run -it --rm --restart=Never --image=$(IMG) -- sh
 
 clean: remove-cluster ## Remove all local binaries, test clusters, and release assets.
 	rm -rf dist cover.out
