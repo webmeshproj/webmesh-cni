@@ -47,7 +47,7 @@ Examples can be found in the [examples](examples/) directory with instructions o
 
 ## Configuration
 
-The CNI is configured via the `webmesh-cni` daemonset and configmap found [here](deploy/cni/cni.yaml) as well as in the bundle.
+The CNI is configured via the `webmesh-cni` [daemonset](deploy/cni/cni.yaml) and [configmap](deploy/config/configmap.yaml) or within the full bundle.
 The configmap contains configurations to apply to container interfaces, and the daemonset runs the CNI plugin on each node.
 The daemonset can be configured with command-line flags and environment variables.
 To see the available options, you can run the container with the `--help` flag.
