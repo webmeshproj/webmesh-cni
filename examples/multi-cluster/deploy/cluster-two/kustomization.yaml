@@ -28,8 +28,15 @@ patches:
     spec:
       template:
         spec:
+          volumes:
+            - name: host-resolvconf
+              hostPath:
+                path: /etc/resolv.conf
           containers:
             - name: webmesh-node
+              volumeMounts:
+                - name: host-resolvconf
+                  mountPath: /etc/resolv.conf
               args:
                 - --host.services.api.disabled=false
                 - --host.services.api.mesh-enabled=true
