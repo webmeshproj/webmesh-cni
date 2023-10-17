@@ -204,10 +204,10 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 		Key:             key,
 		NodeID:          h.nodeID.String(),
 		ZoneAwarenessID: h.config.NodeID,
-		UseMeshDNS:      h.config.Network.WriteResolveConf,
+		UseMeshDNS:      h.config.Network.WriteResolvConf,
 		LocalMeshDNSAddr: func() string {
 			if h.config.Services.MeshDNS.Enabled {
-				return fmt.Sprintf("%s:%d", ipv4Addr, h.config.Services.MeshDNS.ListenPort())
+				return fmt.Sprintf("%s:%d", alloc.Addr(), h.config.Services.MeshDNS.ListenPort())
 			}
 			return ""
 		}(),
