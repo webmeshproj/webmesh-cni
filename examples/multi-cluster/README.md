@@ -79,8 +79,7 @@ kubectl --kubeconfig cluster-one-kubeconfig.yaml apply -f deploy/example-app.yam
 
 Launch a debug container in the second cluster and you should be able to curl the `whoami` app in the first cluster.
 At the time of writing, Kubernetes does not honor custom DNS servers provided by a CNI plugin, so we need to resolve the address on the other side manually.
-You can optionally configure your pods to use the host system for DNS resolution and tell the CNI to write its DNS server to the local resolv.conf file.
-This is possible with the `--host.network.write-resolve-conf` flag on the CNI plugin.
+You could also update your `Corefile` to forward requests to the local node.
 
 ```bash
 # Lookup the service IP of the whoami service in the first cluster.
@@ -101,6 +100,29 @@ IP: fd00:10:42:edeb:1cf2:2b36:ae8d:0
 RemoteAddr: 10.42.0.1:45174
 GET / HTTP/1.1
 Host: 10.96.38.113
+User-Agent: curl/8.4.0
+Accept: */*
+```
+
+You may also configure your pods to use the host system for DNS resolution and tell the CNI to write its DNS server to the local resolv.conf file.
+This is possible with the `--host.network.write-resolve-conf` flag on the CNI plugin as shown in the kustomizations and setting the pod's DNS policy to `Default`.
+
+```bash
+# Create the pod with host DNS resolution
+kubectl --kubeconfig cluster-two-kubeconfig.yaml apply -f deploy/host-dns-pod.yaml
+
+# Exec into the pod once it is running
+kubectl --kubeconfig cluster-two-kubeconfig.yaml exec -it --namespace default host-dns-pod -- sh
+/ $ apk add --update curl
+/ $ curl whoami.default.svc.cluster-one.local.
+Hostname: whoami-56466f5d68-p8z5j
+IP: 127.0.0.1
+IP: ::1
+IP: 10.42.0.5
+IP: fd00:10:42:384b:507:6b53:d038:0
+RemoteAddr: 10.42.0.1:34416
+GET / HTTP/1.1
+Host: whoami.default.svc.cluster-one.local.
 User-Agent: curl/8.4.0
 Accept: */*
 ```

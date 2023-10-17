@@ -1,0 +1,23 @@
+# This pod sets the Default DNS policy which causes it to use
+# the host DNS configuration. When MeshDNS is enabled on the
+# webmesh-cni, the host can still resolve cluster-local names.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-dns-pod
+  namespace: default
+spec:
+  dnsPolicy: Default
+  containers:
+    - name: alpine
+      image: alpine:latest
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-c", "sleep infinity"]
+      resources:
+        requests:
+          cpu: 100m
+          memory: 100Mi
+        limits:
+          cpu: 100m
+          memory: 100Mi
