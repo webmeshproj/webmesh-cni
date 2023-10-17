@@ -211,8 +211,9 @@ func (h *hostNode) Start(ctx context.Context, cfg *rest.Config) error {
 			}
 			return ""
 		}(),
-		DisableIPv4: h.config.Network.DisableIPv4,
-		DisableIPv6: h.config.Network.DisableIPv6,
+		LocalDNSOnly: true,
+		DisableIPv4:  h.config.Network.DisableIPv4,
+		DisableIPv6:  h.config.Network.DisableIPv6,
 	})
 	connectCtx, cancel := context.WithTimeout(ctx, h.config.ConnectTimeout)
 	defer cancel()
