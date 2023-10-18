@@ -65,6 +65,9 @@ type ManagerConfig struct {
 	EnableMetadataServer bool `koanf:"enable-metadata-server"`
 	// MetadataAddress is the address to bind the metadata server to.
 	MetadataAddress string `koanf:"metadata-address"`
+	// EnableMetadataOauth enables oauth endpoints on the metadata server for
+	// helping facilitate authentication between containers.
+	EnableMetadataOauth bool `koanf:"enable-metadata-oauth"`
 }
 
 // StorageConfig is the configuration for the storage provider.
@@ -100,6 +103,7 @@ func NewDefaultConfig() Config {
 			ClusterDNSPortSelector: "dns",
 			EnableMetadataServer:   true,
 			MetadataAddress:        metadata.DefaultServerAddress.String(),
+			EnableMetadataOauth:    false,
 		},
 		Storage: StorageConfig{
 			LeaderElectLeaseDuration: 15 * time.Second,
@@ -129,6 +133,7 @@ func (c *ManagerConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.StringVar(&c.ClusterDNSPortSelector, prefix+"cluster-dns-port-selector", c.ClusterDNSPortSelector, "The name of the port assumed to be the DNS port")
 	fs.BoolVar(&c.EnableMetadataServer, prefix+"enable-metadata-server", c.EnableMetadataServer, "Enable a metadata server on the node that containers can use to query information about themselves.")
 	fs.StringVar(&c.MetadataAddress, prefix+"metadata-address", c.MetadataAddress, "The address the metadata server binds to.")
+	fs.BoolVar(&c.EnableMetadataOauth, prefix+"enable-metadata-oauth", c.EnableMetadataOauth, "Enable oauth endpoints on the metadata server for helping facilitate authentication between containers.")
 }
 
 func (c *StorageConfig) BindFlags(prefix string, fs *pflag.FlagSet) {

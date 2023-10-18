@@ -320,6 +320,7 @@ func Main(build version.BuildInfo) {
 			Host:        host,
 			Storage:     storageProvider,
 			KeyResolver: containerReconciler,
+			EnableOauth: cniopts.Manager.EnableMetadataOauth,
 		})
 		go func() {
 			log.Info("Starting metadata server")
