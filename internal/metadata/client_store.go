@@ -24,6 +24,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
+	"github.com/webmeshproj/webmesh/pkg/storage/errors"
 	"github.com/webmeshproj/webmesh/pkg/storage/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -59,16 +60,23 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 		log.V(1).Info("Fetching current cluster domain")
 		netstate, err := c.storage.MeshDB().MeshState().GetMeshState(ctx)
 		if err != nil {
+			log.Error(err, "Error fetching mesh state")
 			return nil, err
 		}
 		c.domain = netstate.Domain()
 	}
 	peer, err := c.storage.MeshDB().Peers().Get(ctx, types.NodeID(id))
 	if err != nil {
+		if !errors.IsNotFound(err) {
+			log.Error(err, "Error looking up peer")
+		} else {
+			log.Info("Peer not found for ID", "id", id)
+		}
 		return nil, err
 	}
 	key, ok := c.keys.LookupPrivateKey(ctx, peer.NodeID())
 	if !ok {
+		log.V(1).Info("Request is not from a local node, we don't have their key")
 		return nil, fmt.Errorf("no secret found for peer %s", peer.NodeID())
 	}
 	encoded, err := key.Encode()

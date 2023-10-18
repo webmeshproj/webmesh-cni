@@ -252,6 +252,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, clientSecret string, err error) {
 	// Pull the client information from the source of the request.
+	log := log.FromContext(r.Context())
+	log.V(1).Info("Getting client info from request")
 	info, err := s.getPeerInfoFromRequest(r)
 	if err != nil {
 		return "", "", err
@@ -259,6 +261,7 @@ func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, cli
 	if info.Remote {
 		// We don't have a secret from the request, though the user could provide it in a header.
 		// We return the node ID as the client ID.
+		log.V(1).Info("Returning partial client info", "clientID", info.Peer.NodeID())
 		return string(info.Peer.NodeID()), "", nil
 	}
 	// We have a secret from the request.
@@ -279,6 +282,7 @@ func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, cli
 	if err != nil {
 		return "", "", err
 	}
+	log.V(1).Info("Returning client info", "clientID", key.ID())
 	return key.ID(), encoded, nil
 }
 
