@@ -91,7 +91,7 @@ func NewServer(opts Options) *Server {
 	if opts.EnableOauth {
 		manager := manage.NewDefaultManager()
 		manager.MustTokenStorage(store.NewMemoryTokenStore())
-		manager.MapClientStorage(NewClientStore(opts.Storage, opts.KeyResolver))
+		manager.MapClientStorage(NewClientStore(opts.Storage, opts.KeyResolver, opts.Address))
 		srv.oauth = server.NewDefaultServer(manager)
 		srv.oauth.SetAllowGetAccessRequest(true)
 		srv.oauth.SetClientInfoHandler(srv.getClientInfoFromRequest)
@@ -261,8 +261,8 @@ func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, cli
 	if info.Remote {
 		// We don't have a secret from the request, though the user could provide it in a header.
 		// We return the node ID as the client ID.
-		log.V(1).Info("Returning partial client info", "clientID", info.Peer.NodeID())
-		return string(info.Peer.NodeID()), "", nil
+		log.V(1).Info("Returning partial client info", "clientID", info.Peer.GetId())
+		return info.Peer.GetId(), "", nil
 	}
 	// We have a secret from the request.
 	var key crypto.PrivateKey
@@ -275,15 +275,15 @@ func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, cli
 		var ok bool
 		key, ok = s.KeyResolver.LookupPrivateKey(r.Context(), info.Peer.NodeID())
 		if !ok {
-			return "", "", fmt.Errorf("no private key found for node %s", info.Peer.NodeID())
+			return "", "", fmt.Errorf("no private key found for node %s", info.Peer.GetId())
 		}
 	}
 	encoded, err := key.Encode()
 	if err != nil {
 		return "", "", err
 	}
-	log.V(1).Info("Returning client info", "clientID", key.ID())
-	return key.ID(), encoded, nil
+	log.V(1).Info("Returning client info", "clientID", info.Peer.GetId())
+	return info.Peer.GetId(), encoded, nil
 }
 
 // PeerRequestInfo is the information about the peer that is requesting

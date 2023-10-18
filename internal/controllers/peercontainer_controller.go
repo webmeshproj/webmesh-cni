@@ -83,6 +83,9 @@ func (r *PeerContainerReconciler) SetDNSServer(dns *meshdns.Server) {
 func (r *PeerContainerReconciler) LookupPrivateKey(ctx context.Context, nodeID meshtypes.NodeID) (crypto.PrivateKey, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if nodeID == r.Host.ID() || string(nodeID) == r.Host.Node().Key().ID() {
+		return r.Host.Node().Key(), true
+	}
 	for _, node := range r.containerNodes {
 		if node.ID() == nodeID {
 			return node.Key(), true

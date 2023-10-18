@@ -19,6 +19,7 @@ package metadata
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sync"
 
 	"github.com/go-oauth2/oauth2/v4"
@@ -38,15 +39,16 @@ var _ oauth2.ClientInfo = &ClientInfo{}
 type ClientStore struct {
 	storage *provider.Provider
 	keys    NodeKeyResolver
-	domain  string
+	addr    netip.AddrPort
 	mu      sync.Mutex
 }
 
 // NewClientStore creates a new ClientStore.
-func NewClientStore(storage *provider.Provider, keys NodeKeyResolver) *ClientStore {
+func NewClientStore(storage *provider.Provider, keys NodeKeyResolver, addr netip.AddrPort) *ClientStore {
 	return &ClientStore{
 		storage: storage,
 		keys:    keys,
+		addr:    addr,
 	}
 }
 
@@ -56,22 +58,23 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	defer c.mu.Unlock()
 	log := log.FromContext(ctx).WithName("oauth-client-store")
 	log.V(1).Info("Looking up client by ID", "id", id)
-	if c.domain == "" {
-		log.V(1).Info("Fetching current cluster domain")
-		netstate, err := c.storage.MeshDB().MeshState().GetMeshState(ctx)
-		if err != nil {
-			log.Error(err, "Error fetching mesh state")
-			return nil, err
-		}
-		c.domain = netstate.Domain()
-	}
-	// Check if we can decode the ID as a public key.
+	// if c.domain == "" {
+	// 	log.V(1).Info("Fetching current cluster domain")
+	// 	netstate, err := c.storage.MeshDB().MeshState().GetMeshState(ctx)
+	// 	if err != nil {
+	// 		log.Error(err, "Error fetching mesh state")
+	// 		return nil, err
+	// 	}
+	// 	c.domain = netstate.Domain()
+	// }
 	var peer types.MeshNode
 	var err error
+	// Check if we can decode the ID as a public key.
 	pubkey, err := crypto.PubKeyFromID(id)
 	if err == nil {
 		peer, err = c.storage.MeshDB().Peers().GetByPubKey(ctx, pubkey)
 	} else {
+		// If not, try to look it up as a node ID.
 		peer, err = c.storage.MeshDB().Peers().Get(ctx, types.NodeID(id))
 	}
 	if err != nil {
@@ -84,7 +87,7 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	}
 	key, ok := c.keys.LookupPrivateKey(ctx, peer.NodeID())
 	if !ok {
-		log.V(1).Info("Request is not from a local node, we don't have their key")
+		log.V(1).Info("We don't have the key for this node")
 		return nil, fmt.Errorf("no secret found for peer %s", peer.NodeID())
 	}
 	encoded, err := key.Encode()
@@ -92,23 +95,21 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 		return nil, err
 	}
 	return &ClientInfo{
-		peer:       peer,
-		key:        key,
+		id:         peer.GetId(),
 		encodedKey: encoded,
-		domain:     c.domain,
+		domain:     fmt.Sprintf("http://%s", c.addr.String()),
 	}, nil
 }
 
 // ClientInfo is an oauth2.ClientInfo that wraps a peer and key.
 type ClientInfo struct {
-	peer       types.MeshNode
-	key        crypto.PrivateKey
+	id         string
 	encodedKey string
 	domain     string
 }
 
 func (c ClientInfo) GetID() string {
-	return c.key.ID()
+	return c.id
 }
 
 func (c ClientInfo) GetSecret() string {
@@ -120,9 +121,9 @@ func (c ClientInfo) GetDomain() string {
 }
 
 func (c ClientInfo) IsPublic() bool {
-	return c.peer.GetPrimaryEndpoint() != ""
+	return false
 }
 
 func (c ClientInfo) GetUserID() string {
-	return c.peer.GetId()
+	return c.id
 }
