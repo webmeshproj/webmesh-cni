@@ -34,7 +34,7 @@ import (
 	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=pods;configmaps,verbs=get;list;watch
 
 // PodReconciler watches for pods of interest to the outside world
 // that have become ready and ensures their features are advertised.
