@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
+	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/storage/types"
 )
 
@@ -71,25 +72,27 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 		return nil, err
 	}
 	return &ClientInfo{
-		peer:   peer,
-		key:    encoded,
-		domain: c.domain,
+		peer:       peer,
+		key:        key,
+		encodedKey: encoded,
+		domain:     c.domain,
 	}, nil
 }
 
 // ClientInfo is an oauth2.ClientInfo that wraps a peer and key.
 type ClientInfo struct {
-	peer   types.MeshNode
-	key    string
-	domain string
+	peer       types.MeshNode
+	key        crypto.PrivateKey
+	encodedKey string
+	domain     string
 }
 
 func (c ClientInfo) GetID() string {
-	return c.peer.GetId()
+	return c.key.ID()
 }
 
 func (c ClientInfo) GetSecret() string {
-	return c.key
+	return c.encodedKey
 }
 
 func (c ClientInfo) GetDomain() string {
