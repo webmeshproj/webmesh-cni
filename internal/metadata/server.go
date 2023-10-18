@@ -292,6 +292,7 @@ type PeerRequestInfo struct {
 	// Peer is the peer that is requesting the metadata.
 	Peer types.MeshNode
 	// Local is true if the request is from the local node.
+	// Not to be confused with a managed local node in an isolated network.
 	Local bool
 	// Remote is true if the request is from a remote node.
 	Remote bool

@@ -65,7 +65,15 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 		}
 		c.domain = netstate.Domain()
 	}
-	peer, err := c.storage.MeshDB().Peers().Get(ctx, types.NodeID(id))
+	// Check if we can decode the ID as a public key.
+	var peer types.MeshNode
+	var err error
+	pubkey, err := crypto.PubKeyFromID(id)
+	if err == nil {
+		peer, err = c.storage.MeshDB().Peers().GetByPubKey(ctx, pubkey)
+	} else {
+		peer, err = c.storage.MeshDB().Peers().Get(ctx, types.NodeID(id))
+	}
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			log.Error(err, "Error looking up peer")
