@@ -241,16 +241,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, clientSecret string, err error) {
-	// We pull the client information from the source of the request.
+	// Pull the client information from the source of the request.
 	info, err := s.getPeerInfoFromRequest(r)
 	if err != nil {
 		return "", "", err
 	}
 	if info.Remote {
 		// We don't have a secret from the request, though the user could provide it in a header.
+		// We return the node ID as the client ID.
 		return string(info.Peer.NodeID()), "", nil
 	}
-	// We have a secret.
+	// We have a secret from the request.
 	var key crypto.PrivateKey
 	if info.Local {
 		key = s.Host.Node().Key()
@@ -268,7 +269,7 @@ func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, cli
 	if err != nil {
 		return "", "", err
 	}
-	return string(info.Peer.NodeID()), encoded, nil
+	return key.ID(), encoded, nil
 }
 
 // PeerRequestInfo is the information about the peer that is requesting
@@ -289,7 +290,7 @@ func (s *Server) getPeerInfoFromRequest(r *http.Request) (info PeerRequestInfo, 
 	lookupIP := r.URL.Query().Get("lookup")
 	switch {
 	case isLocal:
-		rlog.V(1).Info("Request is from the local node")
+		rlog.V(1).Info("Request is for the local node")
 		info.Local = true
 		info.Peer, err = s.Storage.MeshDB().Peers().Get(r.Context(), s.Host.ID())
 		return
@@ -309,6 +310,7 @@ func (s *Server) getPeerInfoFromRequest(r *http.Request) (info PeerRequestInfo, 
 		}
 		return
 	}
+	rlog.V(1).Info("Request is from a local container node")
 	raddrport, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
 		return info, fmt.Errorf("parse remote address: %w", err)
