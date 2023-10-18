@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -95,11 +96,11 @@ func NewServer(opts Options) *Server {
 		srv.oauth.SetAllowGetAccessRequest(true)
 		srv.oauth.SetClientInfoHandler(srv.getClientInfoFromRequest)
 		srv.oauth.SetInternalErrorHandler(func(err error) (re *errors.Response) {
-			srv.log.Error(err, "Internal oauth error")
+			srv.log.Error(err, "Internal metadata oauth error")
 			return
 		})
 		srv.oauth.SetResponseErrorHandler(func(re *errors.Response) {
-			srv.log.Error(fmt.Errorf("oauth response error: %s", re.Error.Error()), "Oauth response error")
+			srv.log.Info("Metadata oauth response error", "error", re.Error.Error())
 		})
 		mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
 			err := srv.oauth.HandleAuthorizeRequest(w, r)
@@ -170,12 +171,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.returnError(w, err)
 			return
 		}
+		var keys []string
 		for k := range m {
-			fmt.Fprintln(w, k)
+			keys = append(keys, k)
 		}
 		// Append the privateKey key if the request is local or we have a key resolver.
 		if (peerInfo.Local || s.KeyResolver != nil) && !peerInfo.Remote {
-			fmt.Fprintln(w, "privateKey")
+			keys = append(keys, "privateKey")
+		}
+		// Append oauth endpoints if enabled
+		if s.oauth != nil {
+			keys = append(keys, "authorize", "token")
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintln(w, k)
 		}
 		return
 	default:

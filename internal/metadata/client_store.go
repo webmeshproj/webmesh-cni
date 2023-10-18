@@ -25,6 +25,7 @@ import (
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/storage/types"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // Ensure we implement the oauth2.ClientStore interface.
@@ -52,7 +53,10 @@ func NewClientStore(storage *provider.Provider, keys NodeKeyResolver) *ClientSto
 func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	log := log.FromContext(ctx).WithName("oauth-client-store")
+	log.V(1).Info("Looking up client by ID", "id", id)
 	if c.domain == "" {
+		log.V(1).Info("Fetching current cluster domain")
 		netstate, err := c.storage.MeshDB().MeshState().GetMeshState(ctx)
 		if err != nil {
 			return nil, err
