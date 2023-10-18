@@ -106,13 +106,32 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(log.IntoContext(r.Context(), rlog))
 	rlog.Info("Serving metadata request", "path", r.URL.Path)
 	isLocal := strings.HasPrefix(r.RemoteAddr, s.Address.Addr().String())
+	lookupIP := r.URL.Query().Get("lookup")
 	var peer types.MeshNode
 	var err error
-	if isLocal {
+	switch {
+	case isLocal:
 		// This is a request executed against the local node
 		rlog.V(1).Info("Request is from the local node")
 		peer, err = s.Storage.MeshDB().Peers().Get(r.Context(), s.Host.ID())
-	} else {
+	case lookupIP != "":
+		// This is a request to resolve information about a remote node
+		addr, err := netip.ParseAddr(lookupIP)
+		if err != nil {
+			s.returnError(w, err)
+			return
+		}
+		rlog.V(1).Info("Request is to lookup a remote node", "lookupIP", addr)
+		if addr.Is4() {
+			peer, err = s.Storage.Datastore().GetPeerByIPv4Addr(r.Context(), netip.PrefixFrom(addr, 32))
+		} else {
+			peer, err = s.Storage.Datastore().GetPeerByIPv6Addr(r.Context(), netip.PrefixFrom(addr, netutil.DefaultNodeBits))
+		}
+		if err != nil {
+			s.returnError(w, err)
+			return
+		}
+	default:
 		rlog.V(1).Info("Request is from a remote node")
 		peer, err = s.getPeerFromRequest(r)
 	}
@@ -145,16 +164,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, k)
 		}
 		// Append the privateKey key if the request is local or we have a key resolver.
-		if isLocal || s.KeyResolver != nil {
+		if (isLocal || s.KeyResolver != nil) && lookupIP == "" {
 			fmt.Fprintln(w, "privateKey")
 		}
 		return
 	default:
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		path = strings.Replace(path, "/", ".", -1)
-		if path == "privateKey" {
-			// Special case where if this is from a local container
-			// we should have their private key.
+		if path == "privateKey" && lookupIP == "" {
+			// Special case where if this is a self lookup from a local container.
+			// We should have their private key.
 			var privkey crypto.PrivateKey
 			if isLocal {
 				privkey = s.Host.Node().Key()
@@ -166,7 +185,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				var ok bool
 				privkey, ok = s.KeyResolver.LookupPrivateKey(r.Context(), peer.NodeID())
 				if !ok {
-					s.returnError(w, fmt.Errorf("no private key for node %s", peer.NodeID()))
+					s.returnError(w, fmt.Errorf("no private key found for node %s", peer.NodeID()))
 					return
 				}
 			}
