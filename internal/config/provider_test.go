@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	kjson "github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,6 +36,65 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+func TestConfigMapLoader(t *testing.T) {
+	ctx := context.Background()
+	cfg, cli := setupProviderTest(t)
+	provider := NewConfigMapProvider(cfg, client.ObjectKey{
+		Name:      "config",
+		Namespace: "default",
+	})
+	// Create a configmap that tests the various types we'll encounter
+	err := cli.Create(ctx, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"manager.metrics-address":           "localhost:8080",
+			"manager.reconcile-timeout":         "1s",
+			"manager.max-concurrent-reconciles": "10",
+			"manager.cluster-dns-selector":      `{"k8s-app": "kube-dns"}`,
+			"manager.enable-metadata-server":    "false",
+			"storage.cache-sync-timeout":        "2s",
+			"host.wireguard.listen-port":        "51820",
+		},
+	})
+	if err != nil {
+		t.Fatal("Failed to create configmap", err)
+	}
+	k := koanf.New(".")
+	err = k.Load(provider, kjson.Parser())
+	if err != nil {
+		t.Fatal("Failed to load configmap", err)
+	}
+	var c Config
+	err = k.Unmarshal("", &c)
+	if err != nil {
+		t.Fatal("Failed to unmarshal configmap", err)
+	}
+	if c.Manager.MetricsAddress != "localhost:8080" {
+		t.Fatalf("Expected manager.metrics-address to be localhost:8080, got %s", c.Manager.MetricsAddress)
+	}
+	if c.Manager.ReconcileTimeout != time.Second {
+		t.Fatalf("Expected manager.reconcile-timeout to be 1s, got %s", c.Manager.ReconcileTimeout)
+	}
+	if c.Manager.MaxConcurrentReconciles != 10 {
+		t.Fatalf("Expected manager.max-concurrent-reconciles to be 10, got %d", c.Manager.MaxConcurrentReconciles)
+	}
+	if c.Manager.ClusterDNSSelector["k8s-app"] != "kube-dns" {
+		t.Fatalf("Expected manager.cluster-dns-selector to be {\"k8s-app\": \"kube-dns\"}, got %s", c.Manager.ClusterDNSSelector)
+	}
+	if c.Manager.EnableMetadataServer {
+		t.Fatal("Expected manager.enable-metadata-server to be false, got true")
+	}
+	if c.Storage.CacheSyncTimeout != 2*time.Second {
+		t.Fatalf("Expected storage.cache-sync-timeout to be 2s, got %s", c.Storage.CacheSyncTimeout)
+	}
+	if c.Host.WireGuard.ListenPort != 51820 {
+		t.Fatalf("Expected host.wireguard.listen-port to be 51820, got %d", c.Host.WireGuard.ListenPort)
+	}
+}
 
 func TestConfigMapProvider(t *testing.T) {
 	ctx := context.Background()
