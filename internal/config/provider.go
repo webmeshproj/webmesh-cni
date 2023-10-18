@@ -134,9 +134,6 @@ func (c *ConfigMapProvider) newClient() (client.Client, error) {
 	}
 	cli, err := client.New(c.cfg, client.Options{
 		Scheme: scheme,
-		Cache: &client.CacheOptions{
-			DisableFor: []client.Object{&corev1.ConfigMap{}},
-		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
