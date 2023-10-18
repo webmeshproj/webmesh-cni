@@ -27,6 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/providers/posflag"
+	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	storageprovider "github.com/webmeshproj/storage-provider-k8s/provider"
@@ -41,6 +44,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -78,12 +82,17 @@ func pluginInArgs(pluginName string) bool {
 
 // Main runs the webmesh-cni daemon.
 func Main(build version.BuildInfo) {
-	// Parse flags and setup logging.
+	// Build the flagset
+	var configMap string
+	var configMapNamespace string
 	zapset := flag.NewFlagSet("zap", flag.ContinueOnError)
 	fs := pflag.NewFlagSet("webmesh-cni", pflag.ContinueOnError)
 	cniopts.BindFlags(fs)
 	zapopts.BindFlags(zapset)
 	fs.AddGoFlagSet(zapset)
+	fs.StringVar(&configMap, "configmap", "", "The name of the configmap to load configuration from.")
+	fs.StringVar(&configMapNamespace, "configmap-namespace", "kube-system", "The namespace of the configmap to load configuration from.")
+
 	// Create a separate flag set with all plugins for usage.
 	usage := pflag.NewFlagSet("usage", pflag.ContinueOnError)
 	usage.AddFlagSet(fs)
@@ -109,6 +118,7 @@ func Main(build version.BuildInfo) {
 		Flagset: usage,
 	})
 
+	// Parse flags and setup logging.
 	err := fs.Parse(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, pflag.ErrHelp) {
@@ -118,6 +128,30 @@ func Main(build version.BuildInfo) {
 		os.Exit(1)
 	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
+
+	// Load the configuration from flags and configmap
+	k := koanf.New(".")
+	if configMap != "" {
+		provider := config.NewConfigMapProvider(ctrl.GetConfigOrDie(), client.ObjectKey{
+			Name:      configMap,
+			Namespace: configMapNamespace,
+		})
+		err := k.Load(provider, json.Parser())
+		if err != nil {
+			log.Error(err, "Failed to load configuration from configmap")
+			os.Exit(1)
+		}
+	}
+	err = k.Load(posflag.Provider(fs, ".", k), nil)
+	if err != nil {
+		log.Error(err, "Failed to load configuration from flags")
+		os.Exit(1)
+	}
+	err = k.Unmarshal("", &cniopts)
+	if err != nil {
+		log.Error(err, "Failed to unmarshal configuration")
+		os.Exit(1)
+	}
 
 	// Validate the configuration.
 	err = cniopts.Validate()

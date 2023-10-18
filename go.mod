@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 	github.com/knadh/koanf/parsers/json v0.1.0
+	github.com/knadh/koanf/providers/posflag v0.1.0
 	github.com/knadh/koanf/v2 v2.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/pflag v1.0.5
@@ -109,7 +110,6 @@ require (
 	github.com/knadh/koanf/parsers/yaml v0.1.0 // indirect
 	github.com/knadh/koanf/providers/env v0.1.0 // indirect
 	github.com/knadh/koanf/providers/file v0.1.0 // indirect
-	github.com/knadh/koanf/providers/posflag v0.1.0 // indirect
 	github.com/knadh/koanf/providers/rawbytes v0.1.0 // indirect
 	github.com/knadh/koanf/providers/structs v0.1.0 // indirect
 	github.com/koron/go-ssdp v0.0.4 // indirect
