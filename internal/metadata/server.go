@@ -254,7 +254,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Return as raw string
 			fmt.Fprintln(w, v)
 		case int, int32, int64, uint, uint32, uint64, float32, float64:
-			// Return as raw int
+			// Return as raw number
 			fmt.Fprintln(w, v)
 		case []byte:
 			// Return as base64 encoded string
