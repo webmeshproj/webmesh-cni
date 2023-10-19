@@ -46,7 +46,6 @@ jobs:
 
   tests:
     name: Unit Tests
-    needs: [lint]
     runs-on: ${{ vars.E2E_PLATFORM == '' && 'ubuntu-latest' || vars.E2E_PLATFORM }}
     permissions:
       contents: "read"
@@ -78,7 +77,6 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ${{ vars.E2E_PLATFORM == '' && 'ubuntu-latest' || vars.E2E_PLATFORM }}
-    needs: [lint]
     permissions:
       contents: "read"
     steps:
@@ -141,7 +139,7 @@ jobs:
   build:
     name: Build Release Assets
     runs-on: ${{ vars.BUILD_PLATFORM == '' && 'ubuntu-latest' || vars.BUILD_PLATFORM }}
-    needs: [tests, e2e-tests]
+    needs: [lint, tests, e2e-tests]
     permissions:
       contents: "write"
       id-token: "write"
