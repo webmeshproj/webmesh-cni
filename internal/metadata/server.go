@@ -54,8 +54,8 @@ type Options struct {
 	Storage *provider.Provider
 	// KeyResolver is the key resolver to use for the metadata server.
 	KeyResolver NodeKeyResolver
-	// EnableOauth is true if oauth is enabled on the metadata server.
-	EnableOauth bool
+	// EnableIDTokens is true if ID tokens should be enabled.
+	EnableIDTokens bool
 }
 
 // NodeKeyResolver is an interface that can retrieve the private key of

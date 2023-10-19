@@ -350,11 +350,11 @@ func Main(build version.BuildInfo) {
 			os.Exit(1)
 		}
 		metasrv := metadata.NewServer(metadata.Options{
-			Address:     metaaddr,
-			Host:        host,
-			Storage:     storageProvider,
-			KeyResolver: containerReconciler,
-			EnableOauth: cniopts.Manager.EnableMetadataOauth,
+			Address:        metaaddr,
+			Host:           host,
+			Storage:        storageProvider,
+			KeyResolver:    containerReconciler,
+			EnableIDTokens: cniopts.Manager.EnableMetadataIDTokens,
 		})
 		go func() {
 			log.Info("Starting metadata server")
