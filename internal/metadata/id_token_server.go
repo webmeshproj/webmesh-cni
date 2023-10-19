@@ -118,11 +118,14 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expected := jwt.Expected{
-		Issuer:   r.URL.Query().Get("issuer"),
-		Subject:  r.URL.Query().Get("subject"),
+		// Optional fields to validate based on the query.
+		ID:      r.URL.Query().Get("id"),
+		Subject: r.URL.Query().Get("subject"),
+		Issuer:  r.URL.Query().Get("issuer"),
+		// Ensure it's the audience we expect.
 		Audience: []string{i.Host.Node().Domain()},
-		ID:       r.URL.Query().Get("id"),
-		Time:     time.Now().UTC(),
+		// Ensure the token is not expired.
+		Time: time.Now().UTC(),
 	}
 	if err := cl.Validate(expected); err != nil {
 		i.returnError(w, err)
