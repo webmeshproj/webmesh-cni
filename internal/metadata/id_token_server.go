@@ -18,6 +18,7 @@ package metadata
 
 import (
 	"crypto/ed25519"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -94,13 +95,49 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 	rlog := log.FromContext(r.Context())
 	rlog.Info("Validating ID token")
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		i.returnError(w, fmt.Errorf("missing Authorization header"))
+		return
+	}
+	tok, err := jwt.ParseSigned(token)
+	if err != nil {
+		i.returnError(w, err)
+		return
+	}
+	var cl IDClaims
+	if err := tok.Claims(i.publicKey(), &cl); err != nil {
+		i.returnError(w, err)
+		return
+	}
+	i.returnJSON(w, cl)
 }
 
 func (i *IDTokenServer) newSigner() (jose.Signer, error) {
-	return jose.NewSigner(jose.SigningKey{
+	return jose.NewSigner(i.signingKey(), i.signingOptions())
+}
+
+func (i *IDTokenServer) signingKey() jose.SigningKey {
+	return jose.SigningKey{
 		Algorithm: jose.EdDSA,
-		Key:       ed25519.PrivateKey(i.Host.Node().Key().Bytes()),
-	}, (&jose.SignerOptions{}).WithType("JWT"))
+		Key:       i.privateKey(),
+	}
+}
+
+func (i *IDTokenServer) signingOptions() *jose.SignerOptions {
+	return (&jose.SignerOptions{
+		ExtraHeaders: map[jose.HeaderKey]any{
+			"kid": "webmesh",
+		},
+	}).WithType("JWT")
+}
+
+func (i *IDTokenServer) privateKey() ed25519.PrivateKey {
+	return ed25519.PrivateKey(i.Host.Node().Key().Bytes())
+}
+
+func (i *IDTokenServer) publicKey() ed25519.PublicKey {
+	return ed25519.PublicKey(i.Host.Node().Key().PublicKey().Bytes())
 }
 
 type IDClaims struct {
