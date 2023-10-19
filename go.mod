@@ -7,6 +7,7 @@ require (
 	github.com/containernetworking/plugins v1.3.0
 	github.com/go-logr/logr v1.2.4
 	github.com/go-oauth2/oauth2/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/google/uuid v1.3.1
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 	github.com/knadh/koanf/parsers/json v0.1.0

@@ -58,15 +58,6 @@ func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	defer c.mu.Unlock()
 	log := log.FromContext(ctx).WithName("oauth-client-store")
 	log.V(1).Info("Looking up client by ID", "id", id)
-	// if c.domain == "" {
-	// 	log.V(1).Info("Fetching current cluster domain")
-	// 	netstate, err := c.storage.MeshDB().MeshState().GetMeshState(ctx)
-	// 	if err != nil {
-	// 		log.Error(err, "Error fetching mesh state")
-	// 		return nil, err
-	// 	}
-	// 	c.domain = netstate.Domain()
-	// }
 	var peer types.MeshNode
 	var err error
 	// Check if we can decode the ID as a public key.

@@ -92,6 +92,7 @@ func NewServer(opts Options) *Server {
 		manager := manage.NewDefaultManager()
 		manager.MustTokenStorage(store.NewMemoryTokenStore())
 		manager.MapClientStorage(NewClientStore(opts.Storage, opts.KeyResolver, opts.Address))
+		manager.MapAccessGenerate(NewAccessTokenGenerator(opts.Host, opts.Storage))
 		srv.oauth = server.NewDefaultServer(manager)
 		srv.oauth.SetAllowGetAccessRequest(true)
 		srv.oauth.SetClientInfoHandler(srv.getClientInfoFromRequest)
