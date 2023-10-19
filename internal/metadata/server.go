@@ -43,8 +43,8 @@ import (
 // DefaultServerAddress is the default address for the metadata server.
 var DefaultServerAddress = netip.MustParseAddrPort("169.254.169.254:80")
 
-// Options are the options for the container metadata server.
-type Options struct {
+// Config are the options for the container metadata server.
+type Config struct {
 	// Address is the address to bind the metadata server to.
 	// Defaults to DefaultMetadataAddress.
 	Address netip.AddrPort
@@ -66,23 +66,26 @@ type NodeKeyResolver interface {
 
 // Server is the container metadata server.
 type Server struct {
-	Options
+	Config
 	srv *http.Server
 	log logr.Logger
 }
 
 // NewServer creates a new container metadata server.
-func NewServer(opts Options) *Server {
-	addr := opts.Address
+func NewServer(cfg Config) *Server {
+	addr := cfg.Address
 	if !addr.IsValid() {
 		addr = DefaultServerAddress
 	}
 	srv := &Server{
-		Options: opts,
-		log:     ctrl.Log.WithName("metadata-server"),
+		Config: cfg,
+		log:    ctrl.Log.WithName("metadata-server"),
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", srv)
+	if cfg.EnableIDTokens {
+		mux.Handle("/id-token", &IDTokenServer{srv})
+	}
 	srv.srv = &http.Server{
 		Addr:    addr.String(),
 		Handler: mux,
@@ -144,7 +147,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			keys = append(keys, k)
 		}
 		// Append the privateKey key if the request is local or we have a key resolver.
-		if (peerInfo.Local || s.KeyResolver != nil) && !peerInfo.Remote {
+		if peerInfo.Local || s.KeyResolver != nil {
 			keys = append(keys, "privateKey")
 		}
 		sort.Strings(keys)
@@ -155,7 +158,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		path = strings.Replace(path, "/", ".", -1)
-		if path == "privateKey" && !peerInfo.Remote {
+		if path == "privateKey" {
 			// Special case where if this is a self lookup from a local container.
 			// We should have their private key.
 			var privkey crypto.PrivateKey
@@ -219,41 +222,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type PeerRequestInfo struct {
 	// Peer is the peer that is requesting the metadata.
 	Peer types.MeshNode
-	// Local is true if the request is from the local node.
-	// Not to be confused with a managed local node in an isolated network.
+	// Local is true if the request is from the local host node.
 	Local bool
-	// Remote is true if the request is to lookup a remote node.
-	Remote bool
 }
 
 // getPeerFromRequest returns the peer container based on the source IP address.
 func (s *Server) getPeerInfoFromRequest(r *http.Request) (info PeerRequestInfo, err error) {
 	rlog := log.FromContext(r.Context())
 	isLocal := strings.HasPrefix(r.RemoteAddr, s.Address.Addr().String())
-	lookupIP := r.URL.Query().Get("lookup")
-	switch {
-	case isLocal:
-		rlog.V(1).Info("Request is for the local node")
+	if isLocal {
+		rlog.V(1).Info("Request is for the local host node")
 		info.Local = true
 		info.Peer, err = s.Storage.MeshDB().Peers().Get(r.Context(), s.Host.ID())
 		return
-	case lookupIP != "":
-		// This is a request to resolve information about a remote node
-		info.Remote = true
-		var addr netip.Addr
-		addr, err = netip.ParseAddr(lookupIP)
-		if err != nil {
-			return
-		}
-		rlog.V(1).Info("Request is to lookup a remote node", "lookupIP", addr)
-		if addr.Is4() {
-			info.Peer, err = s.Storage.Datastore().GetPeerByIPv4Addr(r.Context(), netip.PrefixFrom(addr, 32))
-		} else {
-			info.Peer, err = s.Storage.Datastore().GetPeerByIPv6Addr(r.Context(), netip.PrefixFrom(addr, netutil.DefaultNodeBits))
-		}
-		return
 	}
-	rlog.V(1).Info("Request is from a local container node")
+	rlog.V(1).Info("Request is from a local container or connected node")
 	raddrport, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
 		return info, fmt.Errorf("parse remote address: %w", err)

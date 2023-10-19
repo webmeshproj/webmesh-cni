@@ -349,7 +349,7 @@ func Main(build version.BuildInfo) {
 			log.Error(err, "Failed to add metadata address to wireguard interface")
 			os.Exit(1)
 		}
-		metasrv := metadata.NewServer(metadata.Options{
+		metasrv := metadata.NewServer(metadata.Config{
 			Address:        metaaddr,
 			Host:           host,
 			Storage:        storageProvider,
