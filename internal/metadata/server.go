@@ -162,6 +162,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
+	case "/.well-known/openid-configuration":
+		if !s.EnableOauth {
+			s.returnError(w, fmt.Errorf("oauth is not enabled"))
+			return
+		}
+		// We return the oauth endpoints.
+		rlog.Info("Serving oauth endpoints")
+		info := map[string]any{
+			"authorization_endpoint": fmt.Sprintf("http://%s/authorize", s.Address.String()),
+			"token_endpoint":         fmt.Sprintf("http://%s/token", s.Address.String()),
+			"userinfo_endpoint":      fmt.Sprintf("http://%s/userinfo", s.Address.String()),
+			"jwks_uri":               fmt.Sprintf("http://%s/jwks", s.Address.String()),
+			"scopes_supported":       []string{"openid", "profile"},
+		}
+		out, err := json.MarshalIndent(info, "", "  ")
+		if err != nil {
+			s.returnError(w, err)
+			return
+		}
+		fmt.Fprintln(w, string(out))
 	case "/":
 		// We return the available keys for the metadata server.
 		// This is a bit of a hack but we marshal the peer to JSON

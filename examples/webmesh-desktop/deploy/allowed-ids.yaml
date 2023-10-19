@@ -1,3 +1,4 @@
+---
 # An example of pre-allowed IDs that we want to give
 # access to our applications and the network at large.
 apiVersion: v1

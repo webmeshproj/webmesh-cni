@@ -6,6 +6,7 @@ vdi:
   spec:
     app:
       image: ghcr.io/webmeshproj/vdi-app:latest
+      serviceType: ClusterIP
     auth:
       tokenDuration: 8h
       oidcAuth:
