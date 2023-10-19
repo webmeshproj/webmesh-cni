@@ -20,6 +20,7 @@ import (
 	"crypto/ed25519"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
@@ -31,6 +32,13 @@ import (
 // IDTokenServer is the server for ID tokens. It can create identification
 // tokens for clients to use to access other services in the cluster.
 type IDTokenServer struct{ *Server }
+
+// IDClaims are the claims for an ID token.
+type IDClaims struct {
+	jwt.Claims `json:",inline"`
+	Groups     []string `json:"groups"`
+	Scopes     []string `json:"scopes"`
+}
 
 // ServeHTTP implements http.Handler and will handle token issuance and validation.
 func (i *IDTokenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -68,14 +76,14 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 		Claims: jwt.Claims{
 			Issuer:    i.Host.ID().String(),
 			Subject:   info.Peer.GetId(),
-			Audience:  jwt.Audience{i.Host.Node().Domain()},
+			Audience:  i.audience(),
 			Expiry:    jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
 			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 			ID:        pubkey.ID(),
 		},
 		Groups: []string{},
-		Scopes: []string{"webmesh"},
+		Scopes: []string{"webmesh", "groups"},
 	}
 	groups, err := i.Storage.MeshDB().RBAC().ListGroups(r.Context())
 	if err == nil {
@@ -123,7 +131,7 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		Subject: r.URL.Query().Get("subject"),
 		Issuer:  r.URL.Query().Get("issuer"),
 		// Ensure it's the audience we expect.
-		Audience: []string{i.Host.Node().Domain()},
+		Audience: i.audience(),
 		// Ensure the token is not expired.
 		Time: time.Now().UTC(),
 	}
@@ -161,8 +169,6 @@ func (i *IDTokenServer) publicKey() ed25519.PublicKey {
 	return ed25519.PublicKey(i.Host.Node().Key().PublicKey().Bytes())
 }
 
-type IDClaims struct {
-	jwt.Claims `json:",inline"`
-	Groups     []string `json:"groups"`
-	Scopes     []string `json:"scopes"`
+func (i *IDTokenServer) audience() jwt.Audience {
+	return jwt.Audience{strings.TrimSuffix(i.Host.Node().Domain(), ".")}
 }
