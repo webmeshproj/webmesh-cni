@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -58,6 +59,11 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 		i.returnError(w, err)
 		return
 	}
+	pubkey, err := crypto.DecodePublicKey(info.Peer.GetPublicKey())
+	if err != nil {
+		i.returnError(w, err)
+		return
+	}
 	cl := IDClaims{
 		Claims: jwt.Claims{
 			Issuer:    i.Host.ID().String(),
@@ -66,6 +72,7 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 			Expiry:    jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
 			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			ID:        pubkey.ID(),
 		},
 		Groups: []string{},
 		Scopes: []string{"webmesh"},
