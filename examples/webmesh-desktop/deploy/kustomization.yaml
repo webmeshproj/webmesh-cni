@@ -1,0 +1,40 @@
+# This patches the default Webmesh DaemonSet to enable the
+# gRPC API and ID authentication. It mounts in the secret
+# from allowed-ids.yaml and watches it for changes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+resources:
+- ../../../deploy
+- allowed-ids.yaml
+labels:
+- includeSelectors: true
+  pairs:
+    k8s-app: webmesh-cni
+patches:
+- patch: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: webmesh-node
+      namespace: kube-system
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: etc
+            secret:
+              secretName: webmesh-cni-etc
+          containers:
+            - name: webmesh-node
+              volumeMounts:
+              - name: etc
+                mountPath: /etc/webmesh/
+              args:
+                - --host.auth.id-auth.enabled=true
+                - --host.plugins.id-auth.id-files=/etc/webmesh/allowed-ids.txt
+                - --host.plugins.id-auth.watch-id-files=true
+                - --host.services.api.disabled=false
+                - --host.services.api.mesh-enabled=true
+                - --host.wireguard.listen-port=61820
+                - --manager.enable-metadata-oauth=true

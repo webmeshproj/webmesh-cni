@@ -1,0 +1,10 @@
+# An example of pre-allowed IDs that we want to give
+# access to our applications and the network at large.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webmesh-cni-etc
+  namespace: kube-system
+stringData:
+  allowed-ids.txt: |
+    12D3LCx9N7XbujcDKYHcVtF4L9kY7fg61xeQBFhjwB2ZGCZEZjmF

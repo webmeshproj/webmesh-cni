@@ -80,8 +80,6 @@ spec:
           image: ghcr.io/webmeshproj/webmesh-cni:latest
           imagePullPolicy: IfNotPresent
           command: ["/webmesh-cni-node"]
-          args:
-          - --manager.enable-metadata-oauth=true
           env:
             # Use the kubernetes storage provider. This is the only
             # supported storage provider at the moment for k8s.
