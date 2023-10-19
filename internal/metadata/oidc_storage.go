@@ -35,9 +35,12 @@ var _ op.Storage = &OIDCStorage{}
 // OIDCStorage implements the op.Storage interface.
 type OIDCStorage struct {
 	OIDCStorageOptions
+	// Map of ID to AuthRequest.
 	authRequests map[string]*AuthRequest
-	log          logr.Logger
-	mu           sync.RWMutex
+	// Map of code to ID.
+	codes map[string]string
+	log   logr.Logger
+	mu    sync.RWMutex
 }
 
 // OIDCStorageOptions contains options for creating a new OIDCStorage.
@@ -53,6 +56,7 @@ func NewOIDCStorage(opts OIDCStorageOptions) *OIDCStorage {
 	return &OIDCStorage{
 		OIDCStorageOptions: opts,
 		authRequests:       make(map[string]*AuthRequest),
+		codes:              make(map[string]string),
 		log:                ctrl.Log.WithName("oidc-storage"),
 	}
 }

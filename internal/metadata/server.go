@@ -29,10 +29,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/go-oauth2/oauth2/v4/errors"
-	"github.com/go-oauth2/oauth2/v4/manage"
-	"github.com/go-oauth2/oauth2/v4/server"
-	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/jmespath/go-jmespath"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
@@ -71,9 +67,8 @@ type NodeKeyResolver interface {
 // Server is the container metadata server.
 type Server struct {
 	Options
-	srv   *http.Server
-	oauth *server.Server
-	log   logr.Logger
+	srv *http.Server
+	log logr.Logger
 }
 
 // NewServer creates a new container metadata server.
@@ -88,34 +83,6 @@ func NewServer(opts Options) *Server {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", srv)
-	if opts.EnableOauth {
-		manager := manage.NewDefaultManager()
-		manager.MustTokenStorage(store.NewMemoryTokenStore())
-		manager.MapClientStorage(NewClientStore(opts.Storage, opts.KeyResolver, opts.Address))
-		manager.MapAccessGenerate(NewAccessTokenGenerator(opts.Host, opts.Storage))
-		srv.oauth = server.NewDefaultServer(manager)
-		srv.oauth.SetAllowGetAccessRequest(true)
-		srv.oauth.SetClientInfoHandler(srv.getClientInfoFromRequest)
-		srv.oauth.SetInternalErrorHandler(func(err error) (re *errors.Response) {
-			srv.log.Error(err, "Internal metadata oauth error")
-			return
-		})
-		srv.oauth.SetResponseErrorHandler(func(re *errors.Response) {
-			srv.log.Info("Metadata oauth response error", "error", re.Error.Error())
-		})
-		mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
-			err := srv.oauth.HandleAuthorizeRequest(w, r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-		})
-		mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-			err := srv.oauth.HandleTokenRequest(w, r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		})
-	}
 	srv.srv = &http.Server{
 		Addr:    addr.String(),
 		Handler: mux,
@@ -162,26 +129,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
-	case "/.well-known/openid-configuration":
-		if !s.EnableOauth {
-			s.returnError(w, fmt.Errorf("oauth is not enabled"))
-			return
-		}
-		// We return the oauth endpoints.
-		rlog.Info("Serving oauth endpoints")
-		info := map[string]any{
-			"authorization_endpoint": fmt.Sprintf("http://%s/authorize", s.Address.String()),
-			"token_endpoint":         fmt.Sprintf("http://%s/token", s.Address.String()),
-			"userinfo_endpoint":      fmt.Sprintf("http://%s/userinfo", s.Address.String()),
-			"jwks_uri":               fmt.Sprintf("http://%s/jwks", s.Address.String()),
-			"scopes_supported":       []string{"openid", "profile"},
-		}
-		out, err := json.MarshalIndent(info, "", "  ")
-		if err != nil {
-			s.returnError(w, err)
-			return
-		}
-		fmt.Fprintln(w, string(out))
 	case "/":
 		// We return the available keys for the metadata server.
 		// This is a bit of a hack but we marshal the peer to JSON
@@ -199,10 +146,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Append the privateKey key if the request is local or we have a key resolver.
 		if (peerInfo.Local || s.KeyResolver != nil) && !peerInfo.Remote {
 			keys = append(keys, "privateKey")
-		}
-		// Append oauth endpoints if enabled
-		if s.oauth != nil {
-			keys = append(keys, "authorize", "token")
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
@@ -271,42 +214,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) getClientInfoFromRequest(r *http.Request) (clientID string, clientSecret string, err error) {
-	// Pull the client information from the source of the request.
-	log := log.FromContext(r.Context())
-	log.V(1).Info("Getting client info from request")
-	info, err := s.getPeerInfoFromRequest(r)
-	if err != nil {
-		return "", "", err
-	}
-	if info.Remote {
-		// We don't have a secret from the request, though the user could provide it in a header.
-		// We return the node ID as the client ID.
-		log.V(1).Info("Returning partial client info", "clientID", info.Peer.GetId())
-		return info.Peer.GetId(), "", nil
-	}
-	// We have a secret from the request.
-	var key crypto.PrivateKey
-	if info.Local {
-		key = s.Host.Node().Key()
-	} else {
-		if s.KeyResolver == nil {
-			return "", "", fmt.Errorf("no key resolver")
-		}
-		var ok bool
-		key, ok = s.KeyResolver.LookupPrivateKey(r.Context(), info.Peer.NodeID())
-		if !ok {
-			return "", "", fmt.Errorf("no private key found for node %s", info.Peer.GetId())
-		}
-	}
-	encoded, err := key.Encode()
-	if err != nil {
-		return "", "", err
-	}
-	log.V(1).Info("Returning client info", "clientID", info.Peer.GetId())
-	return info.Peer.GetId(), encoded, nil
-}
-
 // PeerRequestInfo is the information about the peer that is requesting
 // the metadata.
 type PeerRequestInfo struct {
@@ -315,7 +222,7 @@ type PeerRequestInfo struct {
 	// Local is true if the request is from the local node.
 	// Not to be confused with a managed local node in an isolated network.
 	Local bool
-	// Remote is true if the request is from a remote node.
+	// Remote is true if the request is to lookup a remote node.
 	Remote bool
 }
 

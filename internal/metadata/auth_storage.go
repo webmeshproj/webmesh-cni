@@ -18,6 +18,7 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/zitadel/oidc/pkg/oidc"
@@ -31,7 +32,9 @@ func (o *OIDCStorage) CreateAuthRequest(ctx context.Context, req *oidc.AuthReque
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.debug("Creating new auth request", "req", req, "userID", userID)
-	return nil, nil
+	authReq := NewAuthRequest(req, userID)
+	o.authRequests[authReq.ID] = authReq
+	return authReq, nil
 }
 
 // AuthRequestByID implements the op.Storage interface and will be called after the Login UI redirects
@@ -40,7 +43,11 @@ func (o *OIDCStorage) AuthRequestByID(ctx context.Context, id string) (op.AuthRe
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	o.debug("Looking up auth request by ID", "id", id)
-	return nil, nil
+	req, ok := o.authRequests[id]
+	if !ok {
+		return nil, fmt.Errorf("auth request not found for id %s", id)
+	}
+	return req, nil
 }
 
 // AuthRequestByCode implements the op.Storage interface and will be called after parsing and validation
@@ -49,7 +56,15 @@ func (o *OIDCStorage) AuthRequestByCode(ctx context.Context, code string) (op.Au
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	o.debug("Looking up auth request by code", "code", code)
-	return nil, nil
+	id, ok := o.codes[code]
+	if !ok {
+		return nil, fmt.Errorf("auth request not found for code %s", code)
+	}
+	req, ok := o.authRequests[id]
+	if !ok {
+		return nil, fmt.Errorf("auth request not found for id %s", id)
+	}
+	return req, nil
 }
 
 // SaveAuthCode implements the op.Storage interface it will be called after the authentication has been
@@ -58,6 +73,7 @@ func (o *OIDCStorage) SaveAuthCode(ctx context.Context, id string, code string) 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.debug("Saving auth code", "id", id, "code", code)
+	o.codes[code] = id
 	return nil
 }
 
@@ -69,6 +85,13 @@ func (o *OIDCStorage) DeleteAuthRequest(ctx context.Context, id string) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.debug("Deleting auth request", "id", id)
+	delete(o.authRequests, id)
+	for code, authReqID := range o.codes {
+		if authReqID == id {
+			delete(o.codes, code)
+			break
+		}
+	}
 	return nil
 }
 

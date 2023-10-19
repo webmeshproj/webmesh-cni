@@ -68,28 +68,6 @@ func NewAuthRequest(req *oidc.AuthRequest, userID string) *AuthRequest {
 	}
 }
 
-func promptToInternal(oidcPrompt oidc.SpaceDelimitedArray) []string {
-	prompts := make([]string, len(oidcPrompt))
-	for _, oidcPrompt := range oidcPrompt {
-		switch oidcPrompt {
-		case oidc.PromptNone,
-			oidc.PromptLogin,
-			oidc.PromptConsent,
-			oidc.PromptSelectAccount:
-			prompts = append(prompts, oidcPrompt)
-		}
-	}
-	return prompts
-}
-
-func maxAgeToInternal(maxAge *uint) *time.Duration {
-	if maxAge == nil {
-		return nil
-	}
-	dur := time.Duration(*maxAge) * time.Second
-	return &dur
-}
-
 func (a *AuthRequest) GetID() string {
 	return a.ID
 }
@@ -108,7 +86,8 @@ func (a *AuthRequest) GetAMR() []string {
 }
 
 func (a *AuthRequest) GetAudience() []string {
-	return []string{a.ApplicationID} // this example will always just use the client_id as audience
+	// This example will always just use the client_id as audience
+	return []string{a.ApplicationID}
 }
 
 func (a *AuthRequest) GetAuthTime() time.Time {
@@ -139,7 +118,8 @@ func (a *AuthRequest) GetResponseType() oidc.ResponseType {
 }
 
 func (a *AuthRequest) GetResponseMode() oidc.ResponseMode {
-	return "" // we won't handle response mode in this example
+	// We won't handle response mode in this example
+	return ""
 }
 
 func (a *AuthRequest) GetScopes() []string {
@@ -156,4 +136,26 @@ func (a *AuthRequest) GetSubject() string {
 
 func (a *AuthRequest) Done() bool {
 	return a.done
+}
+
+func promptToInternal(oidcPrompt oidc.SpaceDelimitedArray) []string {
+	prompts := make([]string, len(oidcPrompt))
+	for _, oidcPrompt := range oidcPrompt {
+		switch oidcPrompt {
+		case oidc.PromptNone,
+			oidc.PromptLogin,
+			oidc.PromptConsent,
+			oidc.PromptSelectAccount:
+			prompts = append(prompts, oidcPrompt)
+		}
+	}
+	return prompts
+}
+
+func maxAgeToInternal(maxAge *uint) *time.Duration {
+	if maxAge == nil {
+		return nil
+	}
+	dur := time.Duration(*maxAge) * time.Second
+	return &dur
 }
