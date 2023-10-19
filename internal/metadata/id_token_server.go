@@ -149,6 +149,6 @@ func (i *IDTokenServer) publicKey() ed25519.PublicKey {
 
 type IDClaims struct {
 	jwt.Claims `json:",inline"`
-	Groups     []string `json:"groups,omitempty"`
-	Scopes     []string `json:"scopes,omitempty"`
+	Groups     []string `json:"groups"`
+	Scopes     []string `json:"scopes"`
 }
