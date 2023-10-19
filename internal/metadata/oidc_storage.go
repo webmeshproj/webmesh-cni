@@ -18,15 +18,40 @@ package metadata
 
 import (
 	"context"
+	"net/netip"
 
+	"github.com/go-logr/logr"
+	"github.com/webmeshproj/storage-provider-k8s/provider"
 	"github.com/zitadel/oidc/pkg/op"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/webmeshproj/webmesh-cni/internal/host"
 )
 
 // Ensure we implement the op.Storage interface.
 var _ op.Storage = &OIDCStorage{}
 
 // OIDCStorage implements the op.Storage interface.
-type OIDCStorage struct{}
+type OIDCStorage struct {
+	OIDCStorageOptions
+	log logr.Logger
+}
+
+// OIDCStorageOptions contains options for creating a new OIDCStorage.
+type OIDCStorageOptions struct {
+	Host    host.Node
+	Storage *provider.Provider
+	Keys    NodeKeyResolver
+	Laddr   netip.AddrPort
+}
+
+// NewOIDCStorage creates a new OIDCStorage.
+func NewOIDCStorage(opts OIDCStorageOptions) *OIDCStorage {
+	return &OIDCStorage{
+		OIDCStorageOptions: opts,
+		log:                ctrl.Log.WithName("oidc-storage"),
+	}
+}
 
 // Health returns the current health status of the storage.
 func (o *OIDCStorage) Health(ctx context.Context) error {
