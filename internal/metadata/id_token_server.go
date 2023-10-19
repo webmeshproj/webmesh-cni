@@ -26,6 +26,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/webmeshproj/webmesh/pkg/crypto"
+	"github.com/webmeshproj/webmesh/pkg/storage/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -120,8 +121,32 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		i.returnError(w, err)
 		return
 	}
+	issuer, ok := tok.Headers[0].ExtraHeaders["iss"].(string)
+	if !ok {
+		// Assume the issuer is the host ID.
+		issuer = i.Host.ID().String()
+	}
+	var pubkey ed25519.PublicKey
+	switch issuer {
+	case i.Host.ID().String():
+		rlog.V(1).Info("Token was signed by the local host")
+		pubkey = i.publicKey()
+	default:
+		rlog.V(1).Info("Token was signed by a peer node", "issuer", issuer)
+		issuingPeer, err := i.Storage.MeshDB().Peers().Get(r.Context(), types.NodeID(issuer))
+		if err != nil {
+			i.returnError(w, err)
+			return
+		}
+		wmkey, err := crypto.DecodePublicKey(issuingPeer.GetPublicKey())
+		if err != nil {
+			i.returnError(w, err)
+			return
+		}
+		pubkey = ed25519.PublicKey(wmkey.Bytes())
+	}
 	var cl IDClaims
-	if err := tok.Claims(i.publicKey(), &cl); err != nil {
+	if err := tok.Claims(pubkey, &cl); err != nil {
 		i.returnError(w, err)
 		return
 	}
@@ -157,6 +182,7 @@ func (i *IDTokenServer) signingOptions() *jose.SignerOptions {
 	return (&jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]any{
 			"kid": "webmesh",
+			"iss": i.Host.ID().String(),
 		},
 	}).WithType("JWT")
 }
