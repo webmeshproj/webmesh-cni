@@ -5,6 +5,7 @@ go 1.21.1
 require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.3.0
+	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.1
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
@@ -16,7 +17,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/webmeshproj/api v0.9.0
 	github.com/webmeshproj/storage-provider-k8s v0.2.13
-	github.com/webmeshproj/webmesh v0.14.10
+	github.com/webmeshproj/webmesh v0.14.11-0.20231019205112-d480916c4716
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.0

@@ -84,7 +84,7 @@ func NewServer(cfg Config) *Server {
 	mux := http.NewServeMux()
 	mux.Handle("/", srv)
 	if cfg.EnableIDTokens {
-		mux.Handle("/id-token", &IDTokenServer{srv})
+		mux.Handle("/id-tokens/", &IDTokenServer{srv})
 	}
 	srv.srv = &http.Server{
 		Addr:    addr.String(),
@@ -207,12 +207,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, base64.StdEncoding.EncodeToString(v))
 		default:
 			// Return as JSON
-			out, err := json.MarshalIndent(result, "", "  ")
-			if err != nil {
-				s.returnError(w, err)
-				return
-			}
-			fmt.Fprintln(w, string(out))
+			s.returnJSON(w, result)
 		}
 	}
 }
@@ -251,6 +246,15 @@ func (s *Server) getPeerInfoFromRequest(r *http.Request) (info PeerRequestInfo, 
 		err = fmt.Errorf("unknown IP address type: %s", raddr)
 	}
 	return
+}
+
+func (s *Server) returnJSON(w http.ResponseWriter, result any) {
+	out, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		s.returnError(w, err)
+		return
+	}
+	fmt.Fprintln(w, string(out))
 }
 
 func (s *Server) returnError(w http.ResponseWriter, err error) {
