@@ -117,6 +117,17 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		i.returnError(w, err)
 		return
 	}
+	expected := jwt.Expected{
+		Issuer:   r.URL.Query().Get("issuer"),
+		Subject:  r.URL.Query().Get("subject"),
+		Audience: []string{i.Host.Node().Domain()},
+		ID:       r.URL.Query().Get("id"),
+		Time:     time.Now().UTC(),
+	}
+	if err := cl.Validate(expected); err != nil {
+		i.returnError(w, err)
+		return
+	}
 	i.returnJSON(w, cl)
 }
 
