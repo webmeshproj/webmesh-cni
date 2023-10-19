@@ -19,6 +19,7 @@ package metadata
 import (
 	"context"
 	"net/netip"
+	"sync"
 
 	"github.com/go-logr/logr"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
@@ -35,6 +36,7 @@ var _ op.Storage = &OIDCStorage{}
 type OIDCStorage struct {
 	OIDCStorageOptions
 	log logr.Logger
+	mu  sync.RWMutex
 }
 
 // OIDCStorageOptions contains options for creating a new OIDCStorage.
@@ -56,4 +58,9 @@ func NewOIDCStorage(opts OIDCStorageOptions) *OIDCStorage {
 // Health returns the current health status of the storage.
 func (o *OIDCStorage) Health(ctx context.Context) error {
 	return nil
+}
+
+// debug is a helper for logging debug messages.
+func (o *OIDCStorage) debug(msg string, keysAndValues ...any) {
+	o.log.V(1).Info(msg, keysAndValues...)
 }
