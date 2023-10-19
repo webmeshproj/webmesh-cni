@@ -20,6 +20,7 @@ require (
 	github.com/webmeshproj/storage-provider-k8s v0.2.13
 	github.com/webmeshproj/webmesh v0.14.10
 	github.com/zitadel/oidc v1.13.5
+	golang.org/x/text v0.13.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.2
@@ -227,7 +228,6 @@ require (
 	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
