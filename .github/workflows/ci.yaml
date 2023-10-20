@@ -11,7 +11,7 @@ env:
   IMAGE_NAME: ghcr.io/webmeshproj/webmesh-cni
   VERSION: ${{ startswith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
   GO_VERSION: "1.21"
-  GOLANGCI_LINT_VERSION: v1.54.2
+  GOLANGCI_LINT_VERSION: v1.55.0
   DOCKER_PLATFORMS: linux/amd64,linux/arm64,linux/arm,linux/386,linux/ppc64le,linux/s390x
   CACHE_DEP_PATH: go.sum
   LINT_TIMEOUT: 10m
