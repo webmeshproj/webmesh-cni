@@ -139,6 +139,9 @@ type NetworkConfig struct {
 	DisableIPv4 bool `koanf:"disable-ipv4,omitempty"`
 	// DisableIPv6 disables IPv6 on the host webmesh node.
 	DisableIPv6 bool `koanf:"disable-ipv6,omitempty"`
+	// DisableRBAC disables RBAC controls on the webmesh network.
+	// This only takes during initial cluster bootstrap.
+	DisableRBAC bool `koanf:"disable-rbac,omitempty"`
 }
 
 // PodCIDRs returns the pod CIDRs.
@@ -194,6 +197,7 @@ func NewNetworkConfig() NetworkConfig {
 		Routes:                  []string{"0.0.0.0/0", "::/0"},
 		DisableIPv4:             false,
 		DisableIPv6:             false,
+		DisableRBAC:             true,
 	}
 }
 
@@ -206,6 +210,7 @@ func (n *NetworkConfig) BindFlags(prefix string, fs *pflag.FlagSet) {
 	fs.BoolVar(&n.WriteResolvConf, prefix+"write-resolv-conf", n.WriteResolvConf, "Write MeshDNS servers to the local resolv.conf")
 	fs.BoolVar(&n.DisableIPv4, prefix+"disable-ipv4", n.DisableIPv4, "Disable IPv4 on the host webmesh node")
 	fs.BoolVar(&n.DisableIPv6, prefix+"disable-ipv6", n.DisableIPv6, "Disable IPv6 on the host webmesh node")
+	fs.BoolVar(&n.DisableRBAC, prefix+"disable-rbac", n.DisableRBAC, "Disable RBAC controls on the webmesh network")
 }
 
 func (n *NetworkConfig) Validate() error {

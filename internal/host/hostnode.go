@@ -411,7 +411,7 @@ func (h *hostNode) bootstrap(ctx context.Context) error {
 		IPv6Network:          ipv6Cidr,
 		Admin:                meshstorage.DefaultMeshAdmin,
 		DefaultNetworkPolicy: meshstorage.DefaultNetworkPolicy,
-		DisableRBAC:          true, // Make this configurable?
+		DisableRBAC:          h.config.Network.DisableRBAC,
 	}
 	log.V(1).Info("Attempting to bootstrap network state", "options", bootstrapOpts)
 	networkState, err := meshstorage.Bootstrap(ctx, h.storage.MeshDB(), bootstrapOpts)

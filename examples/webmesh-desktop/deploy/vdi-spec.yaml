@@ -47,3 +47,37 @@ rules:
   - '*'
   verbs:
   - '*'
+---
+apiVersion: desktops.kvdi.io/v1
+kind: Template
+metadata:
+  name: ubuntu-xfce
+spec:
+  desktop:
+    image: ghcr.io/webmeshproj/desktop-ubuntu-base-xfce4:latest
+    imagePullPolicy: IfNotPresent
+    allowRoot: true
+  proxy:
+    image: ghcr.io/webmeshproj/vdi-proxy:latest
+    allowFileTransfer: true
+  tags:
+    os: ubuntu
+    desktop: xfce4
+    applications: minimal
+---
+apiVersion: desktops.kvdi.io/v1
+kind: Template
+metadata:
+  name: ubuntu-kde
+spec:
+  desktop:
+    image: ghcr.io/webmeshproj/desktop-ubuntu-base-kde:latest
+    imagePullPolicy: IfNotPresent
+    allowRoot: true
+  proxy:
+    image: ghcr.io/webmeshproj/vdi-proxy:latest
+    allowFileTransfer: true
+  tags:
+    os: ubuntu
+    desktop: kde
+    applications: minimal

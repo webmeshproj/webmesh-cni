@@ -35,5 +35,6 @@ patches:
                 - --host.plugins.id-auth.watch-id-files=true
                 - --host.services.api.disabled=false
                 - --host.services.api.mesh-enabled=true
+                - --host.services.api.admin-enabled=true
                 - --host.wireguard.listen-port=61820
                 - --manager.enable-metadata-id-tokens=true
