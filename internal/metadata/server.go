@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -197,6 +198,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		result, err := jmespath.Search(path, jsondata)
 		if err != nil {
+			if errors.As(err, &jmespath.SyntaxError{}) {
+				// Return a not found error
+				http.Error(w, "null", http.StatusNotFound)
+				return
+			}
 			s.returnError(w, err)
 			return
 		}

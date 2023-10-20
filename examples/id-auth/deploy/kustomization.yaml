@@ -37,3 +37,4 @@ patches:
                 - --host.services.api.disabled=false
                 - --host.services.api.mesh-enabled=true
                 - --host.wireguard.listen-port=61820
+                - --manager.enable-metadata-id-tokens=true
