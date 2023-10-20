@@ -49,6 +49,16 @@ type IDClaims struct {
 // ServeHTTP implements http.Handler and will handle token issuance and validation.
 func (i *IDTokenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rlog := log.FromContext(r.Context())
+	if r.Method == http.MethodOptions {
+		// Handle CORS preflight requests.
+		rlog.Info("Serving CORS preflight request", "path", r.URL.Path)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	rlog.Info("Serving metadata request", "path", r.URL.Path)
 	switch r.URL.Path {
 	case "/id-tokens/issue":
