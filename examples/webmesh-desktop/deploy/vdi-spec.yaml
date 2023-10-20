@@ -29,3 +29,21 @@ spec:
     k8sSecret:
       secretName: kvdi-app-secrets
   userdataSpec: {}
+---
+apiVersion: rbac.kvdi.io/v1
+kind: VDIRole
+metadata:
+  name: webmesh-desktop-admin
+  annotations:
+    kvdi.io/webmesh-groups: desktop-admins
+  labels:
+    kvdi.io/cluster-ref: desktops
+rules:
+- namespaces:
+  - '*'
+  resourcePatterns:
+  - .*
+  resources:
+  - '*'
+  verbs:
+  - '*'

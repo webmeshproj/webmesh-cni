@@ -123,6 +123,7 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := map[string]any{
+		"id":      peerkey.ID(),
 		"token":   raw,
 		"expires": cl.Expiry.Time().Format(time.RFC3339),
 	}
