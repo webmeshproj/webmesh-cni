@@ -90,7 +90,7 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 				if info.Peer.GetId() == peerkey.ID() {
 					// Don't include the ID if it's the same as the subject.
 					// Saves space and makes it easier to read.
-					return ":subject"
+					return ":sub"
 				}
 				return peerkey.ID()
 			}(),
