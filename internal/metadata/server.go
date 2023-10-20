@@ -61,7 +61,7 @@ type Config struct {
 // NodeKeyResolver is an interface that can retrieve the private key of
 // a node hosted on this server.
 type NodeKeyResolver interface {
-	LookupPrivateKey(ctx context.Context, nodeID types.NodeID) (crypto.PrivateKey, bool)
+	LookupPrivateKey(nodeID types.NodeID) (crypto.PrivateKey, bool)
 }
 
 // Server is the container metadata server.
@@ -147,7 +147,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			keys = append(keys, k)
 		}
 		// Append the privateKey key if the request is local or we have a key resolver.
-		if peerInfo.Local || s.KeyResolver != nil {
+		havePrivKey := peerInfo.Local
+		if !havePrivKey && s.KeyResolver != nil {
+			// Check if this is a managed node.
+			_, havePrivKey = s.KeyResolver.LookupPrivateKey(peerInfo.Peer.NodeID())
+		}
+		if havePrivKey {
 			keys = append(keys, "privateKey")
 		}
 		sort.Strings(keys)
@@ -170,7 +175,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				var ok bool
-				privkey, ok = s.KeyResolver.LookupPrivateKey(r.Context(), peerInfo.Peer.NodeID())
+				privkey, ok = s.KeyResolver.LookupPrivateKey(peerInfo.Peer.NodeID())
 				if !ok {
 					s.returnError(w, fmt.Errorf("no private key found for node %s", peerInfo.Peer.NodeID()))
 					return
