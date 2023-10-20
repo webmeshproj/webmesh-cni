@@ -25,7 +25,6 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/webmeshproj/webmesh/pkg/crypto"
 	"github.com/webmeshproj/webmesh/pkg/storage/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -34,11 +33,17 @@ import (
 // tokens for clients to use to access other services in the cluster.
 type IDTokenServer struct{ *Server }
 
+// SignerHeader is the header specifying which node signed the token.
+const SignerHeader = "cni"
+
+// Now is a function that returns the current time. It is used to override
+// the time used for token validation.
+var Now = time.Now
+
 // IDClaims are the claims for an ID token.
 type IDClaims struct {
 	jwt.Claims `json:",inline"`
 	Groups     []string `json:"groups"`
-	Scopes     []string `json:"scopes"`
 }
 
 // ServeHTTP implements http.Handler and will handle token issuance and validation.
@@ -68,7 +73,7 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 		i.returnError(w, err)
 		return
 	}
-	pubkey, err := crypto.DecodePublicKey(info.Peer.GetPublicKey())
+	peerkey, err := info.Peer.DecodePublicKey()
 	if err != nil {
 		i.returnError(w, err)
 		return
@@ -78,13 +83,12 @@ func (i *IDTokenServer) issueToken(w http.ResponseWriter, r *http.Request) {
 			Issuer:    i.Host.ID().String(),
 			Subject:   info.Peer.GetId(),
 			Audience:  i.audience(),
-			Expiry:    jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
-			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
-			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
-			ID:        pubkey.ID(),
+			Expiry:    jwt.NewNumericDate(Now().UTC().Add(5 * time.Minute)),
+			NotBefore: jwt.NewNumericDate(Now().UTC()),
+			IssuedAt:  jwt.NewNumericDate(Now().UTC()),
+			ID:        peerkey.ID(),
 		},
 		Groups: []string{},
-		Scopes: []string{"webmesh", "groups"},
 	}
 	groups, err := i.Storage.MeshDB().RBAC().ListGroups(r.Context())
 	if err == nil {
@@ -121,10 +125,12 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		i.returnError(w, err)
 		return
 	}
-	issuer, ok := tok.Headers[0].ExtraHeaders["iss"].(string)
-	if !ok {
-		// Assume the issuer is the host ID.
-		issuer = i.Host.ID().String()
+	issuer := i.Host.ID().String()
+	if len(tok.Headers) > 0 {
+		peer, ok := tok.Headers[0].ExtraHeaders[SignerHeader].(string)
+		if ok {
+			issuer = peer
+		}
 	}
 	var pubkey ed25519.PublicKey
 	switch issuer {
@@ -138,12 +144,12 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 			i.returnError(w, err)
 			return
 		}
-		wmkey, err := crypto.DecodePublicKey(issuingPeer.GetPublicKey())
+		wmkey, err := issuingPeer.DecodePublicKey()
 		if err != nil {
 			i.returnError(w, err)
 			return
 		}
-		pubkey = ed25519.PublicKey(wmkey.Bytes())
+		pubkey = wmkey.AsNative()
 	}
 	var cl IDClaims
 	if err := tok.Claims(pubkey, &cl); err != nil {
@@ -158,7 +164,7 @@ func (i *IDTokenServer) validateToken(w http.ResponseWriter, r *http.Request) {
 		// Ensure it's the audience we expect.
 		Audience: i.audience(),
 		// Ensure the token is not expired.
-		Time: time.Now().UTC(),
+		Time: Now().UTC(),
 	}
 	if err := cl.Validate(expected); err != nil {
 		i.returnError(w, err)
@@ -181,18 +187,17 @@ func (i *IDTokenServer) signingKey() jose.SigningKey {
 func (i *IDTokenServer) signingOptions() *jose.SignerOptions {
 	return (&jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]any{
-			"kid": "webmesh",
-			"iss": i.Host.ID().String(),
+			SignerHeader: i.Host.ID().String(),
 		},
 	}).WithType("JWT")
 }
 
 func (i *IDTokenServer) privateKey() ed25519.PrivateKey {
-	return ed25519.PrivateKey(i.Host.Node().Key().Bytes())
+	return i.Host.Node().Key().AsNative()
 }
 
 func (i *IDTokenServer) publicKey() ed25519.PublicKey {
-	return ed25519.PublicKey(i.Host.Node().Key().PublicKey().Bytes())
+	return i.Host.Node().Key().PublicKey().AsNative()
 }
 
 func (i *IDTokenServer) audience() jwt.Audience {
