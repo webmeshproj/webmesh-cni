@@ -2,18 +2,21 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: desktops
+  name: vdi
 ---
 apiVersion: app.kvdi.io/v1
 kind: VDICluster
 metadata:
-  name: vdi
+  name: desktops
 spec:
-  appNamespace: desktops
+  appNamespace: vdi
   app:
-    image: "ghcr.io/webmeshproj/vdi-app:latest"
+    image: ghcr.io/webmeshproj/vdi-app:latest
     replicas: 1
+    serviceName: desktops
     serviceType: ClusterIP
+    tls:
+      disable: true
   auth:
     adminSecret: kvdi-admin-secret
     allowAnonymous: false
