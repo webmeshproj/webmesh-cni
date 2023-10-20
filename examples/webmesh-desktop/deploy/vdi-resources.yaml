@@ -1,3 +1,4 @@
+# The VDI deployment
 ---
 apiVersion: v1
 kind: Namespace
@@ -30,6 +31,7 @@ spec:
       secretName: kvdi-app-secrets
   userdataSpec: {}
 ---
+# An admin role for people in the "desktop-admins" webmesh group.
 apiVersion: rbac.kvdi.io/v1
 kind: VDIRole
 metadata:
@@ -48,6 +50,7 @@ rules:
   verbs:
   - '*'
 ---
+# Desktop templates
 apiVersion: desktops.kvdi.io/v1
 kind: Template
 metadata:
@@ -63,7 +66,6 @@ spec:
   tags:
     os: ubuntu
     desktop: xfce4
-    applications: minimal
 ---
 apiVersion: desktops.kvdi.io/v1
 kind: Template
@@ -80,4 +82,3 @@ spec:
   tags:
     os: ubuntu
     desktop: kde
-    applications: minimal
