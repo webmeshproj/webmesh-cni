@@ -18,6 +18,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,6 +39,21 @@ func init() {
 func main() {
 	// We run the entrypoint based on how we were invoked.
 	version := version.GetBuildInfo()
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println(version.PrettyJSON(func() string {
+			switch filepath.Base(os.Args[0]) {
+			case "webmesh":
+				return "webmesh-cni"
+			case "webmesh-cni-node", "webmesh-node":
+				return "webmesh-cni-node"
+			case "webmesh-cni-install":
+				return "webmesh-cni-install"
+			default:
+				return filepath.Base(os.Args[0])
+			}
+		}()))
+		os.Exit(0)
+	}
 	switch filepath.Base(os.Args[0]) {
 	case "webmesh":
 		plugin.Main(version)

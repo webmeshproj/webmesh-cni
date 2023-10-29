@@ -24,7 +24,7 @@ import (
 // Compile-time variables set by the build script.
 var (
 	Version   = "0.0.0"
-	Commit    = "unknown"
+	GitCommit = "unknown"
 	BuildDate = "unknown"
 )
 
@@ -32,7 +32,7 @@ var (
 func GetBuildInfo() version.BuildInfo {
 	return version.BuildInfo{
 		Version:   Version,
-		Commit:    Commit,
+		GitCommit: GitCommit,
 		BuildDate: BuildDate,
 	}
 }
