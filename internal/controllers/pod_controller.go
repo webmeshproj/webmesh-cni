@@ -22,7 +22,7 @@ import (
 	"net/netip"
 	"time"
 
-	v1 "github.com/webmeshproj/api/v1"
+	v1 "github.com/webmeshproj/api/go/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	corev1 "k8s.io/api/core/v1"

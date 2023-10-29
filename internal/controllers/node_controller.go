@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/webmeshproj/api/v1"
+	v1 "github.com/webmeshproj/api/go/v1"
 	storagev1 "github.com/webmeshproj/storage-provider-k8s/api/storage/v1"
 	"github.com/webmeshproj/storage-provider-k8s/provider"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"

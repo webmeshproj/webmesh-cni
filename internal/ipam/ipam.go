@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/netip"
 
-	v1 "github.com/webmeshproj/api/v1"
+	v1 "github.com/webmeshproj/api/go/v1"
 	meshplugins "github.com/webmeshproj/webmesh/pkg/plugins"
 	meshtypes "github.com/webmeshproj/webmesh/pkg/storage/types"
 	"k8s.io/client-go/rest"

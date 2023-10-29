@@ -25,7 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	v1 "github.com/webmeshproj/api/v1"
+	v1 "github.com/webmeshproj/api/go/v1"
 	meshcontext "github.com/webmeshproj/webmesh/pkg/context"
 	"github.com/webmeshproj/webmesh/pkg/logging"
 	"github.com/webmeshproj/webmesh/pkg/meshnet"
@@ -414,7 +414,7 @@ func (h *hostNode) bootstrap(ctx context.Context) error {
 		DisableRBAC:          h.config.Network.DisableRBAC,
 	}
 	log.V(1).Info("Attempting to bootstrap network state", "options", bootstrapOpts)
-	networkState, err := meshstorage.Bootstrap(ctx, h.storage.MeshDB(), bootstrapOpts)
+	networkState, err := meshstorage.Bootstrap(ctx, h.storage.MeshDB(), &bootstrapOpts)
 	if err != nil && !mesherrors.Is(err, mesherrors.ErrAlreadyBootstrapped) {
 		log.Error(err, "Unable to bootstrap network state")
 		return fmt.Errorf("failed to bootstrap network state: %w", err)
