@@ -1,5 +1,8 @@
 # webmesh-cni
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/webmeshproj/webmesh-cni)](https://goreportcard.com/report/github.com/webmeshproj/webmesh-cni)
+![Build and Tests](https://github.com/webmeshproj/webmesh-cni/actions/workflows/ci.yaml/badge.svg)
+
 This is a CNI plugin for Kubernetes that allows you to connect pods to a Webmesh network.
 You may then optionally expose the nodes running the CNI plugin to remote users or networks.
 
