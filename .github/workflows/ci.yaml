@@ -42,7 +42,7 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout ${{ env.LINT_TIMEOUT }}
-          skip-cache: ${{ vars.E2E_PLATFORM == 'self-hosted' }}
+          skip-cache: ${{ startswith(vars.E2E_PLATFORM, 'self-hosted') }}
 
   tests:
     name: Unit Tests
@@ -55,7 +55,7 @@ jobs:
 
       - name: Setup Test Cache
         uses: actions/cache@v3
-        if: ${{ vars.E2E_PLATFORM != 'self-hosted' }}
+        if: ${{ !startswith(vars.E2E_PLATFORM, 'self-hosted') }}
         with:
           key: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-ci-tests-go-${{ env.GO_VERSION }}-
@@ -87,7 +87,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
-        if: ${{ vars.E2E_PLATFORM != 'self-hosted' }}
+        if: ${{ !startswith(vars.E2E_PLATFORM, 'self-hosted') }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
@@ -152,7 +152,7 @@ jobs:
 
       - name: Setup Build Cache
         uses: actions/cache@v3
-        if: ${{ vars.BUILD_PLATFORM != 'self-hosted' }}
+        if: ${{ !startswith(vars.BUILD_PLATFORM, 'self-hosted') }}
         with:
           key: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-${{ hashFiles(env.CACHE_DEP_PATH) }}
           restore-keys: ${{ runner.os }}-build-go-${{ env.GO_VERSION }}-
